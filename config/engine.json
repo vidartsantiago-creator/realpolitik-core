@@ -1,0 +1,9 @@
+{
+  "seed": 42,
+  "tickRate": 1000,
+  "mode": "continuous",
+  "batchWindow": 30,
+  "wsPort": 8080,
+  "maxDebt": -1000,
+  "asyncTurnWindow": 300
+}

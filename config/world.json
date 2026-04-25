@@ -1,0 +1,66 @@
+{
+  "tick": 0,
+  "version": 0,
+  "nations": {
+    "ARG": {
+      "name": "Argentina",
+      "stats": {
+        "budget": 100,
+        "stability": 50,
+        "gdp": 500,
+        "population": 45
+      },
+      "resources": {
+        "energy": 100,
+        "food": 100,
+        "materials": 100
+      },
+      "policies": []
+    },
+    "BRA": {
+      "name": "Brasil",
+      "stats": {
+        "budget": 150,
+        "stability": 60,
+        "gdp": 800,
+        "population": 210
+      },
+      "resources": {
+        "energy": 120,
+        "food": 150,
+        "materials": 130
+      },
+      "policies": []
+    },
+    "USA": {
+      "name": "Estados Unidos",
+      "stats": {
+        "budget": 500,
+        "stability": 70,
+        "gdp": 2500,
+        "population": 330
+      },
+      "resources": {
+        "energy": 200,
+        "food": 200,
+        "materials": 180
+      },
+      "policies": []
+    }
+  },
+  "diplomacy": {
+    "relations": {},
+    "channels": {}
+  },
+  "factions": {},
+  "crisis": {
+    "active": false,
+    "phase": 0,
+    "type": null,
+    "treaties": {}
+  },
+  "espionage": {
+    "operations": {},
+    "signals": []
+  }
+}

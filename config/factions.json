@@ -1,0 +1,73 @@
+{
+  "factions": {
+    "ARG": [
+      {
+        "id": "military",
+        "name": "Junta Militar",
+        "initialLoyalty": 50,
+        "weight": 0.3,
+        "demands": ["military_budget_increase", "national_security"]
+      },
+      {
+        "id": "business",
+        "name": "Elite Empresarial",
+        "initialLoyalty": 60,
+        "weight": 0.4,
+        "demands": ["tax_reduction", "deregulation"]
+      },
+      {
+        "id": "labor",
+        "name": "Sindicatos",
+        "initialLoyalty": 40,
+        "weight": 0.3,
+        "demands": ["wage_increase", "worker_protection"]
+      }
+    ],
+    "BRA": [
+      {
+        "id": "military",
+        "name": "Forças Armadas",
+        "initialLoyalty": 55,
+        "weight": 0.25,
+        "demands": ["border_security", "modernization"]
+      },
+      {
+        "id": "business",
+        "name": "Agronegócio",
+        "initialLoyalty": 65,
+        "weight": 0.45,
+        "demands": ["export_support", "infrastructure"]
+      },
+      {
+        "id": "social",
+        "name": "Movimentos Sociais",
+        "initialLoyalty": 45,
+        "weight": 0.3,
+        "demands": ["land_reform", "social_programs"]
+      }
+    ],
+    "USA": [
+      {
+        "id": "hawks",
+        "name": "Halcones de Defensa",
+        "initialLoyalty": 60,
+        "weight": 0.35,
+        "demands": ["defense_spending", "global_presence"]
+      },
+      {
+        "id": "tech",
+        "name": "Sector Tecnológico",
+        "initialLoyalty": 70,
+        "weight": 0.4,
+        "demands": ["innovation_funding", "trade_agreements"]
+      },
+      {
+        "id": "progressive",
+        "name": "Progresistas",
+        "initialLoyalty": 45,
+        "weight": 0.25,
+        "demands": ["climate_action", "social_equity"]
+      }
+    ]
+  }
+}
