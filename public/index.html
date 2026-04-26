@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealPolitik Core - Status</title>
+    <title>RealPolitik - Global Dynamics</title>
     <style>
         :root {
             --bg-primary: #0a0a0f;
             --bg-secondary: #12121a;
+            --bg-panel: #1a1a25;
             --text-primary: #e0e0e0;
             --text-secondary: #a0a0a0;
             --accent: #00ff9d;
@@ -16,6 +17,9 @@
             --success: #00ff9d;
             --warning: #ffbd2e;
             --error: #ff4757;
+            --metric-high: #00ff9d;
+            --metric-medium: #ffbd2e;
+            --metric-low: #ff4757;
         }
 
         * {
@@ -28,401 +32,442 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 2rem;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            grid-template-rows: 60px 1fr 200px;
+            grid-template-areas:
+                "header header header"
+                "dashboard map decisions"
+                "dashboard map feed";
         }
 
-        .container {
-            max-width: 800px;
-            width: 100%;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding-bottom: 2rem;
+        /* Header */
+        .header {
+            grid-area: header;
+            background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
         }
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
+        .header h1 {
+            font-size: 1.5rem;
             background: linear-gradient(135deg, var(--accent), #00b8ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
-        .subtitle {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-        }
-
-        .status-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 2rem;
-            margin-bottom: 1.5rem;
-            transition: all 0.3s ease;
-        }
-
-        .status-card:hover {
-            border-color: var(--accent-dim);
-            box-shadow: 0 0 20px var(--accent-dim);
-        }
-
-        .status-header {
+        .header-info {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
+            gap: 2rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
         }
 
-        .status-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .status-indicator {
+        .header-info span {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 600;
         }
 
-        .status-indicator.online {
-            background: var(--accent-dim);
-            color: var(--success);
+        /* Dashboard (Izquierda) */
+        .dashboard {
+            grid-area: dashboard;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem;
+            overflow-y: auto;
         }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: currentColor;
-            animation: pulse 2s infinite;
+        .dashboard h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .metric-group {
+            margin-bottom: 1.5rem;
         }
 
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .info-item {
-            background: rgba(255, 255, 255, 0.03);
-            padding: 1rem;
-            border-radius: 8px;
-            border-left: 3px solid var(--accent);
-        }
-
-        .info-label {
+        .metric-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
             font-size: 0.85rem;
             color: var(--text-secondary);
-            margin-bottom: 0.3rem;
         }
 
-        .info-value {
-            font-size: 1.1rem;
+        .metric-value {
             font-weight: 600;
             color: var(--text-primary);
         }
 
-        .modules-list {
-            list-style: none;
+        .metric-bar-container {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .metric-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .metric-high { background: var(--metric-high); }
+        .metric-medium { background: var(--metric-medium); }
+        .metric-low { background: var(--metric-low); }
+
+        /* Mapa (Centro) */
+        .map-container {
+            grid-area: map;
+            background: var(--bg-primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .map-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+        }
+
+        .map-placeholder h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+
+        .layer-toggles {
+            display: flex;
+            gap: 0.5rem;
             margin-top: 1rem;
         }
 
-        .modules-list li {
-            padding: 0.75rem;
-            margin: 0.5rem 0;
-            background: rgba(255, 255, 255, 0.02);
+        .layer-toggle {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 0.5rem 1rem;
             border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
         }
 
-        .module-name {
-            font-weight: 500;
-        }
-
-        .module-status {
-            font-size: 0.85rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
+        .layer-toggle:hover, .layer-toggle.active {
+            border-color: var(--accent);
             background: var(--accent-dim);
-            color: var(--success);
         }
 
-        .ws-info {
-            margin-top: 2rem;
+        /* Decisiones (Derecha Superior) */
+        .decisions {
+            grid-area: decisions;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
             padding: 1.5rem;
-            background: rgba(0, 255, 157, 0.05);
-            border: 1px solid var(--accent-dim);
-            border-radius: 8px;
-            text-align: center;
+            overflow-y: auto;
         }
 
-        .ws-url {
-            font-family: 'Courier New', monospace;
+        .decisions h2 {
             font-size: 1.1rem;
+            margin-bottom: 1rem;
             color: var(--accent);
-            margin: 1rem 0;
-            padding: 0.75rem;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 6px;
-            word-break: break-all;
         }
 
-        footer {
-            margin-top: auto;
-            padding-top: 2rem;
-            text-align: center;
+        .policy-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .policy-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .policy-description {
+            font-size: 0.85rem;
             color: var(--text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+
+        .policy-timer {
             font-size: 0.9rem;
+            color: var(--warning);
+            margin-bottom: 1rem;
+            font-weight: 600;
         }
 
-        .loading {
+        .policy-option {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .policy-option:hover {
+            border-color: var(--accent);
+        }
+
+        .policy-option.selected {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        .policy-option.conservative {
+            border-left: 3px solid var(--success);
+        }
+
+        .option-label {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .option-details {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Feed (Derecha Inferior) */
+        .intel-feed {
+            grid-area: feed;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .intel-feed h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        .feed-item {
+            background: rgba(255, 255, 255, 0.02);
+            border-left: 3px solid var(--border);
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .feed-item.tag-internal { border-left-color: var(--warning); }
+        .feed-item.tag-external { border-left-color: var(--accent); }
+        .feed-item.tag-public { border-left-color: var(--text-secondary); }
+
+        .feed-tag {
             display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 3px;
+            margin-right: 0.5rem;
+            font-weight: 600;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .tag-internal .feed-tag { background: var(--warning); color: #000; }
+        .tag-external .feed-tag { background: var(--accent); color: #000; }
+        .tag-public .feed-tag { background: var(--text-secondary); color: #000; }
+
+        .feed-text {
+            font-size: 0.85rem;
+            display: block;
+            margin: 0.25rem 0;
+        }
+
+        .feed-confidence {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+        }
+
+        /* Panel Rápido (Inferior - colapsable) */
+        .quick-panel {
+            display: none; /* Por ahora oculto, se implementará en Fase 2 */
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🏛️ RealPolitik Core</h1>
-            <p class="subtitle">Motor de Simulación Geopolítica - Fase 0</p>
-        </header>
+    <!-- Header -->
+    <header class="header">
+        <h1>🏛️ RealPolitik: Global Dynamics</h1>
+        <div class="header-info">
+            <span id="nation-name">🇦🇷 Argentina</span>
+            <span id="tick-display">Tick: 0</span>
+            <span id="connection-status">🟢 Conectado</span>
+        </div>
+    </header>
 
-        <main>
-            <div class="status-card">
-                <div class="status-header">
-                    <span class="status-title">Estado del Servidor</span>
-                    <div class="status-indicator online" id="serverStatus">
-                        <span class="status-dot"></span>
-                        <span id="statusText">Conectado</span>
-                    </div>
-                </div>
-
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Tiempo de Ejecución</div>
-                        <div class="info-value" id="uptime">Calculando...</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Tick Actual</div>
-                        <div class="info-value" id="currentTick">--</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Velocidad de Simulación</div>
-                        <div class="info-value" id="tickRate">-- TPS</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Naciones Activas</div>
-                        <div class="info-value" id="nationCount">--</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="status-card">
-                <div class="status-header">
-                    <span class="status-title">Módulos Cargados</span>
-                </div>
-                <ul class="modules-list" id="modulesList">
-                    <li>
-                        <span class="module-name">Cargando módulos...</span>
-                        <span class="loading"></span>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="ws-info">
-                <h3>🔌 Conexión WebSocket</h3>
-                <p style="color: var(--text-secondary); margin-top: 0.5rem;">
-                    Conéctate para recibir actualizaciones en tiempo real
-                </p>
-                <div class="ws-url" id="wsUrl">ws://localhost:8080</div>
-                <p style="font-size: 0.85rem; color: var(--text-secondary);">
-                    Estado: <span id="wsStatus">Desconectado</span>
-                </p>
-            </div>
-        </main>
-
-        <footer>
-            <p>RealPolitik Core v2.0 | Motor Determinista de Simulación Geopolítica</p>
-            <p style="margin-top: 0.5rem;">Fase 0: Núcleo Funcional MVP</p>
-        </footer>
-    </div>
-
-    <script>
-        // Configuración
-        const WS_URL = `ws://${window.location.host}`;
+    <!-- Tablero de Mando (Izquierda) -->
+    <aside class="dashboard">
+        <h2>📊 Tablero de Mando</h2>
         
-        // Estado local
-        let ws = null;
-        let startTime = Date.now();
-        let lastTick = 0;
-        let tickHistory = [];
+        <div class="metric-group">
+            <div class="metric-label">
+                <span>Estabilidad</span>
+                <span class="metric-value" id="stability-value">--</span>
+            </div>
+            <div class="metric-bar-container">
+                <div class="metric-fill" id="stability-bar" style="width: 0%"></div>
+            </div>
+        </div>
 
-        // Elementos DOM
-        const elements = {
-            uptime: document.getElementById('uptime'),
-            currentTick: document.getElementById('currentTick'),
-            tickRate: document.getElementById('tickRate'),
-            nationCount: document.getElementById('nationCount'),
-            modulesList: document.getElementById('modulesList'),
-            wsStatus: document.getElementById('wsStatus'),
-            wsUrl: document.getElementById('wsUrl')
-        };
+        <div class="metric-group">
+            <div class="metric-label">
+                <span>Presupuesto</span>
+                <span class="metric-value" id="budget-value">--</span>
+            </div>
+            <div class="metric-bar-container">
+                <div class="metric-fill" id="budget-bar" style="width: 0%"></div>
+            </div>
+        </div>
 
-        elements.wsUrl.textContent = WS_URL;
+        <div class="metric-group">
+            <div class="metric-label">
+                <span>Apoyo Popular</span>
+                <span class="metric-value" id="support-value">--</span>
+            </div>
+            <div class="metric-bar-container">
+                <div class="metric-fill" id="support-bar" style="width: 0%"></div>
+            </div>
+        </div>
 
-        // Formatear tiempo
-        function formatUptime(ms) {
-            const seconds = Math.floor(ms / 1000);
-            const minutes = Math.floor(seconds / 60);
-            const hours = Math.floor(minutes / 60);
-            
-            if (hours > 0) {
-                return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
-            } else if (minutes > 0) {
-                return `${minutes}m ${seconds % 60}s`;
-            }
-            return `${seconds}s`;
-        }
+        <div class="metric-group">
+            <div class="metric-label">
+                <span>Poder Militar</span>
+                <span class="metric-value" id="military-value">--</span>
+            </div>
+            <div class="metric-bar-container">
+                <div class="metric-fill" id="military-bar" style="width: 0%"></div>
+            </div>
+        </div>
+    </aside>
 
-        // Calcular TPS
-        function calculateTPS() {
-            if (tickHistory.length < 2) return 0;
-            const now = Date.now();
-            const recentTicks = tickHistory.filter(t => now - t < 1000);
-            return recentTicks.length;
-        }
+    <!-- Mapa Geopolítico (Centro) -->
+    <main class="map-container" id="map-container">
+        <!-- Renderizado por UI.js -->
+    </main>
 
-        // Actualizar UI
-        function updateUI(data) {
-            if (data.tick !== undefined) {
-                elements.currentTick.textContent = data.tick;
-                if (data.tick !== lastTick) {
-                    tickHistory.push(Date.now());
-                    lastTick = data.tick;
+    <!-- Centro de Decisiones (Derecha Superior) -->
+    <section class="decisions">
+        <h2>🎴 Centro de Decisiones</h2>
+        <div class="policy-card" id="policy-card">
+            <h3 class="policy-title" id="policy-title">Cargando...</h3>
+            <p class="policy-description" id="policy-description"></p>
+            <div class="policy-timer" id="policy-timer">--:--</div>
+            <div class="policy-options" id="policy-options">
+                <!-- Opciones renderizadas dinámicamente -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Feed de Inteligencia (Derecha Inferior) -->
+    <section class="intel-feed">
+        <h2>📡 Feed de Inteligencia</h2>
+        <div id="intel-feed">
+            <!-- Items renderizados dinámicamente -->
+        </div>
+    </section>
+
+    <!-- Panel Rápido (Oculto por ahora) -->
+    <section class="quick-panel" id="faction-panel">
+        <!-- Facciones renderizadas dinámicamente -->
+    </section>
+
+    <!-- Scripts modulares -->
+    <script type="module">
+        import { initSyncClient, subscribe, getState } from './client/SyncClient.js';
+        import { initUI, renderDashboard, renderMap, renderPolicyCenter, renderIntelFeed, updateTickDisplay, setNationName } from './client/UI.js';
+
+        console.log('🚀 RealPolitik Game Interface initialized');
+
+        // Inicializar sincronización
+        initSyncClient();
+
+        // Inicializar UI
+        initUI();
+
+        // Suscribirse a actualizaciones de estado
+        subscribe((eventType, data) => {
+            console.log('[UI] Evento recibido:', eventType, data);
+
+            if (eventType === 'state_update' && data.state) {
+                const state = data.state;
+                
+                // Actualizar dashboard con stats de la nación jugadora
+                if (state.nations && state.nations.ARG) {
+                    renderDashboard(state.nations.ARG.stats);
+                    setNationName(`🇦🇷 ${state.nations.ARG.name || 'Argentina'}`);
+                }
+
+                // Actualizar tick
+                if (state.tick !== undefined) {
+                    updateTickDisplay(state.tick);
+                }
+
+                // Renderizar mapa
+                renderMap(state);
+
+                // Renderizar políticas activas
+                if (state.activePolicy) {
+                    renderPolicyCenter(state.activePolicy);
+                }
+
+                // Renderizar feed de inteligencia
+                if (state.intelFeed) {
+                    renderIntelFeed(state.intelFeed);
                 }
             }
-            
-            if (data.nations !== undefined) {
-                elements.nationCount.textContent = data.nations;
+
+            if (eventType === 'tick' && data.tick) {
+                updateTickDisplay(data.tick);
             }
 
-            elements.uptime.textContent = formatUptime(Date.now() - startTime);
-            elements.tickRate.textContent = `${calculateTPS()} TPS`;
-
-            // Limpiar ticks antiguos
-            const now = Date.now();
-            tickHistory = tickHistory.filter(t => now - t < 1000);
-        }
-
-        // Renderizar módulos
-        function renderModules(modules) {
-            if (!modules || modules.length === 0) {
-                elements.modulesList.innerHTML = `
-                    <li>
-                        <span class="module-name">No hay módulos disponibles</span>
-                    </li>
-                `;
-                return;
+            if (eventType === 'policy_decision' && data.decision) {
+                renderPolicyCenter(data.decision);
             }
 
-            elements.modulesList.innerHTML = modules.map(mod => `
-                <li>
-                    <span class="module-name">${mod.name || mod}</span>
-                    <span class="module-status">Activo</span>
-                </li>
-            `).join('');
-        }
-
-        // Conectar WebSocket
-        function connectWebSocket() {
-            ws = new WebSocket(WS_URL);
-
-            ws.onopen = () => {
-                elements.wsStatus.textContent = 'Conectado';
-                elements.wsStatus.style.color = 'var(--success)';
-                console.log('✅ Conectado al servidor WebSocket');
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.type === 'state_update' || data.type === 'tick') {
-                        updateUI({
-                            tick: data.state?.tick || data.tick,
-                            nations: data.state?.nations?.length
-                        });
-                    }
-                    
-                    if (data.type === 'init' && data.modules) {
-                        renderModules(data.modules);
-                    }
-                } catch (e) {
-                    console.error('Error parsing message:', e);
-                }
-            };
-
-            ws.onclose = () => {
-                elements.wsStatus.textContent = 'Desconectado - Reconectando...';
-                elements.wsStatus.style.color = 'var(--warning)';
-                setTimeout(connectWebSocket, 3000);
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                elements.wsStatus.textContent = 'Error de conexión';
-                elements.wsStatus.style.color = 'var(--error)';
-            };
-        }
-
-        // Inicializar
-        function init() {
-            console.log('🚀 RealPolitik Core Dashboard initialized');
-            connectWebSocket();
-            
-            // Actualizar uptime cada segundo
-            setInterval(() => {
-                elements.uptime.textContent = formatUptime(Date.now() - startTime);
-                elements.tickRate.textContent = `${calculateTPS()} TPS`;
-            }, 1000);
-        }
-
-        // Iniciar cuando el DOM esté listo
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            init();
-        }
+            if (eventType === 'intel_update' && data.items) {
+                renderIntelFeed(data.items);
+            }
+        });
     </script>
 </body>
 </html>

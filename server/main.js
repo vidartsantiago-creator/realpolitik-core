@@ -31,6 +31,7 @@ import { init as initGlobalState } from '../modules/GlobalState.js';
 import { init as initFactionRule } from '../modules/FactionRule.js';
 import { init as initCrisisRule } from '../modules/CrisisRule.js';
 import { init as initEspionageRule } from '../modules/EspionageRule.js';
+import { init as initUIMessageHandler } from '../server/UIMessageHandler.js';
 
 /**
  * Carga y parsea un archivo JSON de configuración.
@@ -84,7 +85,8 @@ function initializeModules(config, activeModules) {
     GlobalState: initGlobalState,
     FactionRule: initFactionRule,
     CrisisRule: initCrisisRule,
-    EspionageRule: initEspionageRule
+    EspionageRule: initEspionageRule,
+    UIMessageHandler: initUIMessageHandler
   };
 
   console.log('[main] Inicializando módulos activos...');
