@@ -9,21 +9,28 @@
  * - v1.0.0: Creación inicial. Implementa inicialización secuencial del core y carga de módulos.
  */
 
-import { initRng } from './core/Rng.js';
-import { on, emit } from './core/EventDispatcher.js';
-import { setInitialState, applyDelta, getState, snapshot } from './core/StateManager.js';
-import { initTimeEngine, start, onTickStart, onTickEnd, executeTick } from './core/TimeEngine.js';
-import { initWebSocketServer } from './network/WebSocketServer.js';
+import { initRng } from '../core/Rng.js';
+import { on, emit } from '../core/EventDispatcher.js';
+import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
+import { initTimeEngine, start, onTickStart, onTickEnd, executeTick } from '../core/TimeEngine.js';
+import { initWebSocketServer } from '../network/WebSocketServer.js';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Importar módulos de reglas (se registrarán dinámicamente)
-import { init as initEconomyRule } from './modules/EconomyRule.js';
-import { init as initDiplomacyRule } from './modules/DiplomacyRule.js';
-import { init as initPolicyRule } from './modules/PolicyRule.js';
-import { init as initInformationLayer } from './modules/InformationLayer.js';
-import { init as initGlobalState } from './modules/GlobalState.js';
-import { init as initFactionRule } from './modules/FactionRule.js';
-import { init as initCrisisRule } from './modules/CrisisRule.js';
-import { init as initEspionageRule } from './modules/EspionageRule.js';
+import { init as initEconomyRule } from '../modules/EconomyRule.js';
+import { init as initDiplomacyRule } from '../modules/DiplomacyRule.js';
+import { init as initPolicyRule } from '../modules/PolicyRule.js';
+import { init as initInformationLayer } from '../modules/InformationLayer.js';
+import { init as initGlobalState } from '../modules/GlobalState.js';
+import { init as initFactionRule } from '../modules/FactionRule.js';
+import { init as initCrisisRule } from '../modules/CrisisRule.js';
+import { init as initEspionageRule } from '../modules/EspionageRule.js';
 
 /**
  * Carga y parsea un archivo JSON de configuración.
@@ -171,9 +178,9 @@ async function main() {
       modules: modulesConfig
     }, activeModules);
 
-    // 7. Iniciar servidor WebSocket
+    // 7. Iniciar servidor WebSocket (que incluye HTTP para estáticos)
     console.log('[main] Iniciando WebSocketServer...');
-    const wsPort = engineConfig.wsPort || 8080;
+    const wsPort = engineConfig.wsPort || engineConfig.httpPort || 8080;
     await initWebSocketServer(wsPort);
     console.log(`[main] WebSocket server escuchando en puerto ${wsPort}`);
 
