@@ -1,0 +1,12 @@
+{
+  "modules": [
+    "EconomyRule",
+    "DiplomacyRule",
+    "PolicyRule",
+    "InformationLayer",
+    "GlobalState",
+    "FactionRule",
+    "CrisisRule",
+    "EspionageRule"
+  ]
+}

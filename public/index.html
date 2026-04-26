@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealPolitik Core - Status</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent: #00ff9d;
+            --accent-dim: #00ff9d33;
+            --border: #2a2a3a;
+            --success: #00ff9d;
+            --warning: #ffbd2e;
+            --error: #ff4757;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent), #00b8ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .status-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .status-card:hover {
+            border-color: var(--accent-dim);
+            box-shadow: 0 0 20px var(--accent-dim);
+        }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .status-indicator.online {
+            background: var(--accent-dim);
+            color: var(--success);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .info-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.3rem;
+        }
+
+        .info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .modules-list {
+            list-style: none;
+            margin-top: 1rem;
+        }
+
+        .modules-list li {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .module-name {
+            font-weight: 500;
+        }
+
+        .module-status {
+            font-size: 0.85rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            background: var(--accent-dim);
+            color: var(--success);
+        }
+
+        .ws-info {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(0, 255, 157, 0.05);
+            border: 1px solid var(--accent-dim);
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .ws-url {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            color: var(--accent);
+            margin: 1rem 0;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            word-break: break-all;
+        }
+
+        footer {
+            margin-top: auto;
+            padding-top: 2rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏛️ RealPolitik Core</h1>
+            <p class="subtitle">Motor de Simulación Geopolítica - Fase 0</p>
+        </header>
+
+        <main>
+            <div class="status-card">
+                <div class="status-header">
+                    <span class="status-title">Estado del Servidor</span>
+                    <div class="status-indicator online" id="serverStatus">
+                        <span class="status-dot"></span>
+                        <span id="statusText">Conectado</span>
+                    </div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Tiempo de Ejecución</div>
+                        <div class="info-value" id="uptime">Calculando...</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Tick Actual</div>
+                        <div class="info-value" id="currentTick">--</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Velocidad de Simulación</div>
+                        <div class="info-value" id="tickRate">-- TPS</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Naciones Activas</div>
+                        <div class="info-value" id="nationCount">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-header">
+                    <span class="status-title">Módulos Cargados</span>
+                </div>
+                <ul class="modules-list" id="modulesList">
+                    <li>
+                        <span class="module-name">Cargando módulos...</span>
+                        <span class="loading"></span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="ws-info">
+                <h3>🔌 Conexión WebSocket</h3>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">
+                    Conéctate para recibir actualizaciones en tiempo real
+                </p>
+                <div class="ws-url" id="wsUrl">ws://localhost:8080</div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                    Estado: <span id="wsStatus">Desconectado</span>
+                </p>
+            </div>
+        </main>
+
+        <footer>
+            <p>RealPolitik Core v2.0 | Motor Determinista de Simulación Geopolítica</p>
+            <p style="margin-top: 0.5rem;">Fase 0: Núcleo Funcional MVP</p>
+        </footer>
+    </div>
+
+    <script>
+        // Configuración
+        const WS_URL = `ws://${window.location.host}`;
+
+        // Estado local
+        let ws = null;
+        let startTime = Date.now();
+        let lastTick = 0;
+        let tickHistory = [];
+
+        // Elementos DOM
+        const elements = {
+            uptime: document.getElementById('uptime'),
+            currentTick: document.getElementById('currentTick'),
+            tickRate: document.getElementById('tickRate'),
+            nationCount: document.getElementById('nationCount'),
+            modulesList: document.getElementById('modulesList'),
+            wsStatus: document.getElementById('wsStatus'),
+            wsUrl: document.getElementById('wsUrl')
+        };
+
+        elements.wsUrl.textContent = WS_URL;
+
+        // Formatear tiempo
+        function formatUptime(ms) {
+            const seconds = Math.floor(ms / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+
+            if (hours > 0) {
+                return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${seconds % 60}s`;
+            }
+            return `${seconds}s`;
+        }
+
+        // Calcular TPS
+        function calculateTPS() {
+            if (tickHistory.length < 2) return 0;
+            const now = Date.now();
+            const recentTicks = tickHistory.filter(t => now - t < 1000);
+            return recentTicks.length;
+        }
+
+        // Actualizar UI
+        function updateUI(data) {
+            if (data.tick !== undefined) {
+                elements.currentTick.textContent = data.tick;
+                if (data.tick !== lastTick) {
+                    tickHistory.push(Date.now());
+                    lastTick = data.tick;
+                }
+            }
+
+            if (data.nations !== undefined) {
+                elements.nationCount.textContent = data.nations;
+            }
+
+            elements.uptime.textContent = formatUptime(Date.now() - startTime);
+            elements.tickRate.textContent = `${calculateTPS()} TPS`;
+
+            // Limpiar ticks antiguos
+            const now = Date.now();
+            tickHistory = tickHistory.filter(t => now - t < 1000);
+        }
+
+        // Renderizar módulos
+        function renderModules(modules) {
+            if (!modules || modules.length === 0) {
+                elements.modulesList.innerHTML = `
+                    <li>
+                        <span class="module-name">No hay módulos disponibles</span>
+                    </li>
+                `;
+                return;
+            }
+
+            elements.modulesList.innerHTML = modules.map(mod => `
+                <li>
+                    <span class="module-name">${mod.name || mod}</span>
+                    <span class="module-status">Activo</span>
+                </li>
+            `).join('');
+        }
+
+        // Conectar WebSocket
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                elements.wsStatus.textContent = 'Conectado';
+                elements.wsStatus.style.color = 'var(--success)';
+                console.log('✅ Conectado al servidor WebSocket');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'state_update' || data.type === 'tick') {
+                        updateUI({
+                            tick: data.state?.tick || data.tick,
+                            nations: data.state?.nations?.length
+                        });
+                    }
+
+                    if (data.type === 'init' && data.modules) {
+                        renderModules(data.modules);
+                    }
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                elements.wsStatus.textContent = 'Desconectado - Reconectando...';
+                elements.wsStatus.style.color = 'var(--warning)';
+                setTimeout(connectWebSocket, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                elements.wsStatus.textContent = 'Error de conexión';
+                elements.wsStatus.style.color = 'var(--error)';
+            };
+        }
+
+        // Inicializar
+        function init() {
+            console.log('🚀 RealPolitik Core Dashboard initialized');
+            connectWebSocket();
+
+            // Actualizar uptime cada segundo
+            setInterval(() => {
+                elements.uptime.textContent = formatUptime(Date.now() - startTime);
+                elements.tickRate.textContent = `${calculateTPS()} TPS`;
+            }, 1000);
+        }
+
+        // Iniciar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
