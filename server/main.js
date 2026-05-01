@@ -54,26 +54,48 @@ const moduleRegistry = {};
 async function registerModules() {
     console.log('[main] Inicializando módulos activos...');
     
-    const modules = [
-        { name: 'EconomyRule', mod: EconomyRule },
-        { name: 'DiplomacyRule', mod: DiplomacyRule },
-        { name: 'PolicyRule', mod: PolicyRule },
-        { name: 'InformationLayer', mod: InformationLayer },
-        { name: 'GlobalState', mod: GlobalState },
-        { name: 'FactionRule', mod: FactionRule },
-        { name: 'CrisisRule', mod: CrisisRule },
-        { name: 'EspionageRule', mod: EspionageRule },
-        { name: 'UIMessageHandler', mod: UIMessageHandler }
+    const activeModules = [
+        'EconomyRule',
+        'DiplomacyRule',
+        'PolicyRule',
+        'InformationLayer',
+        'GlobalState',
+        'FactionRule',
+        'CrisisRule',
+        'EspionageRule',
+        'UIMessageHandler' // Asegúrate de que este también esté si lo creaste
     ];
 
-    for (const { name, mod } of modules) {
+    for (const moduleName of activeModules) {
         try {
-            await mod.init({ config: CONFIG, emit, on, getState, applyDelta });
-            moduleRegistry[name] = mod;
-            console.log(`[main] Módulo '${name}' inicializado.`);
-        } catch (err) {
-            console.error(`[main] ERROR crítico inicializando ${name}:`, err);
-            process.exit(1);
+            // Importación dinámica
+            const mod = await import(`../modules/${moduleName}.js`);
+            
+            // Lógica adaptable: Detecta qué fue exportado
+            let initFn = null;
+
+            if (typeof mod.init === 'function') {
+                // Caso A: Exportación nombrada "export function init()..."
+                initFn = mod.init;
+            } else if (typeof mod.default === 'function') {
+                // Caso B: Exportación por defecto "export default function()..."
+                initFn = mod.default;
+            } else if (mod.default && typeof mod.default.init === 'function') {
+                // Caso C: Objeto por defecto "export default { init: ... }"
+                initFn = mod.default.init;
+            }
+
+            if (initFn) {
+                await initFn(); // Ejecuta la función detectada
+                console.log(`[main] ✅ Módulo '${moduleName}' inicializado correctamente.`);
+            } else {
+                console.warn(`[main] ⚠️ Módulo '${moduleName}' cargado pero no se encontró función de inicio (init/default).`);
+            }
+
+        } catch (error) {
+            console.error(`[main] ❌ ERROR crítico inicializando ${moduleName}:`, error.message);
+            // Si es crítico, detenemos el servidor. Si quieres continuar sin él, comenta la siguiente línea:
+            process.exit(1); 
         }
     }
 }
