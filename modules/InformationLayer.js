@@ -15,7 +15,7 @@ import { getState } from '../core/StateManager.js';
  * Inicializa la capa de información.
  * @param {{ engine: Object, world: Object, modules: Object }} config - Configuración global
  */
-export function init(config) {
+export function init(state, eventEmitter) {
   console.log('[InformationLayer] Inicializado.');
 
   // Suscribirse a state_updated para filtrar estado antes de broadcast

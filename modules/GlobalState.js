@@ -16,7 +16,7 @@ import { rng } from '../core/Rng.js';
  * Inicializa el módulo de estado global.
  * @param {{ engine: Object, world: Object, modules: Object }} config - Configuración global
  */
-export function init(config) {
+export function init(state, eventEmitter) {
   console.log('[GlobalState] Inicializado.');
 
   // Suscribirse a tick_start para actualizar índices globales

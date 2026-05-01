@@ -16,7 +16,7 @@ import { rng } from '../core/Rng.js';
  * Inicializa el módulo de crisis global.
  * @param {{ engine: Object, world: Object, modules: Object }} config - Configuración global
  */
-export function init(config) {
+export function init(state, eventEmitter) {
   console.log('[CrisisRule] Inicializado.');
 
   // Suscribirse a tick_start para procesar escalada de crisis

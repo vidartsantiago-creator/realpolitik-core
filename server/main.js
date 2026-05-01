@@ -27,6 +27,7 @@ import { init as InformationLayer } from '../modules/InformationLayer.js';
 import { init as GlobalState } from '../modules/GlobalState.js';
 import { init as FactionRule } from '../modules/FactionRule.js';
 import { init as CrisisRule } from '../modules/CrisisRule.js';
+import { init as EspionageRule } from '../modules/EspionageRule.js';
 import { init as UIMessageHandler } from '../server/UIMessageHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);

@@ -16,7 +16,7 @@ import { rng } from '../core/Rng.js';
  * Inicializa el módulo de políticas.
  * @param {{ engine: Object, world: Object, modules: Object }} config - Configuración global
  */
-export function init(config) {
+export function init(state, eventEmitter) {
   console.log('[PolicyRule] Inicializado.');
 
   // Suscribirse a player_intent para ejecutar intenciones
