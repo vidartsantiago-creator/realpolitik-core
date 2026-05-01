@@ -133,7 +133,7 @@ async function main() {
     loadConfig();
 
     console.log('[main] Inicializando PRNG...');
-    initRng(CONFIG.seed);
+    //initRng(CONFIG.seed);
     console.log('[main] PRNG inicializado correctamente.');
 
     console.log('[main] Inicializando TimeEngine...');
