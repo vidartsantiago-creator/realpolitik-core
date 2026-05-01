@@ -2,11 +2,12 @@
  * @file main.js
  * @description Punto de entrada principal del servidor. Inicializa núcleo, carga configuraciones,
  *              registra módulos y arranca el servidor WebSocket.
- * @version 1.0.0
+ * @version 1.0.1
  * @author Realpolitik Core Team
  * @dependencies EventDispatcher, StateManager, TimeEngine, Rng, WebSocketServer
  * @changelog
  * - v1.0.0: Creación inicial. Implementa inicialización secuencial del core y carga de módulos.
+ * - v1.0.1: Corrección de errores de imports, variables no definidas y flujo de inicialización.
  */
 
 import http from 'http';
@@ -16,9 +17,8 @@ import { fileURLToPath } from 'url';
 import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
-import { initTimeEngine, start, onTickStart, onTickEnd, executeTick } from '../core/TimeEngine.js';
+import { initTimeEngine, start as startTimeEngine, onTickStart, onTickEnd, executeTick, getCurrentTick } from '../core/TimeEngine.js';
 import { initWebSocketServer } from '../network/WebSocketServer.js';
-import { broadcastState } from '../network/WebSocketServer.js';
 
 // Importar módulos de reglas
 import { init as EconomyRule } from '../modules/EconomyRule.js';
@@ -35,7 +35,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// Configuración
+// ============================================
+// Sección: Carga de Configuración
+// ============================================
+// Intenta leer la configuración desde game.config.json, usa valores por defecto si falla
 let CONFIG = {};
 function loadConfig() {
     try {
@@ -49,12 +52,14 @@ function loadConfig() {
     }
 }
 
-// Registro de módulos
+// ============================================
+// Sección: Registro de Módulos
+// ============================================
 const moduleRegistry = {};
 
 async function registerModules() {
     console.log('[main] Inicializando módulos activos...');
-    
+
     const activeModules = [
         'EconomyRule',
         'DiplomacyRule',
@@ -64,14 +69,14 @@ async function registerModules() {
         'FactionRule',
         'CrisisRule',
         'EspionageRule',
-        'UIMessageHandler' // Asegúrate de que este también esté si lo creaste
+        'UIMessageHandler'
     ];
 
     for (const moduleName of activeModules) {
         try {
             // Importación dinámica
             const mod = await import(`../modules/${moduleName}.js`);
-            
+
             // Lógica adaptable: Detecta qué fue exportado
             let initFn = null;
 
@@ -96,124 +101,133 @@ async function registerModules() {
         } catch (error) {
             console.error(`[main] ❌ ERROR crítico inicializando ${moduleName}:`, error.message);
             // Si es crítico, detenemos el servidor. Si quieres continuar sin él, comenta la siguiente línea:
-            process.exit(1); 
+            process.exit(1);
         }
     }
 }
 
-// Bucle principal
+// ============================================
+// Sección: Bucle de Juego (Game Loop)
+// ============================================
+// Esta función ejecuta la lógica de cada tick
 function gameLoop() {
-    executeTick(() => {
-        // 1. Ejecutar lógica de ticks de los módulos
-        if (moduleRegistry.EconomyRule?.tick) moduleRegistry.EconomyRule.tick();
-        if (moduleRegistry.DiplomacyRule?.tick) moduleRegistry.DiplomacyRule.tick();
-        if (moduleRegistry.PolicyRule?.tick) moduleRegistry.PolicyRule.tick();
-        if (moduleRegistry.CrisisRule?.tick) moduleRegistry.CrisisRule.tick();
-        if (moduleRegistry.EspionageRule?.tick) moduleRegistry.EspionageRule.tick();
+    // 1. Ejecutar lógica de ticks de los módulos registrados
+    if (moduleRegistry.EconomyRule?.tick) moduleRegistry.EconomyRule.tick();
+    if (moduleRegistry.DiplomacyRule?.tick) moduleRegistry.DiplomacyRule.tick();
+    if (moduleRegistry.PolicyRule?.tick) moduleRegistry.PolicyRule.tick();
+    if (moduleRegistry.CrisisRule?.tick) moduleRegistry.CrisisRule.tick();
+    if (moduleRegistry.EspionageRule?.tick) moduleRegistry.EspionageRule.tick();
+}
 
-        // 2. Obtener estado actualizado
-        const currentState = getState(); // Tu función para obtener el estado
-        const tickData = {
-            type: 'state_update',
-            payload: currentState,
-            tick: currentTick // Asegúrate de enviar el número de tick
+// ============================================
+// Sección: Inicialización Principal
+// ============================================
+async function main() {
+    try {
+        console.log('[main] ========================================');
+        console.log('[main] RealPolitik Core Server v1.0.1');
+        console.log('[main] ========================================');
+
+        // Cargar configuración
+        loadConfig();
+
+        // Inicializar PRNG (generador de números aleatorios)
+        console.log('[main] Inicializando PRNG...');
+        initRng(CONFIG.seed);
+        console.log('[main] PRNG inicializado correctamente.');
+
+        // Cargar estado inicial del juego
+        console.log('[main] Cargando estado inicial...');
+        const initialState = {
+            meta: { tick: 0, status: 'running' },
+            nations: [
+                { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
+                { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
+                { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 }
+            ],
+            policies: [],
+            intel: []
+        };
+        setInitialState(initialState);
+        console.log(`[main] Estado inicial cargado: ${initialState.nations.length} naciones.`);
+
+        // Registrar módulos del juego
+        await registerModules();
+
+        // ============================================
+        // Sección: Inicialización de Módulos Core
+        // ============================================
+
+        // Inicializar el motor de tiempo con la configuración cargada
+        console.log('[main] Inicializando TimeEngine...');
+        initTimeEngine({ tickRate: CONFIG.tickRate });
+        console.log('[main] TimeEngine inicializado correctamente.');
+
+        // ============================================
+        // Sección: Setup del WebSocket Server
+        // ============================================
+        console.log('[main] Iniciando WebSocketServer...');
+
+        // Crear un emisor de eventos compatible con lo que espera WebSocketServer
+        const eventEmitter = {
+            emit: (event, data) => emit(event, data)
         };
 
-        // Si usaste la implementación de arriba, el servidor HTTP tiene la propiedad broadcast
-        // Necesitas tener una referencia al servidor HTTP o importar la función broadcast
-        // Una forma común es guardar la referencia del servidor en una variable global o pasarla
-        if (global.gameServer && global.gameServer.broadcast) {
-            global.gameServer.broadcast(tickData);
-        }
+        // Inicializar servidor WebSocket y obtener referencia para broadcast
+        const wss = initWebSocketServer(getState(), eventEmitter);
 
-        // 3. Broadcast a todos los clientes
-        emit('ws_broadcast', {
-            type: 'state_update',
-            payload: {
+        // Guardar referencia al servidor HTTP para poder hacer broadcast desde el game loop
+        // El servidor HTTP tiene el método 'broadcast' asignado en WebSocketServer.js línea 132
+        global.gameServer = wss.server;
+
+        console.log('[main] WebSocketServer iniciado correctamente.');
+
+        // ============================================
+        // Sección: Bucle de Ticks
+        // ============================================
+        // Suscribirse al evento de inicio de tick para ejecutar lógica y enviar estado
+        onTickStart((tick) => {
+            // 1. Ejecutar lógica del game loop
+            gameLoop();
+
+            // 2. Obtener estado actualizado
+            const currentState = getState();
+
+            // 3. Preparar paquete de datos para clientes
+            const payload = {
+                type: 'state_update',
+                tick: tick,
                 state: currentState,
-                tick: currentState.meta?.tick || 0
+                timestamp: Date.now()
+            };
+
+            // 4. Broadcast a todos los clientes conectados
+            if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
+                global.gameServer.broadcast(payload);
             }
         });
-    });
+
+        // Iniciar el bucle de ticks del TimeEngine
+        startTimeEngine();
+
+        console.log('[main] ========================================');
+        console.log('[main] Servidor listo. Iniciando bucle de ticks...');
+        console.log('[main] ========================================');
+        console.log(`[main] Tick rate: ${CONFIG.tickRate}ms`);
+        console.log('[main] Esperando conexiones de clientes...');
+
+    } catch (error) {
+        // ============================================
+        // Sección: Manejo de Errores
+        // ============================================
+        console.error('[main] Error fatal en arranque:', error);
+        console.error(error.stack);
+        process.exit(1);
+    }
 }
 
-// Inicialización
-async function main() {
-    console.log('[main] ========================================');
-    console.log('[main] RealPolitik Core Server v1.0.0');
-    console.log('[main] ========================================');
-
-    loadConfig();
-
-    console.log('[main] Inicializando PRNG...');
-    //initRng(CONFIG.seed);
-    console.log('[main] PRNG inicializado correctamente.');
-
-    console.log('[main] Inicializando TimeEngine...');
-    initTimeEngine(CONFIG.tickRate);
-    const timeEngine = initTimeEngine(config.tickRate);
-
-    // Suscribirse al evento de inicio de tick para enviar datos
-    timeEngine.onTickStart(() => {
-        const currentState = getState(); // Obtiene el estado actual del StateManager
-        const currentTick = timeEngine.getTick(); // Obtiene el número de tick actual
-        
-        // Preparamos el paquete de datos
-        const payload = {
-            tick: currentTick,
-            state: currentState,
-            timestamp: Date.now()
-        };
-
-        // Enviamos a todos los clientes
-        broadcastState(payload);
-        
-        // Log opcional para depuración (puedes comentarlo luego)
-        // console.log(`[main] Tick ${currentTick}: Estado enviado a ${getClientCount()} clientes.`);
-    });
-
-    // Iniciar el bucle
-    timeEngine.start();
-    console.log('[main] ========================================');
-    console.log('[main] Servidor listo. Iniciando bucle de ticks...');
-    console.log('[main] ========================================');
-    
-    console.log('[main] Cargando estado inicial...');
-    const initialState = {
-        meta: { tick: 0, status: 'running' },
-        nations: [
-            { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
-            { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
-            { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 }
-        ],
-        policies: [],
-        intel: []
-    };
-    setInitialState(initialState);
-    console.log(`[main] Estado inicial cargado: ${initialState.nations.length} naciones.`);
-
-    await registerModules();
-
-    console.log('[main] Iniciando WebSocketServer...');
-    const wss = initWebSocketServer(getState(), (msg) => emit('ws_message', msg));
-    
-    // Configurar listener para broadcasts desde el loop
-    on('ws_broadcast', (data) => {
-        // Esta función será llamada por el gameLoop para enviar datos
-        // Necesitamos acceder a la instancia WSS para enviar. 
-        // Hack limpio: exponer send en el evento o usar una variable global controlada.
-        // Para mantenerlo simple, modificaremos WebSocketServer para escuchar 'ws_broadcast'
-        emit('broadcast', data); 
-    });
-
-    console.log('[main] ========================================');
-    console.log('[main] Servidor listo. Iniciando bucle de ticks...');
-    console.log('[main] ========================================');
-
-    start(gameLoop);
-}
-
+// Ejecutar la función principal
 main().catch(err => {
-    console.error('[main] Error fatal en arranque:', err);
+    console.error('[main] Error no capturado en main:', err);
     process.exit(1);
 });

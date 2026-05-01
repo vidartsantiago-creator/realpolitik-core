@@ -119,7 +119,10 @@ export function executeTick() {
       listener(tick);
     }
 
-    return { tick, success: true };
+    return { start,
+        onTickStart,
+        onTickEnd,
+        executeTick};
   } catch (error) {
     console.error(`[TimeEngine] Error en tick ${tick}:`, error);
     emit('tick_error', { tick, error: error.message });

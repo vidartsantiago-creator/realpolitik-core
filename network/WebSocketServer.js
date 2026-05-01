@@ -132,7 +132,7 @@ export function initWebSocketServer(state, eventEmitter) {
     server.broadcast = (data) => {
         const message = JSON.stringify(data);
         wss.clients.forEach(client => {
-            if (client.isReadyState === WebSocket.OPEN) {
+            if (client.isReadyState === 1) { // WebSocket.OPEN = 1
                 client.send(message);
             }
         });
