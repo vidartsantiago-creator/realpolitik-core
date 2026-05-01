@@ -9,155 +9,129 @@
  * - v1.0.1: Implementación real con serve-static para HTTP y ws para WebSocket.
  */
 
-import { on, emit } from '../core/EventDispatcher.js';
-import { getState, snapshot } from '../core/StateManager.js';
 import http from 'http';
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '..');
 
-let wss = null;
-let httpServer = null;
+const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+const CLIENT_DIR = path.join(ROOT_DIR, 'client');
 
-/**
- * Sirve archivos estáticos desde el directorio public/.
- * @param {http.IncomingMessage} req
- * @param {http.ServerResponse} res
- */
-async function serveStatic(req, res) {
-  try {
-    let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
+const MIME_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon'
+};
 
-    // Prevenir directory traversal
-    if (!filePath.startsWith(PUBLIC_DIR)) {
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
-    }
+let wssInstance = null;
+let connectedClients = [];
 
-    const content = await fs.readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
+// Función para broadcast segura
+export function broadcastState(stateData) {
+    if (!wssInstance || connectedClients.length === 0) return;
+    
+    const message = JSON.stringify({
+        type: 'state_update',
+        payload: stateData
+    });
 
-    const mimeTypes = {
-      '.html': 'text/html',
-      '.js': 'application/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.svg': 'image/svg+xml',
-      '.ico': 'image/x-icon'
-    };
-
-    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
-    res.end(content);
-  } catch (error) {
-    res.writeHead(404);
-    res.end('Not Found');
-  }
+    connectedClients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+            client.send(message);
+        }
+    });
 }
 
-/**
- * Inicializa el servidor WebSocket y HTTP para archivos estáticos.
- * @param {number} port - Puerto donde escuchar
- * @returns {Promise<void>}
- */
-export async function initWebSocketServer(port) {
-  console.log(`[WebSocketServer] Iniciando en puerto ${port}...`);
+export function initWebSocketServer(getStateFn, eventEmitter) {
+    const server = http.createServer((req, res) => {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        let filePath = '';
+        
+        // Seguridad básica contra directory traversal
+        const sanitize = (p) => p.replace(/\.\./g, '');
 
-  // Crear servidor HTTP para servir archivos estáticos
-  httpServer = http.createServer(serveStatic);
+        if (url.pathname.startsWith('/client/')) {
+            const relativePath = sanitize(url.pathname.replace('/client/', ''));
+            filePath = path.join(CLIENT_DIR, relativePath);
+        } else {
+            const relativePath = url.pathname === '/' ? 'index.html' : sanitize(url.pathname.slice(1));
+            filePath = path.join(PUBLIC_DIR, relativePath);
+        }
 
-  // Crear servidor WebSocket
-  wss = new WebSocketServer({ server: httpServer });
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-  wss.on('connection', (ws, req) => {
-    console.log('[WebSocketServer] Cliente conectado');
-
-    // Enviar estado inicial y lista de módulos
-    const state = getState();
-    const modules = ['EconomyRule', 'DiplomacyRule', 'PolicyRule', 'InformationLayer', 'GlobalState', 'FactionRule', 'CrisisRule', 'EspionageRule'];
-
-    ws.send(JSON.stringify({
-      type: 'init',
-      state: state,
-      modules: modules,
-      timestamp: Date.now()
-    }));
-
-    // Suscribirse a actualizaciones de estado
-    const onStateUpdate = (payload) => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'state_update',
-          state: payload.state,
-          tick: payload.tick,
-          version: payload.version,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    on('state_updated', onStateUpdate);
-
-    // Manejar mensajes del cliente
-    ws.on('message', (message) => {
-      try {
-        const data = JSON.parse(message);
-        console.log('[WebSocketServer] Mensaje recibido:', data);
-        emit('client_message', { ws, data });
-      } catch (error) {
-        console.error('[WebSocketServer] Error parseando mensaje:', error);
-      }
+        fs.readFile(filePath, (err, content) => {
+            if (err) {
+                if (err.code === 'ENOENT') {
+                    res.writeHead(404, { 'Content-Type': 'text/plain' });
+                    res.end(`404 Not Found: ${url.pathname}`);
+                } else {
+                    res.writeHead(500);
+                    res.end(`Server Error: ${err.code}`);
+                }
+            } else {
+                res.writeHead(200, { 'Content-Type': contentType });
+                res.end(content);
+            }
+        });
     });
 
-    // Manejar desconexión
-    ws.on('close', () => {
-      console.log('[WebSocketServer] Cliente desconectado');
-      // Limpiar listener para evitar memory leaks
-      // Nota: en producción usar WeakMap o similar para tracking
+    wssInstance = new WebSocketServer({ server });
+
+    wssInstance.on('connection', (ws) => {
+        console.log('[WebSocketServer] Nuevo cliente conectado.');
+        connectedClients.push(ws);
+
+        // Enviar estado inicial inmediato
+        if (getStateFn) {
+            const currentState = getStateFn();
+            ws.send(JSON.stringify({
+                type: 'state_update',
+                payload: currentState
+            }));
+        }
+
+        ws.on('message', (message) => {
+            try {
+                const data = JSON.parse(message);
+                console.log(`[WebSocketServer] Mensaje recibido: ${data.type}`);
+                
+                // Reenviar al EventDispatcher del core
+                if (eventEmitter) {
+                    eventEmitter.emit('ws_message', data);
+                }
+            } catch (e) {
+                console.error('[WebSocketServer] Error parseando mensaje:', e);
+            }
+        });
+
+        ws.on('close', () => {
+            console.log('[WebSocketServer] Cliente desconectado.');
+            connectedClients = connectedClients.filter(c => c !== ws);
+        });
+        
+        ws.on('error', (err) => {
+            console.error('[WebSocketServer] Error en socket:', err.message);
+        });
     });
 
-    ws.on('error', (error) => {
-      console.error('[WebSocketServer] Error en conexión:', error);
+    const PORT = process.env.PORT || 8080;
+    server.listen(PORT, () => {
+        console.log(`[WebSocketServer] Servidor HTTP+WebSocket listo.`);
+        console.log(`[WebSocketServer] Web UI disponible en http://localhost:${PORT}`);
+        console.log(`[WebSocketServer] Client modules en http://localhost:${PORT}/client/`);
     });
-  });
 
-  // Iniciar servidor HTTP+WebSocket
-  await new Promise((resolve, reject) => {
-    httpServer.listen(port, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-
-  console.log('[WebSocketServer] Servidor HTTP+WebSocket listo.');
-  console.log(`[WebSocketServer] Web UI disponible en http://localhost:${port}`);
-}
-
-/**
- * Detiene el servidor WebSocket y HTTP.
- * @returns {Promise<void>}
- */
-export async function stopWebSocketServer() {
-  return new Promise((resolve) => {
-    if (wss) {
-      wss.close(() => {
-        console.log('[WebSocketServer] WebSocket cerrado');
-      });
-    }
-    if (httpServer) {
-      httpServer.close(() => {
-        console.log('[WebSocketServer] HTTP server cerrado');
-        resolve();
-      });
-    } else {
-      resolve();
-    }
-  });
+    return wssInstance;
 }

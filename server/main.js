@@ -21,6 +21,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '..');
 
 // Importar módulos de reglas (se registrarán dinámicamente)
 import { init as initEconomyRule } from '../modules/EconomyRule.js';
@@ -31,6 +32,7 @@ import { init as initGlobalState } from '../modules/GlobalState.js';
 import { init as initFactionRule } from '../modules/FactionRule.js';
 import { init as initCrisisRule } from '../modules/CrisisRule.js';
 import { init as initEspionageRule } from '../modules/EspionageRule.js';
+import { init as initUIMessageHandler } from '../server/UIMessageHandler.js';
 
 /**
  * Carga y parsea un archivo JSON de configuración.
@@ -60,11 +62,11 @@ function validateEngineConfig(config) {
       throw new Error(`[main] engine.json: campo requerido '${field}' no encontrado.`);
     }
   }
-  
+
   if (typeof config.seed !== 'number' || !Number.isInteger(config.seed)) {
     throw new Error('[main] engine.json: seed debe ser un número entero.');
   }
-  
+
   if (typeof config.tickRate !== 'number' || config.tickRate <= 0) {
     throw new Error('[main] engine.json: tickRate debe ser un número positivo.');
   }
@@ -84,11 +86,12 @@ function initializeModules(config, activeModules) {
     GlobalState: initGlobalState,
     FactionRule: initFactionRule,
     CrisisRule: initCrisisRule,
-    EspionageRule: initEspionageRule
+    EspionageRule: initEspionageRule,
+    UIMessageHandler: initUIMessageHandler
   };
 
   console.log('[main] Inicializando módulos activos...');
-  
+
   for (const moduleName of activeModules) {
     if (moduleRegistry[moduleName]) {
       try {
@@ -143,10 +146,10 @@ async function main() {
     const engineConfig = await loadConfig('./config/engine.json');
     const worldConfig = await loadConfig('./config/world.json');
     const modulesConfig = await loadConfig('./config/modules.json');
-    
+
     // Validar engine.json
     validateEngineConfig(engineConfig);
-    
+
     console.log(`[main] Configuraciones cargadas: seed=${engineConfig.seed}, tickRate=${engineConfig.tickRate}ms`);
 
     // 2. Inicializar PRNG con seed (DEBE SER LO PRIMERO)
@@ -159,7 +162,24 @@ async function main() {
     initTimeEngine({
       tickRate: engineConfig.tickRate,
       mode: engineConfig.mode || 'continuous',
-      batchWindow: engineConfig.batchWindow || 30
+      batchWindow: engineConfig.batchWindow || 30,
+
+      // 2. Obtener estado actualizado
+        const currentState = getState(), // O como se llame tu getter en StateManager
+
+        // 3. Enviar a todos los clientes conectados
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                    type: 'tick',
+                    payload: {
+                        tick: currentState.tick,
+                        nations: currentState.nations,
+                        metrics: currentState.metrics
+                    }
+                }));
+            }
+        });
     });
 
     // 4. Establecer estado inicial desde world.json
