@@ -178,6 +178,3 @@ main().catch(err => {
     console.error('[main] Error fatal en arranque:', err);
     process.exit(1);
 });
-
-// Ejecutar función principal
-main();
