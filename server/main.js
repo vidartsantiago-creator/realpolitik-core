@@ -20,15 +20,14 @@ import { initTimeEngine, start, onTickStart, onTickEnd, executeTick } from '../c
 import { initWebSocketServer } from '../network/WebSocketServer.js';
 
 // Importar módulos de reglas
-import EconomyRule from '../modules/EconomyRule.js';
-import DiplomacyRule from '../modules/DiplomacyRule.js';
-import PolicyRule from '../modules/PolicyRule.js';
-import InformationLayer from '../modules/InformationLayer.js';
-import GlobalState from '../modules/GlobalState.js';
-import FactionRule from '../modules/FactionRule.js';
-import CrisisRule from '../modules/CrisisRule.js';
-import EspionageRule from '../modules/EspionageRule.js';
-import UIMessageHandler from '../server/UIMessageHandler.js';
+import { init as EconomyRule } from '../modules/EconomyRule.js';
+import { init as DiplomacyRule } from '../modules/DiplomacyRule.js';
+import { init as PolicyRule } from '../modules/PolicyRule.js';
+import { init as InformationLayer } from '../modules/InformationLayer.js';
+import { init as GlobalState } from '../modules/GlobalState.js';
+import { init as FactionRule } from '../modules/FactionRule.js';
+import { init as CrisisRule } from '../modules/CrisisRule.js';
+import { init as UIMessageHandler } from '../server/UIMessageHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
