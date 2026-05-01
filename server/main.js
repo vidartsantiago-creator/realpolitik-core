@@ -28,7 +28,7 @@ import { init as GlobalState } from '../modules/GlobalState.js';
 import { init as FactionRule } from '../modules/FactionRule.js';
 import { init as CrisisRule } from '../modules/CrisisRule.js';
 import { init as EspionageRule } from '../modules/EspionageRule.js';
-import { init as UIMessageHandler } from '../server/UIMessageHandler.js';
+import { init as UIMessageHandler } from '../modules/UIMessageHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

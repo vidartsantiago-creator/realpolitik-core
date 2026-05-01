@@ -16,7 +16,7 @@ import { getState } from '../core/StateManager.js';
  * Inicializa el manejador de mensajes de UI.
  * @param {Object} config - Configuración global
  */
-export function init(config) {
+export function init(state, eventEmitter) {
   console.log('[UIMessageHandler] Inicializado.');
 
   // Suscribirse a mensajes WebSocket desde client
