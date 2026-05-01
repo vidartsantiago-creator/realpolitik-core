@@ -18,6 +18,7 @@ import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
 import { initTimeEngine, start, onTickStart, onTickEnd, executeTick } from '../core/TimeEngine.js';
 import { initWebSocketServer } from '../network/WebSocketServer.js';
+import { broadcastState } from '../network/WebSocketServer.js';
 
 // Importar módulos de reglas
 import { init as EconomyRule } from '../modules/EconomyRule.js';
@@ -150,6 +151,32 @@ async function main() {
 
     console.log('[main] Inicializando TimeEngine...');
     initTimeEngine(CONFIG.tickRate);
+    const timeEngine = initTimeEngine(config.tickRate);
+
+    // Suscribirse al evento de inicio de tick para enviar datos
+    timeEngine.onTickStart(() => {
+        const currentState = getState(); // Obtiene el estado actual del StateManager
+        const currentTick = timeEngine.getTick(); // Obtiene el número de tick actual
+        
+        // Preparamos el paquete de datos
+        const payload = {
+            tick: currentTick,
+            state: currentState,
+            timestamp: Date.now()
+        };
+
+        // Enviamos a todos los clientes
+        broadcastState(payload);
+        
+        // Log opcional para depuración (puedes comentarlo luego)
+        // console.log(`[main] Tick ${currentTick}: Estado enviado a ${getClientCount()} clientes.`);
+    });
+
+    // Iniciar el bucle
+    timeEngine.start();
+    console.log('[main] ========================================');
+    console.log('[main] Servidor listo. Iniciando bucle de ticks...');
+    console.log('[main] ========================================');
     
     console.log('[main] Cargando estado inicial...');
     const initialState = {

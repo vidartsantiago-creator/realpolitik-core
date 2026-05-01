@@ -33,11 +33,14 @@ const MIME_TYPES = {
     '.ico': 'image/x-icon'
 };
 
+let wssInstance = null; // Guardar referencia al servidor WebSocket
+
 export function initWebSocketServer(state, eventEmitter) {
     const server = http.createServer((req, res) => {
         // 1. Manejo exclusivo de peticiones HTTP (Archivos estáticos)
         const url = new URL(req.url, `http://${req.headers.host}`);
         let filePath = '';
+
         
         // Ruteo de carpetas
         if (url.pathname.startsWith('/client/')) {
@@ -72,6 +75,7 @@ export function initWebSocketServer(state, eventEmitter) {
             }
         });
     });
+    
 
     // 2. Configuración exclusiva de WebSocket
     const wss = new WebSocketServer({ 
