@@ -24,7 +24,7 @@ const CLIENT_DIR = path.join(ROOT_DIR, 'client');
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
-    '.js': 'text/javascript; charset=utf-8',
+    '.js': 'application/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
     '.png': 'image/png',
@@ -33,38 +33,24 @@ const MIME_TYPES = {
     '.ico': 'image/x-icon'
 };
 
-let wssInstance = null;
-let connectedClients = [];
-
-// Función para broadcast segura
-export function broadcastState(stateData) {
-    if (!wssInstance || connectedClients.length === 0) return;
-    
-    const message = JSON.stringify({
-        type: 'state_update',
-        payload: stateData
-    });
-
-    connectedClients.forEach(client => {
-        if (client.readyState === 1) { // WebSocket.OPEN
-            client.send(message);
-        }
-    });
-}
-
-export function initWebSocketServer(getStateFn, eventEmitter) {
+export function initWebSocketServer(state, eventEmitter) {
     const server = http.createServer((req, res) => {
+        // 1. Manejo exclusivo de peticiones HTTP (Archivos estáticos)
         const url = new URL(req.url, `http://${req.headers.host}`);
         let filePath = '';
         
-        // Seguridad básica contra directory traversal
-        const sanitize = (p) => p.replace(/\.\./g, '');
-
+        // Ruteo de carpetas
         if (url.pathname.startsWith('/client/')) {
-            const relativePath = sanitize(url.pathname.replace('/client/', ''));
+            const relativePath = url.pathname.replace('/client/', '');
+            // Seguridad básica contra traversal
+            if (relativePath.includes('..')) {
+                res.writeHead(403);
+                res.end('Forbidden');
+                return;
+            }
             filePath = path.join(CLIENT_DIR, relativePath);
         } else {
-            const relativePath = url.pathname === '/' ? 'index.html' : sanitize(url.pathname.slice(1));
+            const relativePath = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
             filePath = path.join(PUBLIC_DIR, relativePath);
         }
 
@@ -87,28 +73,33 @@ export function initWebSocketServer(getStateFn, eventEmitter) {
         });
     });
 
-    wssInstance = new WebSocketServer({ server });
+    // 2. Configuración exclusiva de WebSocket
+    const wss = new WebSocketServer({ 
+        server, 
+        path: '/' // Escucha en la raíz para WS
+    });
 
-    wssInstance.on('connection', (ws) => {
-        console.log('[WebSocketServer] Nuevo cliente conectado.');
-        connectedClients.push(ws);
-
-        // Enviar estado inicial inmediato
-        if (getStateFn) {
-            const currentState = getStateFn();
-            ws.send(JSON.stringify({
-                type: 'state_update',
-                payload: currentState
+    wss.on('connection', (ws, req) => {
+        console.log('[WebSocketServer] Nuevo cliente WebSocket conectado.');
+        
+        // Enviar estado inicial inmediatamente
+        try {
+            ws.send(JSON.stringify({ 
+                type: 'state_update', 
+                payload: state,
+                tick: 0 
             }));
+        } catch (e) {
+            console.error('[WebSocketServer] Error al enviar estado inicial:', e);
         }
 
         ws.on('message', (message) => {
             try {
                 const data = JSON.parse(message);
-                console.log(`[WebSocketServer] Mensaje recibido: ${data.type}`);
-                
-                // Reenviar al EventDispatcher del core
-                if (eventEmitter) {
+                // console.log(`[WebSocketServer] Mensaje recibido: ${data.type}`);
+
+                // Emitir eventos al sistema central
+                if (data.type === 'player_intent' || data.type === 'policy_decision') {
                     eventEmitter.emit('ws_message', data);
                 }
             } catch (e) {
@@ -118,20 +109,30 @@ export function initWebSocketServer(getStateFn, eventEmitter) {
 
         ws.on('close', () => {
             console.log('[WebSocketServer] Cliente desconectado.');
-            connectedClients = connectedClients.filter(c => c !== ws);
         });
-        
-        ws.on('error', (err) => {
-            console.error('[WebSocketServer] Error en socket:', err.message);
+
+        ws.on('error', (error) => {
+            console.error('[WebSocketServer] Error en socket:', error.message);
         });
     });
 
     const PORT = process.env.PORT || 8080;
+    
     server.listen(PORT, () => {
-        console.log(`[WebSocketServer] Servidor HTTP+WebSocket listo.`);
-        console.log(`[WebSocketServer] Web UI disponible en http://localhost:${PORT}`);
-        console.log(`[WebSocketServer] Client modules en http://localhost:${PORT}/client/`);
+        console.log(`[WebSocketServer] Servidor HTTP+WebSocket listo en puerto ${PORT}.`);
+        console.log(`[WebSocketServer] Web UI: http://localhost:${PORT}`);
+        console.log(`[WebSocketServer] Client Modules: http://localhost:${PORT}/client/`);
     });
 
-    return wssInstance;
+    // Exponer función de broadcast para que main.js pueda enviar actualizaciones
+    server.broadcast = (data) => {
+        const message = JSON.stringify(data);
+        wss.clients.forEach(client => {
+            if (client.isReadyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+    };
+
+    return wss;
 }

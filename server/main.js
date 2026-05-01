@@ -111,7 +111,19 @@ function gameLoop() {
         if (moduleRegistry.EspionageRule?.tick) moduleRegistry.EspionageRule.tick();
 
         // 2. Obtener estado actualizado
-        const currentState = getState();
+        const currentState = getState(); // Tu función para obtener el estado
+        const tickData = {
+            type: 'state_update',
+            payload: currentState,
+            tick: currentTick // Asegúrate de enviar el número de tick
+        };
+
+        // Si usaste la implementación de arriba, el servidor HTTP tiene la propiedad broadcast
+        // Necesitas tener una referencia al servidor HTTP o importar la función broadcast
+        // Una forma común es guardar la referencia del servidor en una variable global o pasarla
+        if (global.gameServer && global.gameServer.broadcast) {
+            global.gameServer.broadcast(tickData);
+        }
 
         // 3. Broadcast a todos los clientes
         emit('ws_broadcast', {
