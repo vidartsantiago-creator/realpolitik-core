@@ -59,6 +59,7 @@ function connectWebSocket() {
     };
 
     ws.onmessage = (event) => {
+      console.log('[SyncClient] RAW message:', event.data)
       try {
         const message = JSON.parse(event.data);
         handleMessage(message);
