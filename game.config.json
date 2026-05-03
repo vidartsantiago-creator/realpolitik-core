@@ -1,0 +1,97 @@
+{
+  "version": "1.0.0",
+  "seed": 42,
+  "tickRate": 1000,
+  "mode": "continuous",
+  "batchWindow": 30,
+  "maxDebt": -1000,
+  "asyncTurnWindow": 300,
+  "wsPort": 8080,
+  "modules": {
+    "factionRule": {
+      "enabled": true,
+      loyaltyLevels: 5,
+      plotStages: 3
+    },
+    "crisisRule": {
+      "enabled": true,
+      escalationPhases": 4,
+      emergencyTreatiesEnabled: true
+    },
+    "alertRouter": {
+      "enabled": true,
+      alertLevels": 4,
+      groupingEnabled: true
+    },
+    "informationLayer": {
+      "enabled": true,
+      fogOfWarEnabled: true,
+      intelligenceSourcesEnabled: true,
+      veiledSignalsEnabled: true
+    },
+    "stewardshipEngine": {
+      "enabled": true,
+      mandate: {
+        "maxExpansionRate": 0.15,
+        "stabilityThreshold": 40,
+        "warningThreshold": 0.10,
+        "violationPenalty": 0.25,
+        "checkInterval": 5
+      },
+      "absence": {
+        "inactivityTicks": 30,
+        "autoDecisionChance": 0.70,
+        "conservativeBias": 0.60
+      }
+    },
+    "diplomacyRule": {
+      "enabled": true,
+      directChannels": {
+        "maxChannels": 5,
+        "setupCost": 10,
+        "leakChance": 0.08,
+        "maxDuration": 50
+      },
+      "sanctions": {
+        "minAllianceMembers": 2,
+        "coordinationWindow": 10,
+        "effectivenessBase": 0.40,
+        "scalingPerMember": 0.15,
+        "targetPenalty": 0.30,
+        "duration": 30
+      }
+    },
+    "espionageRule": {
+      "enabled": true,
+      operations": {
+        "techTheft": { "baseSuccess": 0.45, "cost": 20, "detectionBase": 0.25 },
+        "sabotage": { "baseSuccess": 0.35, "cost": 25, "detectionBase": 0.35 },
+        "infiltrate": { "baseSuccess": 0.55, "cost": 15, "detectionBase": 0.15 },
+        "intercept": { "baseSuccess": 0.60, "cost": 12, "detectionBase": 0.20 }
+      },
+      "counterIntel": {
+        "baseDetection": 0.20,
+        "bonusPerLevel": 0.08,
+        "maxLevel": 5,
+        "captureChance": 0.15
+      }
+    }
+  },
+  "balance": {
+    "startingResources": {
+      "treasury": 500,
+      "materials": 300,
+      "manpower": 200
+    },
+    "baseStability": 50,
+    "baseTechnology": 10,
+    "relationDecayPerTick": 0.01,
+    "allianceBonusRelations": 15,
+    "warPenaltyRelations": 40
+  },
+  "ai": {
+    "decisionDelayMs": 500,
+    "aggressionThreshold": 0.30,
+    "cooperationThreshold": 0.60
+  }
+}
