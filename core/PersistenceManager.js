@@ -15,7 +15,7 @@ import path from 'path';
 import zlib from 'zlib';
 import { promisify } from 'util';
 import { on, emit } from './EventDispatcher.js';
-import { getState, snapshot, setInitialState, _resetForTests } from './StateManager.js';
+import { getState, snapshot, setInitialState, ResetForTests } from './StateManager.js';
 
 const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
@@ -260,7 +260,7 @@ export async function loadGame(filename) {
     const loadedState = saveData.state;
     
     // Resetear estado interno del StateManager
-    _resetForTests(loadedState);
+    ResetForTests(loadedState);
     
     // Establecer estado inicial con la información cargada
     setInitialState(loadedState);

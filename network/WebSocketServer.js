@@ -547,7 +547,7 @@ export function _getConnectedClientsForTests() {
     return connectedClients;
 }
 
-export function _resetForTests() {
+export function ResetForTests() {
     for (const [clientId, client] of connectedClients.entries()) {
         client.socket.close();
     }

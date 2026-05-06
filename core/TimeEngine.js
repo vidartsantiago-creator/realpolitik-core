@@ -247,7 +247,7 @@ export function step() {
  * Reinicia el motor a estado inicial. SOLO para tests.
  * @package
  */
-export function _resetForTests() {
+export function ResetForTests() {
   stop();
   _config.currentTick = 0;
   _config.paused = false;

@@ -515,7 +515,7 @@ export function getEspionageState() {
  * Reinicia estado. SOLO para tests.
  * @package
  */
-export function _resetForTests() {
+export function ResetForTests() {
   _state = {
     initialized: false,
     config: null,

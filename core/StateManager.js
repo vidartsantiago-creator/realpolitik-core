@@ -267,7 +267,7 @@ export function getDeltaHistory(fromVersion) {
  * @param {Object} [initialState] - Estado inicial opcional
  * @package
  */
-export function _resetForTests(initialState = null) {
+export function ResetForTests(initialState = null) {
   _state = initialState || {
     tick: 0,
     version: 0,

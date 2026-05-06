@@ -13,7 +13,7 @@
 	import { 
 	  init, 
 	  getDiplomacyState, 
-	  _resetForTests,
+	  ResetForTests,
 	  establishDirectChannel,
 	  sendDirectMessage,
 	  respondToSanctionRequest
@@ -21,13 +21,13 @@
 	
 	// Importar dependencias reales para setup
 	import { on, emit, _clearAllForTests as resetEventDispatcher } from '../../core/EventDispatcher.js';
-	import { getState, applyDelta, snapshot, setInitialState, _resetForTests as resetState } from '../../core/StateManager.js';
+	import { getState, applyDelta, snapshot, setInitialState, ResetForTests as resetState } from '../../core/StateManager.js';
 	import { rng, rngInt, _resetRngForTests } from '../../core/Rng.js';
 	
 	describe('DiplomacyRule', () => {
 	  beforeEach(() => {
 	    // Resetear todos los módulos entre tests
-	    _resetForTests();
+	    ResetForTests();
 	    resetState();
 	    resetEventDispatcher();
 	    _resetRngForTests(54321);
