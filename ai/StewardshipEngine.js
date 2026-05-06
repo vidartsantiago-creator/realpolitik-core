@@ -571,7 +571,7 @@ export function getStewardshipState() {
  * Reinicia el estado del motor. SOLO para tests.
  * @package
  */
-export function _resetForTests() {
+export function ResetForTests() {
   _state = {
     initialized: false,
     config: null,

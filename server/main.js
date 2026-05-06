@@ -125,9 +125,7 @@ function gameLoop() {
 async function main() {
     try {
         console.log('[main] ========================================');
-        console.log('[main] RealPolitik Core Server v1.0.1');
-        console.log('[main] ========================================');
-
+        console.log('[main] RealPolitik
         // Cargar configuración
         loadConfig();
 
