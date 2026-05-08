@@ -617,3 +617,12 @@ export function getFactionInfo(nationId, factionId) {
 
 // Exportar constantes para tests
 export { LOYALTY_TIERS, PLOT_STAGES, FACTION_TYPES, CONFIDENCE_RANGES };
+
+/**
+ * Reinicia estado interno. SOLO para tests.
+ * @package
+ */
+export function ResetForTests() {
+  // No hay estado interno persistente en este módulo más allá del StateManager global
+  // El reset se maneja vía StateManager.ResetForTests()
+}

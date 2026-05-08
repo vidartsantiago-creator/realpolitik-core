@@ -116,6 +116,29 @@ export function applyDelta(delta, source = 'system') {
             }
           }
         }
+        
+        // Aplicar delta a facciones de la nación
+        if (nationDelta.factions) {
+          if (!_state.nations[nationId].factions) {
+            _state.nations[nationId].factions = {};
+          }
+          for (const [factionId, factionDelta] of Object.entries(nationDelta.factions)) {
+            if (!_state.nations[nationId].factions[factionId]) {
+              _state.nations[nationId].factions[factionId] = {};
+            }
+            for (const [factionKey, factionValue] of Object.entries(factionDelta)) {
+              // Para 'loyalty', siempre reemplazar (no sumar)
+              if (factionKey === 'loyalty') {
+                _state.nations[nationId].factions[factionId][factionKey] = factionValue;
+              } else if (typeof factionValue === 'number') {
+                _state.nations[nationId].factions[factionId][factionKey] =
+                  (_state.nations[nationId].factions[factionId][factionKey] || 0) + factionValue;
+              } else {
+                _state.nations[nationId].factions[factionId][factionKey] = factionValue;
+              }
+            }
+          }
+        }
       }
     }
 

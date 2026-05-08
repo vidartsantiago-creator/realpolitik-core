@@ -425,3 +425,13 @@ export default {
   CRISIS_PHASES: CRISIS_PHASES_PUBLIC, CRISIS_TYPES: CRISIS_TYPES_PUBLIC,
   EMERGENCY_TREATIES: EMERGENCY_TREATIES_PUBLIC
 };
+
+/**
+ * Reinicia estado interno. SOLO para tests.
+ * @package
+ */
+export function ResetForTests() {
+  activeCrisis = null;
+  treatyCooldowns = new Map();
+  signalCooldown = 0;
+}
