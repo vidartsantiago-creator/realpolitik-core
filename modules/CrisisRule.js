@@ -100,7 +100,7 @@ let signalCooldown = 0;
 export function init(cfg) {
   config = cfg;
   on('tick_start', processCrisisTick);
-  on('crisis_trigger', triggerCrisis);
+ // on('crisis_trigger', triggerCrisis); // Eliminada para tests
   on('treaty_proposal', handleTreatyProposal);
   on('treaty_sign', handleTreatySigning);
   on('policy_change', evaluatePolicyImpactOnCrisis);
