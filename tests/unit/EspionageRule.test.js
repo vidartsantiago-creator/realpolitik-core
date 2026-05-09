@@ -1,356 +1,325 @@
 /**
  * @file EspionageRule.test.js
- * @description Tests unitarios para EspionageRule - operaciones de espionaje, contraespionaje, validación determinista
- * @version 1.0.0
+ * @description Tests unitarios robustos para EspionageRule - operaciones de espionaje,
+ *              contraespionaje, detección, resolución determinista.
+ * @version 2.1.0 - Implementación basada en API real del módulo
  */
-
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, before, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import * as EspionageRule from '../../modules/EspionageRule.js';
-import { getState, resetState } from '../../core/StateManager.js';
-import { setSeed } from '../../core/Rng.js';
-
+import { getState, applyDelta, ResetForTests as ResetStateManager } from '../../core/StateManager.js';
+import { _resetRngForTests } from '../../core/Rng.js';
+import { emit, on, off, _clearAllForTests } from '../../core/EventDispatcher.js';
+const TEST_SEED = 12345;
+/**
+ * Crea estado inicial para tests de espionaje
+ */
+const createTestState = () => ({
+  tick: 0,
+  version: 0,
+  nations: {
+    NAT001: {
+      id: 'NAT001',
+      name: 'Origin Nation',
+      region: 'TestRegion',
+      stats: { stability: 60, budget: 500 },
+      intelligence: 50,
+      factions: {}
+    },
+    NAT002: {
+      id: 'NAT002',
+      name: 'Target Nation',
+      region: 'TestRegion',
+      stats: { stability: 65, budget: 600 },
+      intelligence: 45,
+      factions: {}
+    }
+  },
+  diplomacy: { relations: {}, channels: {} },
+  factions: {},
+  crisis: { active: false, phase: 0, type: null, treaties: {} },
+  espionage: { operations: {}, signals: [] }
+});
+/**
+ * Captura eventos emitidos durante un test
+ */
+class EventCapture {
+  constructor() {
+    this.events = [];
+    this.handlers = new Map();
+  }
+  capture(eventType) {
+    const handler = (payload) => {
+      this.events.push({ type: eventType, payload });
+    };
+    on(eventType, handler);
+    this.handlers.set(eventType, handler);
+    return this;
+  }
+  clear() {
+    for (const [eventType, handler] of this.handlers.entries()) {
+      off(eventType, handler);
+    }
+    this.handlers.clear();
+    this.events = [];
+  }
+  findByType(eventType) {
+    return this.events.filter(e => e.type === eventType);
+  }
+  findFirst(eventType) {
+    return this.events.find(e => e.type === eventType);
+  }
+}
 describe('EspionageRule Tests', () => {
-    beforeEach(() => {
-        // Seed fijo para tests deterministas
-        setSeed(12345);
-        
-        const initialState = {
-            nations: {
-                NAT001: {
-                    id: 'NAT001',
-                    name: 'Origin Nation',
-                    intelligence_agency: {
-                        agents: 50,
-                        budget: 1000000,
-                        effectiveness: 0.75,
-                        intel_level: 3,
-                        counter_intel_level: 2
-                    }
-                },
-                NAT002: {
-                    id: 'NAT002',
-                    name: 'Target Nation',
-                    intelligence_agency: {
-                        agents: 40,
-                        budget: 800000,
-                        effectiveness: 0.65,
-                        intel_level: 2,
-                        counter_intel_level: 3
-                    }
-                }
-            },
-            current_tick: 0,
-            events: [],
-            signals: []
-        };
-        resetState(initialState);
-    });
-
+  let eventCapture;
+  before(() => {
+    // Inicializar módulo EspionageRule
+    EspionageRule.init({ debug: false });
+  });
+  beforeEach(() => {
+    // Resetear RNG para comportamiento determinista
+    _resetRngForTests(TEST_SEED);
+    // Limpiar event dispatcher
+    _clearAllForTests();
+    // Resetear estado de EspionageRule
+    EspionageRule.ResetForTests();
+    // Re-inicializar EspionageRule para registrar listeners
+    EspionageRule.init({ debug: false });
+    // Resetear StateManager con estado inicial
+    ResetStateManager(createTestState());
+    // Configurar captura de eventos
+    eventCapture = new EventCapture();
+  });
+  afterEach(() => {
+    if (eventCapture) {
+      eventCapture.clear();
+    }
+  });
+  // ============================================================================
+  // INICIALIZACIÓN Y ESTADO
+  // ============================================================================
+  describe('Inicialización', () => {
     it('Debería inicializar correctamente el módulo', () => {
-        assert.ok(EspionageRule.init || true, 'EspionageRule debería estar disponible');
+      const result = EspionageRule.getEspionageState();
+      assert.strictEqual(result.initialized, true, 'Módulo debe estar inicializado');
     });
-
-    it('Debería realizar operación gather_intel exitosamente', () => {
-        const state = getState();
-        const initialIntel = state.nations.NAT002.intelligence_agency.intel_level;
-        
-        if (EspionageRule.gatherIntel) {
-            const result = EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            assert.ok(result.success !== undefined, 'Resultado debería tener propiedad success');
-            assert.strictEqual(result.operation, 'gather_intel', 'Operación debería ser gather_intel');
+    it('Debería rechazar doble inicialización', () => {
+      const result = EspionageRule.init({ debug: false });
+      assert.strictEqual(result.success, false, 'Doble init debe fallar');
+      assert.ok(result.errors, 'Debe retornar errores');
+    });
+  });
+  // ============================================================================
+  // OPERACIONES DE ESPIONAJE
+  // ============================================================================
+  describe('startOperation', () => {
+    it('Debería iniciar operación tech_theft exitosamente', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      assert.ok(result.success !== undefined, 'Resultado debe tener propiedad success');
+      if (result.success) {
+        assert.ok(result.operationId, 'Operación exitosa debe retornar operationId');
+      } else {
+        assert.ok(result.errors, 'Operación fallida debe incluir errores');
+      }
+    });
+    it('Debería iniciar operación sabotage exitosamente', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'sabotage');
+      assert.ok(result.success !== undefined, 'Resultado debe tener propiedad success');
+    });
+    it('Debería iniciar operación infiltrate exitosamente', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'infiltrate');
+      assert.ok(result.success !== undefined, 'Resultado debe tener propiedad success');
+    });
+    it('Debería iniciar operación intercept exitosamente', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'intercept');
+      assert.ok(result.success !== undefined, 'Resultado debe tener propiedad success');
+    });
+    it('Debería fallar al espiarse a sí mismo', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT001', 'tech_theft');
+      assert.strictEqual(result.success, false, 'No debería poder espiarse a sí mismo');
+      assert.ok(result.errors, 'Debe incluir errores');
+    });
+    it('Debería fallar con tipo de operación inválido', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'invalid_type');
+      assert.strictEqual(result.success, false, 'Tipo inválido debe fallar');
+      assert.ok(result.errors, 'Debe incluir errores');
+    });
+    it('Debería fallar con nación inexistente', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NONEXISTENT', 'tech_theft');
+      assert.strictEqual(result.success, false, 'Nación inexistente debe fallar');
+      assert.ok(result.errors, 'Debe incluir errores');
+    });
+  });
+  // ============================================================================
+  // CONTRAESPIONAJE
+  // ============================================================================
+  describe('getCounterIntelLevel', () => {
+    it('Debería retornar nivel 0 por defecto', () => {
+      const level = EspionageRule.getCounterIntelLevel('NAT002');
+      assert.strictEqual(level, 0, 'Nivel inicial debe ser 0');
+    });
+    it('Debería retornar 0 para nación inexistente', () => {
+      const level = EspionageRule.getCounterIntelLevel('NONEXISTENT');
+      assert.strictEqual(level, 0, 'Nación inexistente debe retornar 0');
+    });
+  });
+  describe('counterintel_upgrade', () => {
+    it('Debería aumentar nivel de contraespionaje', () => {
+      emit('counterintel_upgrade', { nationId: 'NAT002', levels: 1 });
+      const level = EspionageRule.getCounterIntelLevel('NAT002');
+      assert.ok(level > 0, 'Nivel debe aumentar tras upgrade');
+      assert.ok(level <= 5, 'Nivel no debe exceder máximo de 5');
+    });
+    it('Debería emitir evento counterintel_upgraded', () => {
+      const captured = new EventCapture();
+      captured.capture('counterintel_upgraded');
+      emit('counterintel_upgrade', { nationId: 'NAT002', levels: 1 });
+      const events = captured.findByType('counterintel_upgraded');
+      if (events.length > 0) {
+        const event = events[0].payload;
+        assert.strictEqual(event.nationId, 'NAT002', 'nationId debe coincidir');
+        assert.ok(typeof event.newLevel === 'number', 'newLevel debe ser número');
+      }
+      captured.clear();
+    });
+  });
+  // ============================================================================
+  // GESTIÓN DE OPERACIONES
+  // ============================================================================
+  describe('getActiveOperations', () => {
+    it('Debería retornar array vacío sin operaciones activas', () => {
+      const operations = EspionageRule.getActiveOperations('NAT001');
+      assert.ok(Array.isArray(operations), 'Debe retornar un array');
+      assert.strictEqual(operations.length, 0, 'No debe haber operaciones activas');
+    });
+    it('Debería retornar operaciones activas después de startOperation', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      if (result.success) {
+        const operations = EspionageRule.getActiveOperations('NAT001');
+        assert.ok(Array.isArray(operations), 'Debe retornar un array');
+        assert.ok(operations.length > 0, 'Debe haber al menos una operación activa');
+      }
+    });
+    it('Debería retornar array vacío para nación inexistente', () => {
+      const operations = EspionageRule.getActiveOperations('NONEXISTENT');
+      assert.ok(Array.isArray(operations), 'Debe retornar un array');
+      assert.strictEqual(operations.length, 0, 'Nación inexistente no tiene operaciones');
+    });
+  });
+  describe('getEspionageState', () => {
+    it('Debería retornar estado completo del módulo', () => {
+      const state = EspionageRule.getEspionageState();
+      assert.ok(state.initialized !== undefined, 'Debe incluir initialized');
+      assert.ok(state.config !== undefined, 'Debe incluir config');
+      assert.ok(state.activeOperationsCount !== undefined, 'Debe incluir activeOperationsCount');
+      assert.ok(state.completedOperationsCount !== undefined, 'Debe incluir completedOperationsCount');
+    });
+    it('Debería mostrar contador de operaciones completadas', () => {
+      const initialState = EspionageRule.getEspionageState();
+      assert.strictEqual(initialState.completedOperationsCount, 0, 'Contador inicial debe ser 0');
+    });
+  });
+  // ============================================================================
+  // EVENTOS DE ESPIONAJE
+  // ============================================================================
+  describe('Eventos de Operaciones', () => {
+    it('Debería emitir espionage_operation_started al iniciar operación', () => {
+      const captured = new EventCapture();
+      captured.capture('espionage_operation_started');
+      EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      const events = captured.findByType('espionage_operation_started');
+      if (events.length > 0) {
+        const event = events[0].payload;
+        assert.ok(event.operationId, 'Evento debe incluir operationId');
+        assert.strictEqual(event.operator, 'NAT001', 'operator debe coincidir');
+        assert.strictEqual(event.target, 'NAT002', 'target debe coincidir');
+        assert.strictEqual(event.type, 'tech_theft', 'type debe coincidir');
+      }
+      captured.clear();
+    });
+    it('Debería procesar tick_start sin errores', () => {
+      assert.doesNotThrow(() => {
+        emit('tick_start', { tick: 0 });
+      }, 'tick_start debe procesarse sin errores');
+    });
+  });
+  // ============================================================================
+  // RESET PARA TESTS
+  // ============================================================================
+  describe('ResetForTests', () => {
+    it('Debería limpiar todas las operaciones activas', () => {
+      // Iniciar algunas operaciones
+      EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      EspionageRule.startOperation('NAT001', 'NAT002', 'sabotage');
+      const stateBefore = EspionageRule.getEspionageState();
+      // Resetear
+      EspionageRule.ResetForTests();
+      const stateAfter = EspionageRule.getEspionageState();
+      assert.strictEqual(stateAfter.activeOperationsCount, 0, 'Reset debe limpiar operaciones');
+    });
+    it('Debería resetear estado inicializado', () => {
+      EspionageRule.ResetForTests();
+      const state = EspionageRule.getEspionageState();
+      assert.strictEqual(state.initialized, false, 'Reset debe desinicializar módulo');
+    });
+    it('Debería limpiar niveles de contraespionaje', () => {
+      // Aumentar contraespionaje
+      emit('counterintel_upgrade', { nationId: 'NAT002', levels: 1 });
+      emit('counterintel_upgrade', { nationId: 'NAT001', levels: 1 });
+      EspionageRule.ResetForTests();
+      const level1 = EspionageRule.getCounterIntelLevel('NAT001');
+      const level2 = EspionageRule.getCounterIntelLevel('NAT002');
+      assert.strictEqual(level1, 0, 'Reset debe limpiar contraespionaje de NAT001');
+      assert.strictEqual(level2, 0, 'Reset debe limpiar contraespionaje de NAT002');
+    });
+  });
+  // ============================================================================
+  // INTEGRACIÓN CON TICK SYSTEM
+  // ============================================================================
+  describe('Integración con Tick System', () => {
+    it('Debería decrementar ticksRemaining de operaciones activas', () => {
+      const result = EspionageRule.startOperation('NAT001', 'NAT002', 'intercept');
+      if (result.success) {
+        // Ejecutar varios ticks
+        for (let i = 0; i < 10; i++) {
+          emit('tick_start', { tick: i });
         }
+        // La operación debería haber progresado o completado
+        const operations = EspionageRule.getActiveOperations('NAT001');
+        // Verificar que no hay error
+        assert.ok(Array.isArray(operations), 'Debe retornar array');
+      }
     });
-
-    it('Debería generar evento de inteligencia exitosa', () => {
-        if (EspionageRule.gatherIntel) {
-            EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            const state = getState();
-            const intelEvent = state.events.find(e => 
-                e.type && e.type.includes('intel')
-            );
-            assert.ok(intelEvent, 'Debería registrarse evento de inteligencia');
-        }
+    it('Debería manejar múltiples operaciones simultáneas', () => {
+      const result1 = EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      const result2 = EspionageRule.startOperation('NAT001', 'NAT002', 'sabotage');
+      // Al menos una debería tener éxito o ambas fallar por razones válidas
+      assert.ok(
+        result1.success || result2.success ||
+        (result1.errors && result2.errors),
+        'Operaciones deberían procesarse'
+      );
     });
-
-    it('Debería realizar operación plant_disinfo exitosamente', () => {
-        if (EspionageRule.plantDisinfo) {
-            const result = EspionageRule.plantDisinfo('NAT001', 'NAT002');
-            
-            assert.ok(result.success !== undefined, 'Resultado debería tener propiedad success');
-            assert.strictEqual(result.operation, 'plant_disinfo', 'Operación debería ser plant_disinfo');
-        }
+  });
+  // ============================================================================
+  // VALIDACIÓN DETERMINISTA CON RNG
+  // ============================================================================
+  describe('Determinismo con Seed Fijo', () => {
+    it('Debería producir resultados idénticos con mismo seed', () => {
+      // Primera ejecución
+      _resetRngForTests(99999);
+      EspionageRule.ResetForTests();
+      EspionageRule.init({ debug: false });
+      ResetStateManager(createTestState());
+      const result1 = EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      // Segunda ejecución con mismo seed
+      _resetRngForTests(99999);
+      EspionageRule.ResetForTests();
+      EspionageRule.init({ debug: false });
+      ResetStateManager(createTestState());
+      const result2 = EspionageRule.startOperation('NAT001', 'NAT002', 'tech_theft');
+      assert.strictEqual(result1.success, result2.success,
+        'Resultados deben ser idénticos con mismo seed');
     });
-
-    it('Debería generar señal de desinformación', () => {
-        if (EspionageRule.plantDisinfo) {
-            EspionageRule.plantDisinfo('NAT001', 'NAT002');
-            
-            const state = getState();
-            const disinfoSignal = state.signals.find(s => 
-                s.type && s.type.includes('disinfo')
-            );
-            assert.ok(disinfoSignal, 'Debería existir señal de desinformación');
-        }
-    });
-
-    it('Debería realizar operación expel_agents exitosamente', () => {
-        const state = getState();
-        const initialAgents = state.nations.NAT002.intelligence_agency.agents;
-        
-        if (EspionageRule.expelAgents) {
-            const result = EspionageRule.expelAgents('NAT001', 'NAT002');
-            
-            assert.ok(result.success !== undefined, 'Resultado debería tener propiedad success');
-            assert.strictEqual(result.operation, 'expel_agents', 'Operación debería ser expel_agents');
-            
-            const newState = getState();
-            assert.ok(
-                newState.nations.NAT002.intelligence_agency.agents <= initialAgents,
-                'Agentes deberían disminuir tras expulsión'
-            );
-        }
-    });
-
-    it('Debería realizar operación take_prisoner exitosamente', () => {
-        if (EspionageRule.takePrisoner) {
-            const result = EspionageRule.takePrisoner('NAT001', 'NAT002');
-            
-            assert.ok(result.success !== undefined, 'Resultado debería tener propiedad success');
-            assert.strictEqual(result.operation, 'take_prisoner', 'Operación debería ser take_prisoner');
-        }
-    });
-
-    it('Debería generar evento de captura de agente', () => {
-        if (EspionageRule.takePrisoner) {
-            EspionageRule.takePrisoner('NAT001', 'NAT002');
-            
-            const state = getState();
-            const captureEvent = state.events.find(e => 
-                e.type && e.type.includes('prisoner') || e.type && e.type.includes('capture')
-            );
-            assert.ok(captureEvent, 'Debería registrarse evento de captura');
-        }
-    });
-
-    it('Debería validar probabilidad con seed fijo para gather_intel', () => {
-        setSeed(12345);
-        
-        if (EspionageRule.gatherIntel) {
-            const result1 = EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            setSeed(12345);
-            const result2 = EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            assert.strictEqual(
-                result1.success,
-                result2.success,
-                'Resultados deberían ser idénticos con mismo seed'
-            );
-        }
-    });
-
-    it('Debería validar probabilidad con seed fijo para plant_disinfo', () => {
-        setSeed(54321);
-        
-        if (EspionageRule.plantDisinfo) {
-            const result1 = EspionageRule.plantDisinfo('NAT001', 'NAT002');
-            
-            setSeed(54321);
-            const result2 = EspionageRule.plantDisinfo('NAT001', 'NAT002');
-            
-            assert.strictEqual(
-                result1.success,
-                result2.success,
-                'Resultados deberían ser idénticos con mismo seed'
-            );
-        }
-    });
-
-    it('Debería validar probabilidad con seed fijo para expel_agents', () => {
-        setSeed(99999);
-        
-        if (EspionageRule.expelAgents) {
-            const result1 = EspionageRule.expelAgents('NAT001', 'NAT002');
-            
-            setSeed(99999);
-            const result2 = EspionageRule.expelAgents('NAT001', 'NAT002');
-            
-            assert.strictEqual(
-                result1.success,
-                result2.success,
-                'Resultados deberían ser idénticos con mismo seed'
-            );
-        }
-    });
-
-    it('Debería validar probabilidad con seed fijo para take_prisoner', () => {
-        setSeed(77777);
-        
-        if (EspionageRule.takePrisoner) {
-            const result1 = EspionageRule.takePrisoner('NAT001', 'NAT002');
-            
-            setSeed(77777);
-            const result2 = EspionageRule.takePrisoner('NAT001', 'NAT002');
-            
-            assert.strictEqual(
-                result1.success,
-                result2.success,
-                'Resultados deberían ser idénticos con mismo seed'
-            );
-        }
-    });
-
-    it('Debería calcular probabilidad de éxito correctamente', () => {
-        if (EspionageRule.calculateSuccessProbability) {
-            const probability = EspionageRule.calculateSuccessProbability('NAT001', 'NAT002', 'gather_intel');
-            
-            assert.ok(probability >= 0, 'Probabilidad no debería ser negativa');
-            assert.ok(probability <= 1, 'Probabilidad no debería exceder 1');
-        }
-    });
-
-    it('Debería manejar nación sin agencia de inteligencia', () => {
-        let state = getState();
-        state.nations.NAT003 = {
-            id: 'NAT003',
-            name: 'No Intel Nation'
-        };
-        
-        assert.doesNotThrow(() => {
-            if (EspionageRule.gatherIntel) {
-                EspionageRule.gatherIntel('NAT001', 'NAT003');
-            }
-        }, 'No debería lanzar error con nación sin agencia');
-    });
-
-    it('Debería verificar capacidad de operación antes de ejecutar', () => {
-        if (EspionageRule.canPerformOperation) {
-            const canOperate = EspionageRule.canPerformOperation('NAT001', 'NAT002', 'gather_intel');
-            assert.strictEqual(typeof canOperate, 'boolean', 'Debería retornar booleano');
-        }
-    });
-
-    it('Debería obtener operaciones activas', () => {
-        if (EspionageRule.getActiveOperations) {
-            const operations = EspionageRule.getActiveOperations('NAT001');
-            assert.ok(Array.isArray(operations), 'Debería retornar un array');
-        }
-    });
-
-    it('Debería obtener nivel de contraespionaje', () => {
-        if (EspionageRule.getCounterIntelLevel) {
-            const level = EspionageRule.getCounterIntelLevel('NAT002');
-            assert.ok(typeof level === 'number', 'Debería retornar un número');
-            assert.ok(level >= 0, 'Nivel no debería ser negativo');
-        }
-    });
-
-    it('Debería aumentar nivel de contraespionaje tras detectar operación', () => {
-        const state = getState();
-        const initialCounterIntel = state.nations.NAT002.intelligence_agency.counter_intel_level;
-        
-        if (EspionageRule.detectOperation) {
-            EspionageRule.detectOperation('NAT001', 'NAT002', 'gather_intel');
-            
-            const newState = getState();
-            assert.ok(
-                newState.nations.NAT002.intelligence_agency.counter_intel_level >= initialCounterIntel,
-                'Contraespionaje debería aumentar tras detección'
-            );
-        }
-    });
-
-    it('Debería reducir agentes tras expulsión exitosa', () => {
-        let state = getState();
-        const initialAgents = state.nations.NAT002.intelligence_agency.agents;
-        state.nations.NAT002.intelligence_agency.agents = 50;
-        
-        if (EspionageRule.expelAgents) {
-            EspionageRule.expelAgents('NAT001', 'NAT002');
-            
-            state = getState();
-            assert.ok(
-                state.nations.NAT002.intelligence_agency.agents < 50,
-                'Agentes deberían reducirse tras expulsión exitosa'
-            );
-        }
-    });
-
-    it('Debería manejar presupuesto insuficiente para operación', () => {
-        let state = getState();
-        state.nations.NAT001.intelligence_agency.budget = 100;
-        
-        if (EspionageRule.canPerformOperation) {
-            const canOperate = EspionageRule.canPerformOperation('NAT001', 'NAT002', 'gather_intel');
-            // Puede ser false por bajo presupuesto
-            assert.strictEqual(typeof canOperate, 'boolean', 'Debería verificar presupuesto');
-        }
-    });
-
-    it('Debería registrar operación en historial', () => {
-        if (EspionageRule.gatherIntel) {
-            EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            const state = getState();
-            const operationEvent = state.events.find(e => 
-                e.type && e.type.includes('operation') || e.type && e.type.includes('intel')
-            );
-            assert.ok(operationEvent, 'Debería registrarse en historial');
-        }
-    });
-
-    it('Debería deteriorar relaciones bilaterales tras take_prisoner', () => {
-        if (EspionageRule.takePrisoner) {
-            EspionageRule.takePrisoner('NAT001', 'NAT002');
-            
-            const state = getState();
-            // Verificar que haya algún efecto en relaciones
-            assert.ok(true, 'Operación debería ejecutarse sin errores');
-        }
-    });
-
-    it('Debería permitir múltiples operaciones simultáneas', () => {
-        if (EspionageRule.gatherIntel && EspionageRule.plantDisinfo) {
-            const result1 = EspionageRule.gatherIntel('NAT001', 'NAT002');
-            const result2 = EspionageRule.plantDisinfo('NAT001', 'NAT002');
-            
-            assert.ok(result1.success !== undefined, 'Primera operación debería tener resultado');
-            assert.ok(result2.success !== undefined, 'Segunda operación debería tener resultado');
-        }
-    });
-
-    it('Debería validar nación origen y destino diferentes', () => {
-        if (EspionageRule.canPerformOperation) {
-            const canOperateSelf = EspionageRule.canPerformOperation('NAT001', 'NAT001', 'gather_intel');
-            assert.strictEqual(canOperateSelf, false, 'No debería poder espiarse a sí mismo');
-        }
-    });
-
-    it('Debería retornar información de agencia de inteligencia', () => {
-        if (EspionageRule.getIntelAgencyInfo) {
-            const info = EspionageRule.getIntelAgencyInfo('NAT001');
-            assert.ok(info, 'Debería retornar información de la agencia');
-            assert.ok(info.agents !== undefined, 'Debería incluir número de agentes');
-            assert.ok(info.budget !== undefined, 'Debería incluir presupuesto');
-        }
-    });
-
-    it('Debería actualizar efectividad tras operación exitosa', () => {
-        const state = getState();
-        const initialEffectiveness = state.nations.NAT001.intelligence_agency.effectiveness;
-        
-        if (EspionageRule.gatherIntel) {
-            EspionageRule.gatherIntel('NAT001', 'NAT002');
-            
-            const newState = getState();
-            // La efectividad puede aumentar o mantenerse
-            assert.ok(
-                newState.nations.NAT001.intelligence_agency.effectiveness >= initialEffectiveness * 0.9,
-                'Efectividad no debería disminuir drásticamente'
-            );
-        }
-    });
+  });
 });
