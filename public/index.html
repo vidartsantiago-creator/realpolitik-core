@@ -3,471 +3,230 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealPolitik - Global Dynamics</title>
+    <title>RealPolitik Core - Cliente de Prueba</title>
     <style>
-        :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --bg-panel: #1a1a25;
-            --text-primary: #e0e0e0;
-            --text-secondary: #a0a0a0;
-            --accent: #00ff9d;
-            --accent-dim: #00ff9d33;
-            --border: #2a2a3a;
-            --success: #00ff9d;
-            --warning: #ffbd2e;
-            --error: #ff4757;
-            --metric-high: #00ff9d;
-            --metric-medium: #ffbd2e;
-            --metric-low: #ff4757;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            height: 100vh;
-            overflow: hidden;
-            display: grid;
-            grid-template-columns: 300px 1fr 350px;
-            grid-template-rows: 60px 1fr 200px;
-            grid-template-areas:
-                "header header header"
-                "dashboard map decisions"
-                "dashboard map feed";
-        }
-
-        /* Header */
-        .header {
-            grid-area: header;
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 2rem;
-        }
-
-        .header h1 {
-            font-size: 1.5rem;
-            background: linear-gradient(135deg, var(--accent), #00b8ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .header-info {
-            display: flex;
-            gap: 2rem;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        .header-info span {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        /* Dashboard (Izquierda) */
-        .dashboard {
-            grid-area: dashboard;
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            padding: 1.5rem;
-            overflow-y: auto;
-        }
-
-        .dashboard h2 {
-            font-size: 1.1rem;
-            margin-bottom: 1.5rem;
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .metric-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .metric-label {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        .metric-value {
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .metric-bar-container {
-            height: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .metric-fill {
-            height: 100%;
-            transition: width 0.3s ease;
-        }
-
-        .metric-high { background: var(--metric-high); }
-        .metric-medium { background: var(--metric-medium); }
-        .metric-low { background: var(--metric-low); }
-
-        /* Mapa (Centro) */
-        .map-container {
-            grid-area: map;
-            background: var(--bg-primary);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .map-placeholder {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--text-secondary);
-        }
-
-        .map-placeholder h3 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-
-        .layer-toggles {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-
-        .layer-toggle {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .layer-toggle:hover, .layer-toggle.active {
-            border-color: var(--accent);
-            background: var(--accent-dim);
-        }
-
-        /* Decisiones (Derecha Superior) */
-        .decisions {
-            grid-area: decisions;
-            background: var(--bg-secondary);
-            border-left: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            padding: 1.5rem;
-            overflow-y: auto;
-        }
-
-        .decisions h2 {
-            font-size: 1.1rem;
-            margin-bottom: 1rem;
-            color: var(--accent);
-        }
-
-        .policy-card {
-            background: var(--bg-panel);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .policy-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-
-        .policy-description {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 1rem;
-            line-height: 1.4;
-        }
-
-        .policy-timer {
-            font-size: 0.9rem;
-            color: var(--warning);
-            margin-bottom: 1rem;
-            font-weight: 600;
-        }
-
-        .policy-option {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .policy-option:hover {
-            border-color: var(--accent);
-        }
-
-        .policy-option.selected {
-            border-color: var(--accent);
-            background: var(--accent-dim);
-        }
-
-        .policy-option.conservative {
-            border-left: 3px solid var(--success);
-        }
-
-        .option-label {
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .option-details {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
-
-        /* Feed (Derecha Inferior) */
-        .intel-feed {
-            grid-area: feed;
-            background: var(--bg-secondary);
-            border-left: 1px solid var(--border);
-            padding: 1.5rem;
-            overflow-y: auto;
-        }
-
-        .intel-feed h2 {
-            font-size: 1.1rem;
-            margin-bottom: 1rem;
-            color: var(--accent);
-        }
-
-        .feed-item {
-            background: rgba(255, 255, 255, 0.02);
-            border-left: 3px solid var(--border);
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            border-radius: 4px;
-        }
-
-        .feed-item.tag-internal { border-left-color: var(--warning); }
-        .feed-item.tag-external { border-left-color: var(--accent); }
-        .feed-item.tag-public { border-left-color: var(--text-secondary); }
-
-        .feed-tag {
-            display: inline-block;
-            font-size: 0.7rem;
-            padding: 0.15rem 0.5rem;
-            border-radius: 3px;
-            margin-right: 0.5rem;
-            font-weight: 600;
-        }
-
-        .tag-internal .feed-tag { background: var(--warning); color: #000; }
-        .tag-external .feed-tag { background: var(--accent); color: #000; }
-        .tag-public .feed-tag { background: var(--text-secondary); color: #000; }
-
-        .feed-text {
-            font-size: 0.85rem;
-            display: block;
-            margin: 0.25rem 0;
-        }
-
-        .feed-confidence {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-        }
-
-        /* Panel Rápido (Inferior - colapsable) */
-        .quick-panel {
-            display: none; /* Por ahora oculto, se implementará en Fase 2 */
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 3px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-secondary);
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #f4f4f9; color: #333; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
+        .panel { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+        .status { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        textarea { width: 100%; height: 120px; font-family: monospace; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical; }
+        button { background: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-size: 1rem; transition: background 0.2s; }
+        button:hover { background: #2980b9; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        #log { background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; }
+        .log-entry { margin-bottom: 0.5rem; border-bottom: 1px solid #34495e; padding-bottom: 0.25rem; }
+        .log-entry.error { color: #e74c3c; }
+        .log-entry.success { color: #2ecc71; }
+        .log-entry.info { color: #3498db; }
+        .controls { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+        input[type="text"], input[type="number"] { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <h1>🏛️ RealPolitik: Global Dynamics</h1>
-        <div class="header-info">
-            <span id="nation-name">🇦🇷 Argentina</span>
-            <span id="tick-display">Tick: 0</span>
-            <span id="connection-status">🟢 Conectado</span>
+
+    <h1>🌍 RealPolitik Core - Cliente de Prueba</h1>
+
+    <!-- Panel de Conexión -->
+    <div class="panel">
+        <h2>1. Conexión</h2>
+        <div style="margin-bottom: 1rem;">
+            Estado: <span id="connectionStatus" class="status disconnected">Desconectado</span>
         </div>
-    </header>
-
-    <!-- Tablero de Mando (Izquierda) -->
-    <aside class="dashboard">
-        <h2>📊 Tablero de Mando</h2>
-
-        <div class="metric-group">
-            <div class="metric-label">
-                <span>Estabilidad</span>
-                <span class="metric-value" id="stability-value">--</span>
-            </div>
-            <div class="metric-bar-container">
-                <div class="metric-fill" id="stability-bar" style="width: 0%"></div>
-            </div>
+        <div class="controls">
+            <input type="text" id="playerId" placeholder="ID Jugador (ej. P1)" value="P1">
+            <input type="text" id="nationId" placeholder="ID Nación (ej. A)" value="A">
+            <button id="btnConnect" onclick="connect()">Conectar</button>
+            <button id="btnDisconnect" onclick="disconnect()" disabled>Desconectar</button>
         </div>
+    </div>
 
-        <div class="metric-group">
-            <div class="metric-label">
-                <span>Presupuesto</span>
-                <span class="metric-value" id="budget-value">--</span>
-            </div>
-            <div class="metric-bar-container">
-                <div class="metric-fill" id="budget-bar" style="width: 0%"></div>
-            </div>
+    <!-- Panel de Envío de Intenciones -->
+    <div class="panel">
+        <h2>2. Enviar Intención (Validación de Esquema)</h2>
+        <p style="font-size: 0.9rem; color: #666;">Edita el JSON abajo. Si el esquema es inválido, el servidor rechazará el mensaje con un error detallado.</p>
+        <textarea id="intentJson">{
+  "type": "build_unit",
+  "payload": {
+    "unitType": "infantry",
+    "location": "capital"
+  }
+}</textarea>
+        <div class="controls">
+            <button id="btnSend" onclick="sendIntent()" disabled>Enviar Intención</button>
+            <button onclick="fillValidIntent()">Ejemplo Válido</button>
+            <button onclick="fillInvalidIntent()">Ejemplo Inválido (Test)</button>
         </div>
+    </div>
 
-        <div class="metric-group">
-            <div class="metric-label">
-                <span>Apoyo Popular</span>
-                <span class="metric-value" id="support-value">--</span>
-            </div>
-            <div class="metric-bar-container">
-                <div class="metric-fill" id="support-bar" style="width: 0%"></div>
-            </div>
-        </div>
+    <!-- Panel de Logs -->
+    <div class="panel">
+        <h2>3. Registro de Eventos</h2>
+        <div id="log"></div>
+        <button onclick="clearLog()" style="margin-top: 0.5rem; background: #7f8c8d;">Limpiar Log</button>
+    </div>
 
-        <div class="metric-group">
-            <div class="metric-label">
-                <span>Poder Militar</span>
-                <span class="metric-value" id="military-value">--</span>
-            </div>
-            <div class="metric-bar-container">
-                <div class="metric-fill" id="military-bar" style="width: 0%"></div>
-            </div>
-        </div>
-    </aside>
+    <script>
+        let ws = null;
+        const statusEl = document.getElementById('connectionStatus');
+        const logEl = document.getElementById('log');
+        const btnConnect = document.getElementById('btnConnect');
+        const btnDisconnect = document.getElementById('btnDisconnect');
+        const btnSend = document.getElementById('btnSend');
 
-    <!-- Mapa Geopolítico (Centro) -->
-    <main class="map-container" id="map-container">
-        <!-- Renderizado por UI.js -->
-    </main>
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
 
-    <!-- Centro de Decisiones (Derecha Superior) -->
-    <section class="decisions">
-        <h2>🎴 Centro de Decisiones</h2>
-        <div class="policy-card" id="policy-card">
-            <h3 class="policy-title" id="policy-title">Cargando...</h3>
-            <p class="policy-description" id="policy-description"></p>
-            <div class="policy-timer" id="policy-timer">--:--</div>
-            <div class="policy-options" id="policy-options">
-                <!-- Opciones renderizadas dinámicamente -->
-            </div>
-        </div>
-    </section>
+        function clearLog() {
+            logEl.innerHTML = '';
+            log('Log limpiado.', 'info');
+        }
 
-    <!-- Feed de Inteligencia (Derecha Inferior) -->
-    <section class="intel-feed">
-        <h2>📡 Feed de Inteligencia</h2>
-        <div id="intel-feed">
-            <!-- Items renderizados dinámicamente -->
-        </div>
-    </section>
+        function updateUI(connected) {
+            if (connected) {
+                statusEl.textContent = 'Conectado';
+                statusEl.className = 'status connected';
+                btnConnect.disabled = true;
+                btnDisconnect.disabled = false;
+                btnSend.disabled = false;
+            } else {
+                statusEl.textContent = 'Desconectado';
+                statusEl.className = 'status disconnected';
+                btnConnect.disabled = false;
+                btnDisconnect.disabled = true;
+                btnSend.disabled = true;
+            }
+        }
 
-    <!-- Panel Rápido (Oculto por ahora) -->
-    <section class="quick-panel" id="faction-panel">
-        <!-- Facciones renderizadas dinámicamente -->
-    </section>
+        function connect() {
+            const playerId = document.getElementById('playerId').value.trim();
+            const nationId = document.getElementById('nationId').value.trim();
 
-    <!-- Scripts modulares -->
-    <script type="module">
-        import { initSyncClient, subscribe, getState } from './client/SyncClient.js';
-        import { initUI, renderDashboard, renderMap, renderPolicyCenter, renderIntelFeed, updateTickDisplay, setNationName } from './client/UI.js';
-
-        console.log('🚀 RealPolitik Game Interface initialized');
-
-        // Inicializar sincronización
-        initSyncClient();
-
-        // Inicializar UI
-        initUI();
-
-        // Suscribirse a actualizaciones de estado
-        subscribe((eventType, data) => {
-            console.log('[UI] Evento recibido:', eventType, data);
-
-            if (eventType === 'state_update' && data.state) {
-                const state = data.state;
-
-                // Actualizar dashboard con stats de la nación jugadora
-                if (state.nations && state.nations.ARG) {
-                    renderDashboard(state.nations.ARG.stats);
-                    setNationName(`🇦🇷 ${state.nations.ARG.name || 'Argentina'}`);
-                }
-
-                // Actualizar tick
-                if (state.tick !== undefined) {
-                    updateTickDisplay(state.tick);
-                }
-
-                // Renderizar mapa
-                renderMap(state);
-
-                // Renderizar políticas activas
-                if (state.activePolicy) {
-                    renderPolicyCenter(state.activePolicy);
-                }
-
-                // Renderizar feed de inteligencia
-                if (state.intelFeed) {
-                    renderIntelFeed(state.intelFeed);
-                }
+            if (!playerId || !nationId) {
+                log('Error: Debes ingresar ID de jugador y nación.', 'error');
+                return;
             }
 
-            if (eventType === 'tick' && data.tick) {
-                updateTickDisplay(data.tick);
+            const url = `ws://${window.location.hostname}:8080`;
+            log(`Intentando conectar a ${url}...`, 'info');
+
+            try {
+                ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    log('Conexión WebSocket establecida.', 'success');
+                    
+                    // Enviar Handshake
+                    const handshake = {
+                        type: 'handshake',
+                        playerId: playerId,
+                        nationId: nationId
+                    };
+                    ws.send(JSON.stringify(handshake));
+                    log(`Handshake enviado: Jugador ${playerId}, Nación ${nationId}`, 'info');
+                    
+                    updateUI(true);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`Mensaje recibido: ${JSON.stringify(data, null, 2)}`, data.type === 'error' ? 'error' : 'success');
+                        
+                        if (data.type === 'error') {
+                            // Manejo específico de errores de validación
+                            if (data.details) {
+                                log(`Detalles del error: ${JSON.stringify(data.details)}`, 'error');
+                            }
+                        }
+                    } catch (e) {
+                        log(`Mensaje crudo recibido: ${event.data}`, 'info');
+                    }
+                };
+
+                ws.onclose = () => {
+                    log('Conexión cerrada por el servidor o red.', 'error');
+                    updateUI(false);
+                    ws = null;
+                };
+
+                ws.onerror = (error) => {
+                    log(`Error en WebSocket: ${error.message || 'Desconocido'}`, 'error');
+                };
+
+            } catch (e) {
+                log(`Fallo al crear WebSocket: ${e.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                log('Solicitando desconexión...', 'info');
+            }
+        }
+
+        function sendIntent() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('Error: No estás conectado.', 'error');
+                return;
             }
 
-            if (eventType === 'policy_decision' && data.decision) {
-                renderPolicyCenter(data.decision);
+            const rawJson = document.getElementById('intentJson').value;
+            let intentData;
+
+            try {
+                intentData = JSON.parse(rawJson);
+            } catch (e) {
+                log(`Error de sintaxis JSON: ${e.message}`, 'error');
+                return;
             }
 
-            if (eventType === 'intel_update' && data.items) {
-                renderIntelFeed(data.items);
-            }
-        });
+            // Envolver en el formato de mensaje esperado por el servidor
+            const message = {
+                type: 'intent',
+                payload: intentData
+            };
+
+            log(`Enviando intención: ${JSON.stringify(message, null, 2)}`, 'info');
+            ws.send(JSON.stringify(message));
+        }
+
+        function fillValidIntent() {
+            const valid = {
+                "type": "build_unit",
+                "payload": {
+                    "unitType": "scout",
+                    "location": "border_north"
+                }
+            };
+            document.getElementById('intentJson').value = JSON.stringify(valid, null, 2);
+            log('Plantilla válida cargada.', 'info');
+        }
+
+        function fillInvalidIntent() {
+            // Falta el campo obligatorio "type" o tiene un valor incorrecto
+            const invalid = {
+                "typo": "build_unit", // Error intencional: debería ser "type"
+                "payload": {
+                    "foo": "bar"
+                }
+                // Falta timestamp y playerId (se inyectan, pero el schema valida estructura base)
+            };
+            document.getElementById('intentJson').value = JSON.stringify(invalid, null, 2);
+            log('Plantilla INVÁLIDA cargada (prueba de validación).', 'error');
+        }
+
+        // Inicialización
+        updateUI(false);
+        log('Cliente listo. Ingresa tus datos y pulsa "Conectar".', 'info');
     </script>
 </body>
 </html>

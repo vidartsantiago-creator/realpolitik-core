@@ -4,7 +4,7 @@
  * Implementa sistemas de inteligencia, filtrado de datos y señales veladas
  */
 import { rng, rngInt } from '../core/Rng.js';
-import { EventDispatcher } from '../core/EventDispatcher.js';
+import { on, emit, off } from '../core/EventDispatcher.js';
 
 export class InformationLayer {
   constructor() {
