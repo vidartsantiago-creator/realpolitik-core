@@ -1,5 +1,5 @@
 import http from 'http';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { on, off, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta, setInitialState } from '../core/StateManager.js';
 import { getCurrentTick } from '../core/TimeEngine.js';
