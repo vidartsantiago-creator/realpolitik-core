@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "Intent.schema.json",
+  "title": "Player Intent",
+  "description": "Estructura de una intención de jugador o sistema para ser procesada por el motor.",
+  "type": "object",
+  "required": [
+    "playerId",
+    "nationId",
+    "type",
+    "payload",
+    "timestamp"
+  ],
+  "properties": {
+    "playerId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ID único del jugador que origina la intención."
+    },
+    "nationId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ID de la nación sobre la que actúa el jugador."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "move_unit",
+        "build_unit",
+        "diplomacy",
+        "espionage",
+        "policy_change",
+        "resource_trade",
+        "idle",
+        "chat_message",
+        "stewardship_action"
+      ],
+      "description": "Tipo de acción que se desea realizar."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Datos específicos de la acción. La estructura interna depende del tipo.",
+      "additionalProperties": true
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Timestamp Unix en milisegundos cuando se generó la intención."
+    },
+    "id": {
+      "type": "string",
+      "description": "ID único opcional para trazabilidad (generado por el servidor si falta)."
+    }
+  },
+  "additionalProperties": false
+}

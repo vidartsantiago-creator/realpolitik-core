@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "StateDelta.schema.json",
+  "title": "State Delta",
+  "description": "Registro de un cambio atómico aplicado al estado global.",
+  "type": "object",
+  "required": [
+    "type",
+    "tick",
+    "timestamp"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "Tipo de delta (ej. resource_update, player_disconnected, unit_created).",
+      "minLength": 1
+    },
+    "tick": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Número de tick en el que se aplicó el delta."
+    },
+    "timestamp": {
+      "type": "number",
+      "description": "Timestamp Unix en milisegundos de la aplicación."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["player", "system", "mock", "stewardship"],
+      "description": "Origen del delta."
+    },
+    "playerId": {
+      "type": "string",
+      "description": "ID del jugador asociado (si aplica)."
+    },
+    "nationId": {
+      "type": "string",
+      "description": "ID de la nación afectada (si aplica)."
+    },
+    "changes": {
+      "type": "object",
+      "description": "Objeto con los cambios específicos aplicados al estado.",
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Metadatos adicionales para debugging o lógica específica.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,20 +1,6 @@
-const { describe, it, before, after } = require('node:test');
-const assert = require('node:assert');
-const { MockServer, createDefaultInitialState, createPlayerIntent } = require('../helpers/MockServer');
-
-/**
- * Test de Resiliencia y Reconexión
- * 
- * Objetivo: Validar el comportamiento del sistema ante desconexiones de jugadores,
- * la ejecución de ticks en modo "stewardship" (IA temporal), y la correcta
- * sincronización al reconectar.
- * 
- * Escenarios cubiertos:
- * 1. Desconexión limpia y buffer de estado.
- * 2. Ejecución de ticks sin input humano (Stewardship).
- * 3. Reconexión y aplicación de deltas acumulados.
- * 4. Integridad del estado tras recuperación.
- */
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert';
+import { MockServer, createDefaultInitialState, createPlayerIntent } from '../helpers/MockServer.js';
 
 describe('Integration: Resilience & Reconnection', () => {
   let server;
@@ -22,10 +8,8 @@ describe('Integration: Resilience & Reconnection', () => {
   const PLAYER_ID = 'P1';
   const NATION_ID = 'A';
   
-  // Configuración de tiempos (en ticks)
   const TICKS_BEFORE_DISCONNECT = 10;
-  const TICKS_DISCONNECTED = 20; // Tiempo que el jugador está fuera
-  const TOTAL_TICKS = TICKS_BEFORE_DISCONNECT + TICKS_DISCONNECTED + 10;
+  const TICKS_DISCONNECTED = 20;
 
   before(() => {
     server = new MockServer({ seed: SEED, tickRate: 100 });
@@ -43,44 +27,34 @@ describe('Integration: Resilience & Reconnection', () => {
   });
 
   after(() => {
-    server?.reset();
+    if (server) server.reset();
   });
 
-  /**
-   * Simula el ciclo de vida: Conectado -> Desconectado -> Reconectado
-   */
-  it('RESILIENCE-01: Flujo completo de desconexión y reconexión mantiene integridad', () => {
-    // FASE 1: Juego normal (Conectado)
+  it('RESILIENCE-01: Flujo completo de desconexión y reconexión', () => {
+    // Fase 1: Conectado
     for (let i = 0; i < TICKS_BEFORE_DISCONNECT; i++) {
       server.injectIntent(createPlayerIntent(PLAYER_ID, NATION_ID, 'idle', {}));
       server.runTicks(1);
     }
 
-    const stateBeforeDisconnect = server.getStateSnapshot();
     const tickAtDisconnect = server.getCurrentTick();
-    assert.strictEqual(tickAtDisconnect, TICKS_BEFORE_DISCONNECT, 'Debe estar en el tick correcto antes de desconectar');
+    assert.strictEqual(tickAtDisconnect, TICKS_BEFORE_DISCONNECT, 'Tick correcto antes de desconectar');
 
-    // Simular evento de desconexión
-    server.stateManager.applyDelta({
+    // Simular desconexión
+    server.applyDelta({
       type: 'player_disconnected',
       playerId: PLAYER_ID,
       tick: tickAtDisconnect
     }, 'system');
     
-    // Actualizar estado localmente para reflejar desconexión
-    const currentState = server.getStateSnapshot();
+    let currentState = server.getStateSnapshot();
     currentState.players[PLAYER_ID].connected = false;
     currentState.players[PLAYER_ID].lastSeenTick = tickAtDisconnect;
-    server.setInitialState(currentState); // Recargar estado modificado
+    server.setInitialState(currentState); 
 
-    // FASE 2: Stewardship (Desconectado)
-    // El servidor sigue corriendo, pero no hay inputs del jugador P1
-    // En una implementación real, StewardshipEngine generaría intenciones automáticas aquí.
-    // Para este test, verificamos que el tiempo avanza sin el jugador.
-    
+    // Fase 2: Stewardship (Desconectado)
     let stewardshipDeltas = [];
     for (let i = 0; i < TICKS_DISCONNECTED; i++) {
-      // Simular que StewardshipEngine genera una acción automática cada 5 ticks
       if (i % 5 === 0) {
         const autoIntent = {
           type: 'stewardship_action',
@@ -96,109 +70,83 @@ describe('Integration: Resilience & Reconnection', () => {
     }
 
     const tickAtReconnect = server.getCurrentTick();
-    assert.strictEqual(tickAtReconnect, TICKS_BEFORE_DISCONNECT + TICKS_DISCONNECTED, 'El tiempo debe haber avanzado durante la desconexión');
+    assert.strictEqual(tickAtReconnect, TICKS_BEFORE_DISCONNECT + TICKS_DISCONNECTED, 'El tiempo avanzó durante desconexión');
 
-    // FASE 3: Reconexión
-    // El jugador se reconecta y debe recibir los deltas ocurridos mientras estaba fuera
-    const reconnectDelta = {
+    // Fase 3: Reconexión
+    server.applyDelta({
       type: 'player_reconnected',
       playerId: PLAYER_ID,
       tick: tickAtReconnect,
-      missedDeltas: stewardshipDeltas, // Simulación del buffer de deltas
+      missedDeltas: stewardshipDeltas,
       lastKnownTick: tickAtDisconnect
-    };
-
-    server.stateManager.applyDelta(reconnectDelta, 'system');
+    }, 'system');
     
-    // Actualizar estado de conexión
     const stateAfterReconnect = server.getStateSnapshot();
     stateAfterReconnect.players[PLAYER_ID].connected = true;
     stateAfterReconnect.players[PLAYER_ID].lastSeenTick = tickAtReconnect;
     
-    // Verificar que el estado es consistente
-    assert.strictEqual(stateAfterReconnect.players[PLAYER_ID].connected, true, 'El jugador debe estar marcado como conectado');
-    assert.strictEqual(stateAfterReconnect.players[PLAYER_ID].lastSeenTick, tickAtReconnect, 'El último tick visto debe actualizarse al momento de reconexión');
+    assert.strictEqual(stateAfterReconnect.players[PLAYER_ID].connected, true, 'Jugador conectado');
+    assert.strictEqual(stateAfterReconnect.players[PLAYER_ID].lastSeenTick, tickAtReconnect, 'Tick actualizado');
     
-    // FASE 4: Continuidad post-reconexión
-    // El jugador envía una nueva intención y debe ser procesada correctamente
+    // Fase 4: Continuidad
     server.injectIntent(createPlayerIntent(PLAYER_ID, NATION_ID, 'build_unit', { type: 'scout' }));
     server.runTicks(1);
 
-    const finalTick = server.getCurrentTick();
-    assert.strictEqual(finalTick, tickAtReconnect + 1, 'El juego debe continuar normalmente tras la reconexión');
+    assert.strictEqual(server.getCurrentTick(), tickAtReconnect + 1, 'Juego continúa normalmente');
   });
 
-  it('RESILIENCE-02: Buffer de deltas no excede el límite máximo (120 ticks)', () => {
-    // Reiniciar para prueba específica de límite
+  it('RESILIENCE-02: Buffer de deltas no colapsa con historial antiguo', () => {
     server.reset();
     server.init();
     server.setInitialState(createDefaultInitialState([NATION_ID]));
     
-    const MAX_BUFFER_TICKS = 120;
     const EXCESS_TICKS = 130;
-
-    // Avanzar más ticks de los permitidos en buffer
     server.runTicks(EXCESS_TICKS);
 
-    // En una implementación real, el StateManager o WebSocketServer recortaría el buffer.
-    // Aquí verificamos que el sistema no colapsa y el tick es correcto.
     const currentTick = server.getCurrentTick();
-    assert.strictEqual(currentTick, EXCESS_TICKS, 'El tiempo debe avanzar incluso si excede el buffer teórico');
+    assert.strictEqual(currentTick, EXCESS_TICKS, 'El tiempo avanza correctamente');
 
-    // Simular intento de reconexión con historial antiguo
-    // El sistema debería detectar que lastKnownTick es demasiado antiguo y forzar un snapshot completo
     const reconnectAttempt = {
       type: 'reconnect_request',
       playerId: PLAYER_ID,
-      lastKnownTick: 0 // Muy antiguo
+      lastKnownTick: 0 
     };
 
-    // No debería lanzar excepción
     assert.doesNotThrow(() => {
-      server.stateManager.applyDelta(reconnectAttempt, 'system');
-    }, 'La reconexión con historial antiguo no debe causar crash');
+      server.applyDelta(reconnectAttempt, 'system');
+    }, 'Reconexión con historial antiguo no debe crashear');
   });
 
-  it('RESILIENCE-03: Múltiples desconexiones/reconexiones consecutivas', () => {
-    // Prueba de estrés básico: Ciclos rápidos de conexión
+  it('RESILIENCE-03: Múltiples ciclos de conexión/desconexión', () => {
     const cycles = 5;
-    let currentTickStart = server.getCurrentTick();
+    const startTick = server.getCurrentTick();
 
     for (let i = 0; i < cycles; i++) {
-      // Desconectar
       server.runTicks(2);
-      server.stateManager.applyDelta({ type: 'player_disconnected', playerId: PLAYER_ID, tick: server.getCurrentTick() }, 'system');
+      server.applyDelta({ type: 'player_disconnected', playerId: PLAYER_ID, tick: server.getCurrentTick() }, 'system');
       
-      // Ticks offline
       server.runTicks(3);
       
-      // Reconectar
-      server.stateManager.applyDelta({ type: 'player_reconnected', playerId: PLAYER_ID, tick: server.getCurrentTick() }, 'system');
+      server.applyDelta({ type: 'player_reconnected', playerId: PLAYER_ID, tick: server.getCurrentTick() }, 'system');
     }
 
     const finalTick = server.getCurrentTick();
-    const expectedTick = currentTickStart + (cycles * 5); // 2 online + 3 offline por ciclo
+    const expectedTick = startTick + (cycles * 5);
     
-    assert.strictEqual(finalTick, expectedTick, `Debería haber avanzado ${cycles * 5} ticks en total`);
+    assert.strictEqual(finalTick, expectedTick, `Avance correcto de ${cycles * 5} ticks`);
     
-    // Verificar que el estado final es válido (no corrupto)
     const finalState = server.getStateSnapshot();
-    assert.ok(finalState.game || finalState.tick !== undefined || Object.keys(finalState).length > 0, 'El estado final no debe estar vacío o corrupto');
+    assert.ok(Object.keys(finalState).length > 0, 'Estado final válido');
   });
 
-  it('RESILIENCE-04: Intenciones recibidas durante la reconexión se encolan correctamente', () => {
-    // Simular que llegan intenciones justo en el momento de reconectar
+  it('RESILIENCE-04: Intenciones durante reconexión se procesan', () => {
     const reconnectTick = server.getCurrentTick();
     
-    // Intento de acción justo antes de confirmar reconexión (edge case)
     const pendingIntent = createPlayerIntent(PLAYER_ID, NATION_ID, 'chat_message', { text: 'Reconectando...' });
     
-    // En algunos diseños, esto se rechaza; en otros, se encola.
-    // Asumimos diseño robusto: se encola o se procesa tras validar estado.
     server.injectIntent(pendingIntent);
     server.runTicks(1);
 
-    // Verificar que el sistema no crasheó y el tick avanzó
-    assert.strictEqual(server.getCurrentTick(), reconnectTick + 1, 'El tick debe avanzar tras procesar intenciones de reconexión');
+    assert.strictEqual(server.getCurrentTick(), reconnectTick + 1, 'Tick avanza tras intención de reconexión');
   });
 });
