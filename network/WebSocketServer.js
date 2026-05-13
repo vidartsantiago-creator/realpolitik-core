@@ -4,6 +4,7 @@ import { on, off, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta, setInitialState } from '../core/StateManager.js';
 import { getCurrentTick } from '../core/TimeEngine.js';
 import { validator } from './SchemaValidator.js';
+import { processIntent } from '../modules/IntentProcessor.js';
 
 export class GameWebSocketServer {
   constructor(httpServer, config = {}) {
@@ -116,19 +117,66 @@ export class GameWebSocketServer {
 
   handleIntent(clientId, intentPayload) {
     const client = this.clients.get(clientId);
+    
+    // 1. Validar autenticación
     if (!client || !client.playerId) {
       this.sendError(clientId, 'Not authenticated');
       return;
     }
 
+    // 2. Construir la intención completa con metadatos del servidor
     const fullIntent = {
       ...intentPayload,
       playerId: client.playerId,
-      nationId: client.nationId,
-      receivedAt: Date.now()
+      nationId: client.nationId || intentPayload.nationId,
+      receivedAt: Date.now(),
+      tick: getCurrentTick()
     };
 
-    // Emitir al core (necesitas importar 'emit' del core)
+    console.log(`[WS] Procesando intención: ${fullIntent.type} para ${fullIntent.nationId}`);
+
+    // 3. Ejecutar lógica de negocio (IntentProcessor)
+    // Asegúrate de haber importado: import { processIntent } from '../modules/IntentProcessor.js';
+    // Y las funciones de estado: import { getState, applyDelta } from '../core/StateManager.js';
+    
+    const currentState = getState();
+    const result = processIntent(fullIntent, currentState);
+
+    // 4. Manejar resultado
+    if (!result.success) {
+      console.warn(`[WS] Intención rechazada (Lógica): ${result.error}`);
+      this.sendError(clientId, 'Business Logic Error', { message: result.error });
+      return;
+    }
+
+    // 5. Aplicar deltas al estado global
+    if (result.deltas && result.deltas.length > 0) {
+      result.deltas.forEach(delta => {
+        const applyResult = applyDelta(delta, 'player_intent');
+        if (!applyResult.success) {
+          console.error('[WS] Fallo al aplicar delta:', applyResult.errors);
+        }
+      });
+
+      // 6. Enviar confirmación al cliente
+      this.send(clientId, {
+        type: 'intent_accepted',
+        tick: getCurrentTick(),
+        changes: result.deltas,
+        message: 'Intención procesada correctamente'
+      });
+
+      console.log(`[WS] ✅ Intención ${fullIntent.type} aplicada con éxito.`);
+    } else {
+      // Caso donde no hay deltas pero fue exitoso (ej. solo lectura o info)
+      this.send(clientId, {
+        type: 'intent_accepted',
+        tick: getCurrentTick(),
+        message: 'Intención recibida, sin cambios de estado'
+      });
+    }
+
+    // 7. Emitir evento para otros módulos
     emit('intent_received', fullIntent);
   }
 

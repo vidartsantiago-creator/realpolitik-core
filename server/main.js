@@ -9,6 +9,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import IntentProcessor from '../modules/IntentProcessor.js';
 import { fileURLToPath } from 'url';
 import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
@@ -89,6 +90,12 @@ async function registerModules() {
             // Continuar sin detener el servidor para desarrollo, o usar process.exit(1) en producción
         }
     }
+    try {
+        await IntentProcessor.init();
+        console.log('[main] ✅ Módulo \'IntentProcessor\' inicializado correctamente.');
+    } catch (error) {
+        console.error('[main] ❌ ERROR crítico inicializando IntentProcessor:', error.message);
+    }
 }
 
 // ============================================
@@ -118,18 +125,38 @@ async function main() {
 
         // 2. Cargar estado inicial
         console.log('[main] Cargando estado inicial...');
+
+        const nationsList = [
+            { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
+            { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
+            { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 }
+        ];
+
+        // Transformar array a objeto indexado por ID
+        const nationsMap = nationsList.reduce((acc, nation) => ({
+            ...acc,
+            [nation.id]: {
+                ...nation,
+                stats: { stability: nation.stability, economy: nation.economy, influence: nation.influence },
+                resources: { gold: 1000, food: 500 }, // Recursos iniciales por defecto
+                units: [],
+                factions: {}
+            }
+        }), {});
+
         const initialState = {
             meta: { tick: 0, status: 'running' },
-            nations: [
-                { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
-                { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
-                { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 }
-            ],
+            nations: nationsMap, // Ahora es un objeto: { USA: {...}, CHN: {...} }
             policies: [],
-            intel: []
+            intel: [],
+            diplomacy: { relations: {}, channels: {} },
+            crisis: { active: false, phase: 0 },
+            espionage: { operations: {} },
+            factions: {}
         };
+
         setInitialState(initialState);
-        console.log(`[main] Estado inicial cargado: ${initialState.nations.length} naciones.`);
+        console.log(`[main] Estado inicial cargado: ${Object.keys(nationsMap).length} naciones.`);
 
         // 3. Registrar módulos
         await registerModules();
