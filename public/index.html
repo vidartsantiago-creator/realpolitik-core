@@ -3,230 +3,323 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealPolitik Core - Cliente de Prueba</title>
+    <title>RealPolitik Core - Interfaz Principal</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #f4f4f9; color: #333; }
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.5rem; }
-        .panel { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
-        .status { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
-        .status.connected { background: #d4edda; color: #155724; }
-        .status.disconnected { background: #f8d7da; color: #721c24; }
-        textarea { width: 100%; height: 120px; font-family: monospace; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical; }
-        button { background: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-size: 1rem; transition: background 0.2s; }
-        button:hover { background: #2980b9; }
-        button:disabled { background: #bdc3c7; cursor: not-allowed; }
-        #log { background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap; }
-        .log-entry { margin-bottom: 0.5rem; border-bottom: 1px solid #34495e; padding-bottom: 0.25rem; }
-        .log-entry.error { color: #e74c3c; }
-        .log-entry.success { color: #2ecc71; }
-        .log-entry.info { color: #3498db; }
-        .controls { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
-        input[type="text"], input[type="number"] { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            overflow: hidden;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 300px 1fr 350px;
+            grid-template-rows: 60px 1fr 200px;
+        }
+        header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 2px solid #e94560;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2rem;
+            z-index: 100;
+        }
+        header h1 { font-size: 1.5rem; color: #e94560; text-shadow: 0 0 10px rgba(233, 69, 96, 0.5); }
+        .header-info { display: flex; gap: 2rem; font-size: 0.9rem; }
+        .header-info span { color: #3b82f6; }
+        #left-panel {
+            background: rgba(26, 26, 46, 0.95);
+            border-right: 1px solid #0f3460;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        .dashboard-card {
+            background: rgba(15, 52, 96, 0.5);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .dashboard-card h3 { color: #e94560; font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px; }
+        .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .metric:last-child { border-bottom: none; }
+        .metric-value { color: #3b82f6; font-weight: bold; }
+        #map-container { position: relative; background: #0a0a14; overflow: hidden; }
+        #world-canvas, #network-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #network-canvas { pointer-events: none; }
+        #layer-controls {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            z-index: 50;
+        }
+        #layer-controls button {
+            background: transparent;
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        #layer-controls button:hover { background: rgba(59, 130, 246, 0.2); }
+        #layer-controls button.active { background: #3b82f6; color: white; }
+        #right-panel {
+            background: rgba(26, 26, 46, 0.95);
+            border-left: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #intel-feed { flex: 1; overflow-y: auto; padding: 1rem; }
+        .intel-card {
+            background: rgba(15, 52, 96, 0.5);
+            border-left: 3px solid #3b82f6;
+            border-radius: 4px;
+            padding: 0.8rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.85rem;
+        }
+        .intel-card.high { border-left-color: #ef4444; }
+        .intel-card.medium { border-left-color: #fbbf24; }
+        .intel-card.low { border-left-color: #64748b; }
+        .confidence-bar { background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; margin: 0.5rem 0; overflow: hidden; }
+        .confidence-fill { height: 100%; transition: width 0.3s; }
+        #bottom-panel {
+            grid-column: 1 / -1;
+            background: rgba(26, 26, 46, 0.95);
+            border-top: 1px solid #0f3460;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            overflow: hidden;
+        }
+        #advisor-panel, #log-panel { padding: 1rem; overflow-y: auto; }
+        #advisor-content { font-size: 0.9rem; line-height: 1.6; }
+        #log-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+            padding: 0.5rem;
+            height: 100%;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+        .log-entry { margin-bottom: 0.3rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        #modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            display: none;
+        }
+        .modal-window {
+            position: absolute;
+            background: #1a1a2e;
+            border: 2px solid #e94560;
+            border-radius: 8px;
+            min-width: 400px;
+            max-width: 600px;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+        }
+        .modal-header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #e94560 100%);
+            padding: 1rem;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+        }
+        .modal-body { padding: 1.5rem; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+        .text-success { color: #10b981; }
+        .text-warning { color: #fbbf24; }
+        .text-danger { color: #ef4444; }
+        .text-info { color: #3b82f6; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #64748b; cursor: not-allowed; }
     </style>
 </head>
 <body>
-
-    <h1>🌍 RealPolitik Core - Cliente de Prueba</h1>
-
-    <!-- Panel de Conexión -->
-    <div class="panel">
-        <h2>1. Conexión</h2>
-        <div style="margin-bottom: 1rem;">
-            Estado: <span id="connectionStatus" class="status disconnected">Desconectado</span>
+    <header>
+        <h1>🌍 RealPolitik Core</h1>
+        <div class="header-info">
+            <div>Nación: <span id="nation-name">Cargando...</span></div>
+            <div>Tick: <span id="metric-tick">0</span></div>
+            <div>Conexión: <span id="connection-status" class="text-warning">Desconectado</span></div>
         </div>
-        <div class="controls">
-            <input type="text" id="playerId" placeholder="ID Jugador (ej. P1)" value="P1">
-            <input type="text" id="nationId" placeholder="ID Nación (ej. A)" value="A">
-            <button id="btnConnect" onclick="connect()">Conectar</button>
-            <button id="btnDisconnect" onclick="disconnect()" disabled>Desconectar</button>
+    </header>
+
+    <aside id="left-panel">
+        <div class="dashboard-card">
+            <h3>📊 Métricas Nacionales</h3>
+            <div class="metric"><span>PIB</span><span class="metric-value" id="metric-gdp">$0M</span></div>
+            <div class="metric"><span>Presupuesto</span><span class="metric-value" id="metric-budget">$0M</span></div>
+            <div class="metric"><span>Estabilidad</span><span class="metric-value" id="metric-stability">0%</span></div>
         </div>
-    </div>
-
-    <!-- Panel de Envío de Intenciones -->
-    <div class="panel">
-        <h2>2. Enviar Intención (Validación de Esquema)</h2>
-        <p style="font-size: 0.9rem; color: #666;">Edita el JSON abajo. Si el esquema es inválido, el servidor rechazará el mensaje con un error detallado.</p>
-        <textarea id="intentJson">{
-  "type": "build_unit",
-  "payload": {
-    "unitType": "infantry",
-    "location": "capital"
-  }
-}</textarea>
-        <div class="controls">
-            <button id="btnSend" onclick="sendIntent()" disabled>Enviar Intención</button>
-            <button onclick="fillValidIntent()">Ejemplo Válido</button>
-            <button onclick="fillInvalidIntent()">Ejemplo Inválido (Test)</button>
+        <div class="dashboard-card">
+            <h3>🎯 Objetivos</h3>
+            <p style="font-size: 0.85rem; color: #94a3b8;">Sin objetivos activos</p>
         </div>
-    </div>
+        <div class="dashboard-card">
+            <h3>⚡ Acciones Rápidas</h3>
+            <button onclick="requestSaveGame()" style="width: 100%; margin-bottom: 0.5rem;">💾 Guardar Partida</button>
+            <button onclick="togglePause()" style="width: 100%;">⏸️ Pausar</button>
+        </div>
+    </aside>
 
-    <!-- Panel de Logs -->
-    <div class="panel">
-        <h2>3. Registro de Eventos</h2>
-        <div id="log"></div>
-        <button onclick="clearLog()" style="margin-top: 0.5rem; background: #7f8c8d;">Limpiar Log</button>
-    </div>
+    <main id="map-container">
+        <canvas id="world-canvas"></canvas>
+        <canvas id="network-canvas"></canvas>
+        <div id="layer-controls">
+            <button data-layer="borders" class="active">Fronteras</button>
+            <button data-layer="relations">Diplomacia</button>
+            <button data-layer="espionage">Espionaje</button>
+            <button data-layer="economy">Economía</button>
+            <button data-layer="crisis">Crisis</button>
+        </div>
+    </main>
 
-    <script>
-        let ws = null;
-        const statusEl = document.getElementById('connectionStatus');
-        const logEl = document.getElementById('log');
-        const btnConnect = document.getElementById('btnConnect');
-        const btnDisconnect = document.getElementById('btnDisconnect');
-        const btnSend = document.getElementById('btnSend');
+    <aside id="right-panel">
+        <div style="padding: 1rem; border-bottom: 1px solid #0f3460;">
+            <h3 style="color: #e94560;">📡 Inteligencia</h3>
+        </div>
+        <div id="intel-feed">
+            <div class="intel-card low">
+                <strong>SISTEMA</strong>
+                <p style="margin: 0.5rem 0; font-style: italic;">"Bienvenido a RealPolitik Core"</p>
+            </div>
+        </div>
+    </aside>
 
-        function log(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            const time = new Date().toLocaleTimeString();
-            entry.textContent = `[${time}] ${message}`;
-            logEl.appendChild(entry);
-            logEl.scrollTop = logEl.scrollHeight;
-        }
+    <footer id="bottom-panel">
+        <div id="advisor-panel">
+            <h3 style="color: #e94560; margin-bottom: 1rem;">🤖 Asesor IA</h3>
+            <div id="advisor-content"><p>Esperando datos del servidor...</p></div>
+        </div>
+        <div id="log-panel">
+            <h3 style="color: #e94560; margin-bottom: 1rem;">📋 Registro de Eventos</h3>
+            <div id="log-container"></div>
+        </div>
+    </footer>
 
-        function clearLog() {
-            logEl.innerHTML = '';
-            log('Log limpiado.', 'info');
-        }
+    <div id="modal-overlay"></div>
 
-        function updateUI(connected) {
-            if (connected) {
-                statusEl.textContent = 'Conectado';
-                statusEl.className = 'status connected';
-                btnConnect.disabled = true;
-                btnDisconnect.disabled = false;
-                btnSend.disabled = false;
-            } else {
-                statusEl.textContent = 'Desconectado';
-                statusEl.className = 'status disconnected';
-                btnConnect.disabled = false;
-                btnDisconnect.disabled = true;
-                btnSend.disabled = true;
-            }
-        }
+    <script type="module">
+        import { MapRenderer } from './client/components/MapRenderer.js';
+        import { NetworkOverlay } from './client/components/NetworkOverlay.js';
+        import { subscribe, sendMessage } from './client/SyncClient.js';
 
-        function connect() {
-            const playerId = document.getElementById('playerId').value.trim();
-            const nationId = document.getElementById('nationId').value.trim();
+        const mapRenderer = new MapRenderer('world-canvas');
+        const networkOverlay = new NetworkOverlay('network-canvas');
+        networkOverlay.setMapRenderer(mapRenderer);
 
-            if (!playerId || !nationId) {
-                log('Error: Debes ingresar ID de jugador y nación.', 'error');
-                return;
-            }
+        let gameState = null;
+        let playerNationId = 'nation_001';
+        let isPaused = false;
 
-            const url = `ws://${window.location.hostname}:8080`;
-            log(`Intentando conectar a ${url}...`, 'info');
-
-            try {
-                ws = new WebSocket(url);
-
-                ws.onopen = () => {
-                    log('Conexión WebSocket establecida.', 'success');
-                    
-                    // Enviar Handshake
-                    const handshake = {
-                        type: 'handshake',
-                        playerId: playerId,
-                        nationId: nationId
-                    };
-                    ws.send(JSON.stringify(handshake));
-                    log(`Handshake enviado: Jugador ${playerId}, Nación ${nationId}`, 'info');
-                    
-                    updateUI(true);
-                };
-
-                ws.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        log(`Mensaje recibido: ${JSON.stringify(data, null, 2)}`, data.type === 'error' ? 'error' : 'success');
-                        
-                        if (data.type === 'error') {
-                            // Manejo específico de errores de validación
-                            if (data.details) {
-                                log(`Detalles del error: ${JSON.stringify(data.details)}`, 'error');
-                            }
-                        }
-                    } catch (e) {
-                        log(`Mensaje crudo recibido: ${event.data}`, 'info');
+        subscribe((eventType, data) => {
+            switch (eventType) {
+                case 'connected':
+                    logEvent('✅ Conectado al servidor', 'success');
+                    document.getElementById('connection-status').textContent = 'Conectado';
+                    document.getElementById('connection-status').className = 'text-success';
+                    break;
+                case 'disconnected':
+                    logEvent('❌ Desconectado del servidor', 'error');
+                    document.getElementById('connection-status').textContent = 'Desconectado';
+                    document.getElementById('connection-status').className = 'text-danger';
+                    break;
+                case 'state_update':
+                    gameState = data.state;
+                    updateUI(data.state, data.tick);
+                    break;
+                case 'command_response':
+                    if (data.command === 'save_game' && data.success) {
+                        logEvent(`💾 Partida guardada: ${data.path}`, 'success');
                     }
-                };
-
-                ws.onclose = () => {
-                    log('Conexión cerrada por el servidor o red.', 'error');
-                    updateUI(false);
-                    ws = null;
-                };
-
-                ws.onerror = (error) => {
-                    log(`Error en WebSocket: ${error.message || 'Desconocido'}`, 'error');
-                };
-
-            } catch (e) {
-                log(`Fallo al crear WebSocket: ${e.message}`, 'error');
+                    break;
             }
+        });
+
+        function updateUI(state, tick) {
+            if (!state?.nations?.[playerNationId]) return;
+            const nation = state.nations[playerNationId];
+            document.getElementById('nation-name').textContent = nation.name;
+            document.getElementById('metric-tick').textContent = tick || 0;
+            document.getElementById('metric-gdp').textContent = `$${(nation.economy?.gdp || 0).toLocaleString()}M`;
+            document.getElementById('metric-budget').textContent = `$${(nation.economy?.budget || 0).toLocaleString()}M`;
+            document.getElementById('metric-stability').textContent = `${nation.internal?.stability || 0}%`;
+            mapRenderer.update(state, playerNationId);
+            networkOverlay.update(state, playerNationId);
         }
 
-        function disconnect() {
-            if (ws) {
-                ws.close();
-                log('Solicitando desconexión...', 'info');
-            }
+        document.querySelectorAll('#layer-controls button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const layer = e.target.dataset.layer;
+                e.target.classList.toggle('active');
+                const isActive = e.target.classList.contains('active');
+                mapRenderer.setLayer(layer, isActive);
+                networkOverlay.setLayer(layer, isActive);
+                logEvent(`Capa '${layer}' ${isActive ? 'activada' : 'desactivada'}`, 'info');
+            });
+        });
+
+        mapRenderer.onNodeSelect = (node) => {
+            if (node) logEvent(`Nodo seleccionado: ${node.name}`, 'info');
+        };
+
+        window.requestSaveGame = () => {
+            const filename = `partida_${Date.now()}.json.gz`;
+            sendMessage('command_save_game', { filename, source: 'manual' });
+            logEvent(`Solicitando guardado: ${filename}`, 'info');
+        };
+
+        window.togglePause = () => {
+            isPaused = !isPaused;
+            sendMessage('command_pause', { paused: isPaused });
+            logEvent(`Juego ${isPaused ? 'pausado' : 'reanudado'}`, 'info');
+        };
+
+        function logEvent(message, type = 'info') {
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            const colorClass = type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : type === 'warning' ? 'text-warning' : 'text-info';
+            entry.innerHTML = `<span class="${colorClass}">[${time}]</span> ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+            while (container.children.length > 100) container.removeChild(container.firstChild);
         }
 
-        function sendIntent() {
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                log('Error: No estás conectado.', 'error');
-                return;
-            }
-
-            const rawJson = document.getElementById('intentJson').value;
-            let intentData;
-
-            try {
-                intentData = JSON.parse(rawJson);
-            } catch (e) {
-                log(`Error de sintaxis JSON: ${e.message}`, 'error');
-                return;
-            }
-
-            // Envolver en el formato de mensaje esperado por el servidor
-            const message = {
-                type: 'intent',
-                payload: intentData
-            };
-
-            log(`Enviando intención: ${JSON.stringify(message, null, 2)}`, 'info');
-            ws.send(JSON.stringify(message));
-        }
-
-        function fillValidIntent() {
-            const valid = {
-                "type": "build_unit",
-                "payload": {
-                    "unitType": "scout",
-                    "location": "border_north"
-                }
-            };
-            document.getElementById('intentJson').value = JSON.stringify(valid, null, 2);
-            log('Plantilla válida cargada.', 'info');
-        }
-
-        function fillInvalidIntent() {
-            // Falta el campo obligatorio "type" o tiene un valor incorrecto
-            const invalid = {
-                "typo": "build_unit", // Error intencional: debería ser "type"
-                "payload": {
-                    "foo": "bar"
-                }
-                // Falta timestamp y playerId (se inyectan, pero el schema valida estructura base)
-            };
-            document.getElementById('intentJson').value = JSON.stringify(invalid, null, 2);
-            log('Plantilla INVÁLIDA cargada (prueba de validación).', 'error');
-        }
-
-        // Inicialización
-        updateUI(false);
-        log('Cliente listo. Ingresa tus datos y pulsa "Conectar".', 'info');
+        logEvent('🚀 Iniciando RealPolitik Core...', 'info');
     </script>
 </body>
 </html>

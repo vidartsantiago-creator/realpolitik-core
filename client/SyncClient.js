@@ -93,7 +93,7 @@ function connectWebSocket() {
  * @param {Object} message - Mensaje parseado del servidor
  */
 function handleMessage(message) {
-  const { type, state, tick, delta } = message;
+  const { type, state, tick, delta, command, success, error, path } = message;
 
   switch (type) {
     case 'init':
@@ -135,6 +135,17 @@ function handleMessage(message) {
     case 'intel_update':
       // Actualización de inteligencia
       notifySubscribers('intel_update', { items: message.items });
+      break;
+
+    case 'command_response':
+      // Respuesta a comando (save_game, load_game, etc.)
+      notifySubscribers('command_response', {
+        command,
+        success,
+        error,
+        path,
+        tick
+      });
       break;
 
     default:
@@ -230,6 +241,37 @@ export function sendPolicyDecision(nationId, optionIndex, intent) {
     intentions: [intent],
     selectedOption: optionIndex
   });
+}
+
+/**
+ * Solicita guardar el estado actual del juego.
+ * @param {string} [filename] - Nombre opcional del archivo
+ */
+export function requestSaveGame(filename = null) {
+  console.log('[SyncClient] Solicitando guardado:', filename || 'auto');
+
+  sendMessage('command_save_game', {
+    filename,
+    source: 'manual'
+  });
+}
+
+/**
+ * Solicita cargar una partida guardada.
+ * @param {string} filename - Nombre del archivo a cargar
+ */
+export function requestLoadGame(filename) {
+  console.log('[SyncClient] Solicitando carga:', filename);
+
+  if (!filename) {
+    console.error('[SyncClient] Error: nombre de archivo requerido para cargar');
+    return false;
+  }
+
+  sendMessage('command_load_game', {
+    filename
+  });
+  return true;
 }
 
 /**

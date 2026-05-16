@@ -17,6 +17,7 @@ import { setInitialState, applyDelta, getState, snapshot } from '../core/StateMa
 import { initTimeEngine, start as startTimeEngine, onTickStart, onTickEnd, executeTick, getCurrentTick } from '../core/TimeEngine.js';
 import { GameWebSocketServer } from '../network/WebSocketServer.js';
 import { InformationLayer } from '../modules/InformationLayer.js';
+import { initPersistenceManager } from '../core/PersistenceManager.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -161,23 +162,40 @@ async function main() {
         // 3. Registrar módulos
         await registerModules();
 
-        // 4. Inicializar InformationLayer (si requiere instancia)
+        // 4. Inicializar PersistenceManager para autoguardado
+        try {
+            const persistenceResult = await initPersistenceManager({
+                saveDir: path.join(ROOT_DIR, 'saves'),
+                autoSaveInterval: 50,
+                enableAutoSave: true
+            });
+
+            if (persistenceResult.success) {
+                console.log('[main] ✅ PersistenceManager inicializado correctamente.');
+            } else {
+                console.warn('[main] ⚠️ PersistenceManager no se pudo inicializar:', persistenceResult.error);
+            }
+        } catch (e) {
+            console.error('[main] ❌ ERROR inicializando PersistenceManager:', e.message);
+        }
+
+        // 5. Inicializar InformationLayer (si requiere instancia)
         try {
             // Ajustar según cómo InformationLayer necesite ser instanciado
-            // const infoLayer = new InformationLayer(getState(), on); 
+            // const infoLayer = new InformationLayer(getState(), on);
             console.log('[main] InformationLayer listo (si aplica).');
         } catch (e) {
             console.warn('[main] InformationLayer no inicializado como clase.', e.message);
         }
 
-        // 5. Inicializar TimeEngine
+        // 6. Inicializar TimeEngine
         console.log('[main] Inicializando TimeEngine...');
         initTimeEngine({ tickRate: CONFIG.tickRate, mode: 'continuous' });
-        
-        // 6. Configurar Servidor HTTP (ÚNICA VEZ)
+
+        // 7. Configurar Servidor HTTP (ÚNICA VEZ)
         const httpServer = http.createServer((req, res) => {
             let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
-            
+
             // Seguridad básica
             if (!filePath.startsWith(PUBLIC_DIR)) {
                 res.writeHead(403);
@@ -196,7 +214,7 @@ async function main() {
                     }
                     return;
                 }
-                
+
                 const ext = path.extname(filePath);
                 const contentTypes = {
                     '.html': 'text/html',
@@ -207,7 +225,7 @@ async function main() {
                     '.jpg': 'image/jpeg',
                     '.ico': 'image/x-icon'
                 };
-                
+
                 res.writeHead(200, { 'Content-Type': contentTypes[ext] || 'text/plain' });
                 res.end(data);
             });
@@ -216,12 +234,12 @@ async function main() {
         // 7. Configurar WebSocketServer adjunto al HTTP
         console.log('[main] Iniciando WebSocketServer adjunto a HTTP...');
         const wsServer = new GameWebSocketServer(httpServer, CONFIG);
-        
+
         // Guardar referencia global para el broadcast desde el game loop
         global.gameServer = wsServer;
 
         // Iniciar lógica interna del WS (adjuntar eventos)
-        wsServer.start(); 
+        wsServer.start();
 
         // 8. Iniciar Servidor HTTP (Escucha el puerto)
         httpServer.listen(PORT, () => {

@@ -67,7 +67,7 @@ export async function initPersistenceManager(options = {}) {
   try {
     // Crear directorio de guardado si no existe
     await fs.mkdir(saveDir, { recursive: true });
-    
+
     autoSaveIntervalTicks = autoSaveInterval;
     managerState.autoSaveEnabled = enableAutoSave;
     managerState.savePath = saveDir;
@@ -126,12 +126,12 @@ async function handleTickCompleted(payload) {
 async function autoSave() {
   const filename = `autosave_tick_${currentTick}.json.gz`;
   const result = await saveGame(filename, 'auto');
-  
+
   if (result.success) {
     managerState.lastSaveTick = currentTick;
     console.log(`[PersistenceManager] Auto-guardado completado: ${filename}`);
   }
-  
+
   return result;
 }
 
@@ -258,10 +258,10 @@ export async function loadGame(filename) {
 
     // Restaurar estado
     const loadedState = saveData.state;
-    
+
     // Resetear estado interno del StateManager
     ResetForTests(loadedState);
-    
+
     // Establecer estado inicial con la información cargada
     setInitialState(loadedState);
 
@@ -313,7 +313,7 @@ export async function listSaves() {
       try {
         const filePath = path.join(managerState.savePath, file);
         const stats = await fs.stat(filePath);
-        
+
         // Leer metadata sin descomprimir todo el archivo
         const compressedBuffer = await fs.readFile(filePath);
         const jsonBuffer = await gunzip(compressedBuffer);
@@ -358,13 +358,13 @@ export async function deleteSave(filename) {
 
   try {
     const filePath = path.join(managerState.savePath, filename);
-    
+
     await fs.unlink(filePath);
-    
+
     console.log(`[PersistenceManager] Partida eliminada: ${filename}`);
-    
+
     emit('save_deleted', { filename });
-    
+
     return { success: true };
   } catch (error) {
     const errorMsg = `[PersistenceManager] Error eliminando partida: ${error.message}`;
@@ -380,16 +380,16 @@ export async function deleteSave(filename) {
 async function handleSaveCommand(payload) {
   const filename = payload?.filename || null;
   const source = payload?.source || 'command';
-  
+
   const result = await saveGame(filename, source);
-  
-  if (!result.success) {
-    emit('command_response', {
-      command: 'save_game',
-      success: false,
-      error: result.error
-    });
-  }
+
+  // Emitir respuesta SIEMPRE (éxito o fracaso)
+  emit('command_response', {
+    command: 'save_game',
+    success: result.success,
+    path: result.path,
+    error: result.error
+  });
 }
 
 /**
@@ -398,7 +398,7 @@ async function handleSaveCommand(payload) {
  */
 async function handleLoadCommand(payload) {
   const filename = payload?.filename;
-  
+
   if (!filename) {
     emit('command_response', {
       command: 'load_game',
@@ -407,16 +407,16 @@ async function handleLoadCommand(payload) {
     });
     return;
   }
-  
+
   const result = await loadGame(filename);
-  
-  if (!result.success) {
-    emit('command_response', {
-      command: 'load_game',
-      success: false,
-      error: result.error
-    });
-  }
+
+  // Emitir respuesta SIEMPRE (éxito o fracaso)
+  emit('command_response', {
+    command: 'load_game',
+    success: result.success,
+    tick: result.tick,
+    error: result.error
+  });
 }
 
 /**
@@ -445,11 +445,11 @@ export async function exportStateJSON(filename) {
 
     const filePath = path.join(managerState.savePath, filename);
     const jsonString = JSON.stringify(exportData, null, 2);
-    
+
     await fs.writeFile(filePath, jsonString, 'utf8');
-    
+
     console.log(`[PersistenceManager] Estado exportado (JSON): ${filename}`);
-    
+
     return { success: true, path: filePath };
   } catch (error) {
     const errorMsg = `[PersistenceManager] Error exportando: ${error.message}`;

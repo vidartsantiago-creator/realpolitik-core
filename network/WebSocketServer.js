@@ -9,20 +9,29 @@ import { processIntent } from '../modules/IntentProcessor.js';
 export class GameWebSocketServer {
   constructor(httpServer, config = {}) {
     // httpServer es obligatorio ahora
-    this.httpServer = httpServer; 
+    this.httpServer = httpServer;
     this.config = {
       tickRate: config.tickRate || 100,
       seed: config.seed || 42,
       ...config
     };
-    
+
     this.wss = null;
     this.clients = new Map();
 
     // Inicializar validador de esquemas
     validator.init();
-    
+
     console.log(`[WS] Constructor inicializado.`);
+
+    // Suscribirse a eventos de respuesta de comandos
+    on('command_response', (payload) => {
+      // Reenviar a todos los clientes conectados
+      this.broadcast({
+        type: 'command_response',
+        ...payload
+      });
+    });
   }
 
   start() {
@@ -32,11 +41,11 @@ export class GameWebSocketServer {
 
     // Crear el servidor WebSocket y adjuntarlo al HTTP existente
     this.wss = new WebSocketServer({ server: this.httpServer });
-    
+
     this.wss.on('connection', (ws, req) => {
       const clientId = req.socket.remoteAddress + ':' + req.socket.remotePort;
       console.log(`[WS] Cliente conectado: ${clientId}`);
-      
+
       this.clients.set(clientId, {
         ws,
         playerId: null,
@@ -54,7 +63,7 @@ export class GameWebSocketServer {
   }
 
   // ... (El resto de los métodos handleMessage, handleIntent, etc. se mantienen igual) ...
-  
+
   handleMessage(clientId, rawData) {
     // ... (Tu lógica actual de handleMessage con validación) ...
     let message;
@@ -72,23 +81,27 @@ export class GameWebSocketServer {
       case 'handshake':
         this.handleHandshake(clientId, message);
         break;
-        
+
       case 'intent':
-        const validation = validator.validateIntent(message.payload);
-        
-        if (!validation.valid) {
-          console.warn(`[WS] Intención rechazada para ${clientId}:`, validation.errors);
-          this.sendError(clientId, 'Invalid Intent Structure', validation.errors);
-          return;
-        }
-        
-        this.handleIntent(clientId, message.payload);
+      case 'player_intent':
+        // Normalizar ambos tipos a 'player_intent' para UIMessageHandler
+        emit('ws.message.player_intent', message.payload || message);
         break;
-        
+
+      case 'command_save_game':
+        // Reenviar comando de guardado al PersistenceManager
+        emit('command_save_game', message.payload || {});
+        break;
+
+      case 'command_load_game':
+        // Reenviar comando de carga al PersistenceManager
+        emit('command_load_game', message.payload || {});
+        break;
+
       case 'ping':
         this.send(clientId, { type: 'pong', timestamp: Date.now() });
         break;
-        
+
       default:
         console.warn(`[WS] Mensaje desconocido de ${clientId}: ${message.type}`);
     }
@@ -100,7 +113,7 @@ export class GameWebSocketServer {
     if (client) {
       client.playerId = message.playerId;
       client.nationId = message.nationId;
-      
+
       // Nota: getState y getCurrentTick deben ser importados del core si se usan aquí
       // O usar una referencia inyectada. Asumo que tienes acceso a ellos o usas state local.
       // Para este ejemplo, envío un ack básico.
@@ -110,14 +123,14 @@ export class GameWebSocketServer {
         nationId: client.nationId,
         timestamp: Date.now()
       });
-      
+
       console.log(`[WS] Handshake completado: ${message.playerId} en ${message.nationId}`);
     }
   }
 
   handleIntent(clientId, intentPayload) {
     const client = this.clients.get(clientId);
-    
+
     // 1. Validar autenticación
     if (!client || !client.playerId) {
       this.sendError(clientId, 'Not authenticated');
@@ -138,7 +151,7 @@ export class GameWebSocketServer {
     // 3. Ejecutar lógica de negocio (IntentProcessor)
     // Asegúrate de haber importado: import { processIntent } from '../modules/IntentProcessor.js';
     // Y las funciones de estado: import { getState, applyDelta } from '../core/StateManager.js';
-    
+
     const currentState = getState();
     const result = processIntent(fullIntent, currentState);
 
