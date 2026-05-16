@@ -16,6 +16,20 @@
             grid-template-columns: 300px 1fr 350px;
             grid-template-rows: 60px 1fr 200px;
         }
+        #btn-connect {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            margin-left: 1rem;
+        }
+        #btn-connect:hover { background: #059669; }
+        #btn-connect.connected { background: #64748b; cursor: default; }
+
         header {
             grid-column: 1 / -1;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -173,6 +187,7 @@
             <div>Nación: <span id="nation-name">Cargando...</span></div>
             <div>Tick: <span id="metric-tick">0</span></div>
             <div>Conexión: <span id="connection-status" class="text-warning">Desconectado</span></div>
+            <button id="btn-connect" onclick="manualConnect()">🔌 Conectar</button>
         </div>
     </header>
 
@@ -305,6 +320,28 @@
             isPaused = !isPaused;
             sendMessage('command_pause', { paused: isPaused });
             logEvent(`Juego ${isPaused ? 'pausado' : 'reanudado'}`, 'info');
+        };
+
+        window.manualConnect = () => {
+            const btn = document.getElementById('btn-connect');
+            const status = document.getElementById('connection-status');
+
+            if (btn.classList.contains('connected')) {
+                logEvent('Ya está conectado al servidor', 'warning');
+                return;
+            }
+
+            logEvent('🔌 Intentando conectar al servidor...', 'info');
+            btn.textContent = '⏳ Conectando...';
+            btn.disabled = true;
+
+            // Forzar reconexión mediante SyncClient
+            sendMessage('ping', {});
+
+            setTimeout(() => {
+                btn.textContent = '🔌 Conectar';
+                btn.disabled = false;
+            }, 3000);
         };
 
         function logEvent(message, type = 'info') {
