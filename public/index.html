@@ -249,7 +249,10 @@
     <script type="module">
         import { MapRenderer } from './client/components/MapRenderer.js';
         import { NetworkOverlay } from './client/components/NetworkOverlay.js';
-        import { subscribe, sendMessage } from './client/SyncClient.js';
+        import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
+
+        // Inicializar SyncClient inmediatamente
+        initSyncClient();
 
         const mapRenderer = new MapRenderer('world-canvas');
         const networkOverlay = new NetworkOverlay('network-canvas');
@@ -265,11 +268,31 @@
                     logEvent('✅ Conectado al servidor', 'success');
                     document.getElementById('connection-status').textContent = 'Conectado';
                     document.getElementById('connection-status').className = 'text-success';
+
+                    // Actualizar botón de conectar
+                    const btn = document.getElementById('btn-connect');
+                    if (btn) {
+                        btn.textContent = '✅ Conectado';
+                        btn.classList.add('connected');
+                        btn.disabled = false;
+                    }
                     break;
                 case 'disconnected':
                     logEvent('❌ Desconectado del servidor', 'error');
                     document.getElementById('connection-status').textContent = 'Desconectado';
                     document.getElementById('connection-status').className = 'text-danger';
+
+                    // Resetear botón
+                    const btnDisc = document.getElementById('btn-connect');
+                    if (btnDisc) {
+                        btnDisc.textContent = '🔌 Conectar';
+                        btnDisc.classList.remove('connected');
+                        btnDisc.disabled = false;
+                    }
+                    break;
+                case 'handshake_ack':
+                    logEvent('✅ Handshake completado: ' + (data.nationId || 'Nación asignada'), 'success');
+                    playerNationId = data.nationId || playerNationId;
                     break;
                 case 'state_update':
                     gameState = data.state;
@@ -326,7 +349,7 @@
             const btn = document.getElementById('btn-connect');
             const status = document.getElementById('connection-status');
 
-            if (btn.classList.contains('connected')) {
+            if (isConnected()) {
                 logEvent('Ya está conectado al servidor', 'warning');
                 return;
             }
@@ -335,13 +358,14 @@
             btn.textContent = '⏳ Conectando...';
             btn.disabled = true;
 
-            // Forzar reconexión mediante SyncClient
-            sendMessage('ping', {});
-
+            // SyncClient ya está inicializado y reconectará automáticamente
+            // Solo esperamos a que el evento 'connected' llegue
             setTimeout(() => {
-                btn.textContent = '🔌 Conectar';
-                btn.disabled = false;
-            }, 3000);
+                if (!isConnected()) {
+                    btn.textContent = '🔌 Conectar';
+                    btn.disabled = false;
+                }
+            }, 5000);
         };
 
         function logEvent(message, type = 'info') {
