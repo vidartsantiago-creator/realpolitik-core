@@ -10,7 +10,7 @@
  * - v1.0.0: Creación inicial. Implementa estructura básica de UI para MVP.
  */
 
-import { getState } from './SyncClient.js';
+import { getState } from '../workspace/public/client/SyncClient.js';
 
 // Referencias a elementos DOM
 let elements = {};

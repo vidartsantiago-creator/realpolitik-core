@@ -1,1 +1,0 @@
-cat: /workspace/client/SyncClient.js: No such file or directory
