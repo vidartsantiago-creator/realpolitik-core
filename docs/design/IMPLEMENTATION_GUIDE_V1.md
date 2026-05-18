@@ -405,3 +405,203 @@ format:
 **Última revisión:** [fecha actual]  
 **Mantenimiento:** Actualizar este documento cada vez que se añada un nuevo contrato o módulo.
 ```
+## ADENDA A: Resolución de Conflictos de Rutas y Estructura de Directorios
+
+> **Fecha de creación:** 2025-01-15
+> **Incidente:** Errores 404 en carga de módulos del cliente (`SyncClient.js`, `MapRenderer.js`)
+> **Estado:** ✅ Resuelto
+> **Lección aprendida:** La inconsistencia entre rutas físicas y URLs relativas rompe el principio "Zero-Edit Core"
+
+### A.1 Contexto del Problema
+
+Durante la fase de integración frontend-backend, se detectaron errores críticos 404 que impedían la carga completa de la interfaz:
+
+```
+Failed to load resource: the server responded with a status of 404 (Not Found) (SyncClient.js)
+Failed to load resource: the server responded with a status of 404 (Not Found) (MapRenderer.js)
+```
+
+**Causa raíz:** Discrepancia entre tres dimensiones:
+1. **Ruta física del archivo** en el sistema de archivos
+2. **Ruta relativa en el import ES6** dentro de `index.html`
+3. **URL expuesta por el servidor estático** desde `/public`
+
+### A.2 Estructura Violada vs Estructura Corregida
+
+#### ❌ Estructura Problemática (Detectada)
+
+```
+/workspace/
+├── public/
+│   ├── index.html
+│   └── client/
+│       ├── SyncClient.js          ✅ Accesible
+│       ├── MapRenderer.js         ✅ Accesible
+│       └── components/
+│           └── NetworkOverlay.js  ✅ Accesible
+│
+└── client/                        🔴 HUÉRFANO - NO ACCESIBLE
+    ├── AlertRouter.js
+    ├── components/
+    │   ├── DiplomaticModal.js
+    │   └── IntelFeed.js
+    └── utils/
+        ├── StateMapper.js
+        └── TickConverter.js
+```
+
+**Problemas identificados:**
+- Archivos críticos fuera de `/public/` → inaccesibles para el servidor estático
+- Imports en `index.html` con rutas absolutas del sistema (`../../workspace/public/client/...`)
+- Duplicación de carpetas `client/` en dos ubicaciones
+- `MapRenderer.js` en ubicación incorrecta respecto a su import
+
+#### ✅ Estructura Corregida (Estándar)
+
+```
+/workspace/
+├── public/
+│   ├── index.html
+│   └── client/                    🟢 ÚNICA UBICACIÓN VÁLIDA
+│       ├── SyncClient.js
+│       ├── UI.js
+│       ├── app.js
+│       ├── AlertRouter.js         ✅ Movido desde /client/
+│       ├── MapRenderer.js
+│       └── components/
+│           ├── NetworkOverlay.js
+│           ├── DiplomaticModal.js ✅ Movido desde /client/components/
+│           └── IntelFeed.js       ✅ Movido desde /client/components/
+│       └── utils/                 ✅ Creado
+│           ├── StateMapper.js     ✅ Movido desde /client/utils/
+│           └── TickConverter.js   ✅ Movido desde /client/utils/
+│
+└── server/
+    └── main.js
+```
+
+### A.3 Errores Específicos y Correcciones Aplicadas
+
+| Archivo | Import Incorrecto (HTML) | Import Corregido | Error Técnico |
+|---------|--------------------------|------------------|---------------|
+| `SyncClient.js` | `../../workspace/public/client/SyncClient.js` | `./client/SyncClient.js` | Ruta absoluta del FS no es URL válida |
+| `MapRenderer.js` | `./client/components/MapRenderer.js` | `./client/MapRenderer.js` | Archivo estaba un nivel arriba del esperado |
+| `NetworkOverlay.js` | `./client/components/NetworkOverlay.js` | ✅ Sin cambios | Correcto desde el inicio |
+
+### A.4 Protocolo Preventivo para Futuros Módulos
+
+#### Regla de Oro "Zero-Edit Core"
+
+> **TODO módulo del cliente DEBE residir bajo `/workspace/public/client/` para ser accesible vía HTTP.**
+
+#### Checklist para Nuevo Módulo Frontend
+
+Antes de commit, verificar:
+
+- [ ] **Ubicación física**: El archivo `.js` está en `/workspace/public/client/` o subdirectorio (`components/`, `utils/`, etc.)
+- [ ] **Import en HTML**: La ruta relativa en `index.html` comienza con `./client/` (NUNCA con `/workspace`, `/public`, o `..`)
+- [ ] **Prueba de acceso directo**: Navegar a `http://localhost:8080/client/[archivo].js` carga el script sin 404
+- [ ] **Consistencia de subdirectorios**: Si usa `components/`, todos los componentes están en esa carpeta
+- [ ] **No hay duplicados**: No existe otra carpeta `/client/` fuera de `/public/`
+
+#### Comandos de Verificación Rápida
+
+```bash
+# 1. Detectar archivos huérfanos fuera de public/
+find /workspace -name "*.js" -path "*/client/*" ! -path "*/public/*"
+
+# 2. Verificar que todos los imports en index.html son relativos válidos
+grep -E "import.*from ['\"]\.\./" public/index.html
+
+# 3. Testear acceso HTTP a cada módulo (con curl)
+curl -I http://localhost:8080/client/SyncClient.js | grep "200 OK"
+```
+
+### A.5 Tabla de Mapeo de Rutas (Referencia Rápida)
+
+| Recurso | Ruta Física | URL de Acceso | Import en HTML |
+|---------|-------------|---------------|----------------|
+| `index.html` | `/workspace/public/index.html` | `http://localhost:8080/` | N/A |
+| `SyncClient.js` | `/workspace/public/client/SyncClient.js` | `http://localhost:8080/client/SyncClient.js` | `./client/SyncClient.js` |
+| `MapRenderer.js` | `/workspace/public/client/MapRenderer.js` | `http://localhost:8080/client/MapRenderer.js` | `./client/MapRenderer.js` |
+| `NetworkOverlay.js` | `/workspace/public/client/components/NetworkOverlay.js` | `http://localhost:8080/client/components/NetworkOverlay.js` | `./client/components/NetworkOverlay.js` |
+| `AlertRouter.js` | `/workspace/public/client/AlertRouter.js` | `http://localhost:8080/client/AlertRouter.js` | `./client/AlertRouter.js` |
+| `DiplomaticModal.js` | `/workspace/public/client/components/DiplomaticModal.js` | `http://localhost:8080/client/components/DiplomaticModal.js` | `./client/components/DiplomaticModal.js` |
+| `StateMapper.js` | `/workspace/public/client/utils/StateMapper.js` | `http://localhost:8080/client/utils/StateMapper.js` | `./client/utils/StateMapper.js` |
+
+### A.6 Configuración del Servidor Estático
+
+El servidor (`server/main.js`) debe mantener esta configuración:
+
+```javascript
+const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+app.use(express.static(PUBLIC_DIR));
+```
+
+**Advertencia:** Cualquier archivo fuera de `PUBLIC_DIR` será inaccesible vía HTTP, resultando en 404.
+
+### A.7 Lecciones Aprendidas
+
+1. **Nunca usar rutas absolutas del sistema de archivos en imports ES6 del navegador**
+   - ❌ `../../workspace/public/client/SyncClient.js`
+   - ✅ `./client/SyncClient.js`
+
+2. **La carpeta `/public/` es el único punto de entrada para recursos estáticos**
+   - Todo código frontend debe migrarse allí inmediatamente después de crearse
+
+3. **Validar estructura antes de cada commit**
+   - Ejecutar `find` para detectar huérfanos
+   - Probar cada import en el navegador
+
+4. **Documentar movimientos de archivos en el changelog**
+   - Incluir ruta antigua → ruta nueva en cada PR
+
+---
+
+## ADENDA B: Diagnóstico Forense de Errores 404 en Desarrollo
+
+### B.1 Síntomas Comunes
+
+| Síntoma | Causa Probable | Solución |
+|---------|----------------|----------|
+| `Failed to load resource: 404 (SyncClient.js)` | Import con ruta absoluta o archivo fuera de `/public/` | Corregir import a ruta relativa `./client/...` |
+| `Failed to load resource: 404 (components/X.js)` | Archivo en `client/` pero import busca en `client/components/` | Mover archivo o ajustar import |
+| Mapa no renderiza pero consola sin errores | `MapRenderer.js` cargó pero dependencia falló silenciosamente | Verificar Network tab del DevTools |
+| WebSocket conecta pero estado no actualiza | `SyncClient.js` cargó pero handshake falla | Revisir logs del servidor y formato del mensaje |
+
+### B.2 Flujo de Diagnóstico Paso a Paso
+
+1. **Abrir DevTools → Pestaña Network**
+2. **Recargar página (Ctrl+Shift+R)**
+3. **Filtrar por "404" o "Failed"**
+4. **Para cada recurso fallido:**
+   - Anotar URL solicitada (ej: `http://localhost:8080/workspace/public/client/SyncClient.js`)
+   - Verificar ruta física del archivo
+   - Calcular ruta relativa correcta desde `index.html`
+   - Editar `index.html` y recargar
+
+5. **Si el recurso existe físicamente pero sigue 404:**
+   - Verificar que está bajo `/workspace/public/`
+   - Reiniciar servidor (a veces cachea estructura de directorios)
+
+### B.3 Herramientas de Debugging
+
+```javascript
+// Snippet para pegar en consola del navegador y verificar carga de módulos
+const expectedModules = [
+  '/client/SyncClient.js',
+  '/client/MapRenderer.js',
+  '/client/UI.js',
+  '/client/components/NetworkOverlay.js'
+];
+
+expectedModules.forEach(async (mod) => {
+  const res = await fetch(mod);
+  console.log(`${mod}: ${res.status} ${res.ok ? '✅' : '❌'}`);
+});
+```
+
+---
+
+**Fin de la Adenda**
+```

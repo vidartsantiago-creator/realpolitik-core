@@ -4,7 +4,7 @@
  * @module App
  */
 
-import { MapRenderer } from './components/MapRenderer.js';
+import { MapRenderer } from './MapRenderer.js';
 import { IntelFeed } from '../../client/components/IntelFeed.js';
 import { DiplomaticModal } from '../../client/components/DiplomaticModal.js';
 import { StateMapper } from '../../client/utils/StateMapper.js';

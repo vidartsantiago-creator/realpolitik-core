@@ -253,6 +253,20 @@ function sendHandshake() {
   });
 }
 
+// --- EXPOSICIÓN GLOBAL PARA DEBUGGING (DEVTOOLS) ---
+// Esto permite ejecutar comandos desde la consola del navegador
+if (typeof window !== 'undefined') {
+    window.sendMessage = sendMessage;       // Expone la función de envío
+    window.initSyncClient = initSyncClient; // Expone el inicializador (si es necesario)
+    window.isConnected = isConnected;       // Expone el estado de conexión
+    
+    // Opcional: Exponer el ID del jugador si existe una variable interna como 'playerId'
+    // Descomenta la siguiente línea si 'playerId' es una variable accesible en este scope
+    // window.getPlayerId = () => playerId; 
+    
+    console.log('[SyncClient] ✅ Funciones expuestas globalmente para debugging.');
+}
+
 /**
  * Envía una decisión de política al servidor.
  * @param {string} nationId - ID de la nación
