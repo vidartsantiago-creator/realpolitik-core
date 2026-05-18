@@ -311,9 +311,9 @@
             const nation = state.nations[playerNationId];
             document.getElementById('nation-name').textContent = nation.name;
             document.getElementById('metric-tick').textContent = tick || 0;
-            document.getElementById('metric-gdp').textContent = `$${(nation.economy?.gdp || 0).toLocaleString()}M`;
-            document.getElementById('metric-budget').textContent = `$${(nation.economy?.budget || 0).toLocaleString()}M`;
-            document.getElementById('metric-stability').textContent = `${nation.internal?.stability || 0}%`;
+            document.getElementById('metric-gdp').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
+            document.getElementById('metric-budget').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
+            document.getElementById('metric-stability').textContent = `${nation.stats?.stability || 0}%`;
             mapRenderer.update(state, playerNationId);
             networkOverlay.update(state, playerNationId);
         }

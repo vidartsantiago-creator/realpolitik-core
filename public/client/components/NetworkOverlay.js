@@ -24,6 +24,8 @@ export class NetworkOverlay {
             espionageColor: '#8b5cf6',
             logisticsColor: '#10b981',
             informationColor: '#f59e0b',
+            borderColor: '#94a3b8',
+            crisisColor: '#ef4444',
             lineWidth: 2,
             animationSpeed: 0.05,
             particleCount: 3,
@@ -34,10 +36,11 @@ export class NetworkOverlay {
         this.state = null;
         this.playerNationId = null;
         this.visibleLayers = {
-            diplomacy: false,
+            borders: false,
+            relations: false,
             espionage: false,
-            logistics: false,
-            information: false
+            economy: false,
+            crisis: false
         };
 
         // Animaciones
@@ -103,7 +106,7 @@ export class NetworkOverlay {
      */
     updateParticles() {
         // Agregar nuevas partículas para conexiones activas
-        if (this.visibleLayers.diplomacy && this.state?.diplomacy?.relations) {
+        if (this.visibleLayers.relations && this.state?.diplomacy?.relations) {
             const relations = this.state.diplomacy.relations[this.playerNationId] || {};
 
             for (const [targetId, data] of Object.entries(relations)) {
@@ -158,27 +161,32 @@ export class NetworkOverlay {
         // Limpiar canvas
         this.ctx.clearRect(0, 0, width, height);
 
-        // 1. Capa de diplomacia
-        if (this.visibleLayers.diplomacy) {
-            this.renderDiplomacy();
+        // 1. Capa de fronteras (usa renderDiplomacy para líneas de fronteras)
+        if (this.visibleLayers.borders) {
+            this.renderBorders();
         }
 
-        // 2. Capa de espionaje
+        // 2. Capa de relaciones diplomáticas
+        if (this.visibleLayers.relations) {
+            this.renderRelations();
+        }
+
+        // 3. Capa de espionaje
         if (this.visibleLayers.espionage) {
             this.renderEspionage();
         }
 
-        // 3. Capa de logística
-        if (this.visibleLayers.logistics) {
-            this.renderLogistics();
+        // 4. Capa de economía (usa renderLogistics para rutas comerciales)
+        if (this.visibleLayers.economy) {
+            this.renderEconomy();
         }
 
-        // 4. Capa de información
-        if (this.visibleLayers.information) {
-            this.renderInformation();
+        // 5. Capa de crisis
+        if (this.visibleLayers.crisis) {
+            this.renderCrisis();
         }
 
-        // 5. Partículas animadas
+        // 6. Partículas animadas
         this.renderParticles();
     }
 
@@ -191,6 +199,38 @@ export class NetworkOverlay {
             return { x: node.x, y: node.y };
         }
         return null;
+    }
+
+    /**
+     * Renderiza red diplomática (alias: renderRelations)
+     */
+    renderBorders() {
+        // Para fronteras, dibujamos líneas simples entre nodos adyacentes
+        if (!this.state?.nations) return;
+
+        const nations = Object.values(this.state.nations);
+        this.ctx.strokeStyle = this.config.borderColor;
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([5, 5]);
+
+        for (let i = 0; i < nations.length; i++) {
+            const start = this.getNodePosition(nations[i].id);
+            if (!start) continue;
+
+            // Dibujar círculo alrededor del nodo para indicar frontera
+            this.ctx.beginPath();
+            this.ctx.arc(start.x, start.y, 15, 0, Math.PI * 2);
+            this.ctx.stroke();
+        }
+
+        this.ctx.setLineDash([]);
+    }
+
+    /**
+     * Renderiza relaciones diplomáticas (alias de renderDiplomacy)
+     */
+    renderRelations() {
+        this.renderDiplomacy();
     }
 
     /**
@@ -339,6 +379,46 @@ export class NetworkOverlay {
 
             // Línea ondulante para información
             this.drawWavyLine(start, end, color, 2);
+        }
+    }
+
+    /**
+     * Renderiza capa de economía (alias de renderLogistics)
+     */
+    renderEconomy() {
+        this.renderLogistics();
+    }
+
+    /**
+     * Renderiza capa de crisis
+     */
+    renderCrisis() {
+        const crises = this.state.crises?.active || [];
+
+        for (const crisis of crises) {
+            const pos = this.getNodePosition(crisis.location);
+            if (!pos) continue;
+
+            // Dibujar marcador de crisis pulsante
+            const pulse = Math.sin(Date.now() / 200) * 5 + 10;
+
+            this.ctx.fillStyle = '#ef4444';
+            this.ctx.globalAlpha = 0.7;
+            this.ctx.beginPath();
+            this.ctx.arc(pos.x, pos.y, pulse, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            this.ctx.fillStyle = '#dc2626';
+            this.ctx.globalAlpha = 1.0;
+            this.ctx.beginPath();
+            this.ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Etiquetar crisis
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = 'bold 11px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(crisis.type || 'CRISIS', pos.x, pos.y - 20);
         }
     }
 

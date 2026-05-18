@@ -271,6 +271,34 @@ async function main() {
             }
         });
 
+        // ============================================
+        // Sección: Puente de Eventos IA → WebSocket
+        // ============================================
+
+        // Suscribirse a sugerencias del asesor IA y reenviarlas a clientes
+        on('advisor_suggestion', (payload) => {
+            if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
+                global.gameServer.broadcast({
+                    type: 'advisor_suggestion',
+                    suggestion: payload.suggestion,
+                    timestamp: Date.now()
+                });
+                console.log('[main] 🤖 Sugerencia de asesor broadcasted:', payload.suggestion.title);
+            }
+        });
+
+        // Suscribirse a señales de inteligencia y reenviarlas a clientes
+        on('intel_signal', (payload) => {
+            if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
+                global.gameServer.broadcast({
+                    type: 'intel_signal',
+                    signal: payload.signal,
+                    timestamp: Date.now()
+                });
+                console.log('[main] 📡 Señal de inteligencia broadcasted:', payload.signal?.source || 'desconocida');
+            }
+        });
+
         // Arrancar el motor de tiempo
         startTimeEngine();
 

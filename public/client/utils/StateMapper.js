@@ -15,9 +15,9 @@ export const StateMapper = {
         if (!nation) return null;
         return {
             name: nation.name,
-            gdp: nation.economy?.gdp || 0,
-            budget: nation.economy?.budget || 0,
-            stability: nation.internal?.stability || 0
+            gdp: nation.stats?.economy || 0,
+            budget: nation.stats?.budget || 0,
+            stability: nation.stats?.stability || 0
         };
     },
 

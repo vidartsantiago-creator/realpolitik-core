@@ -305,3 +305,4 @@ export function sendPolicyDecision(optionIndex) {
   console.log('[UI] Enviando decisión al servidor (pendiente de implementación):', optionIndex);
   // Se conectará con UIMessageHandler.js cuando esté implementado
 }
+
