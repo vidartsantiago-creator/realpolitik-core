@@ -5,9 +5,9 @@
  */
 
 import { MapRenderer } from './components/MapRenderer.js';
-import { IntelFeed } from './components/IntelFeed.js';
-import { DiplomaticModal } from './components/DiplomaticModal.js';
-import { StateMapper } from './utils/StateMapper.js';
+import { IntelFeed } from '../../../client/components/IntelFeed.js';
+import { DiplomaticModal } from '../../../client/components/DiplomaticModal.js';
+import { StateMapper } from '../../../client/utils/StateMapper.js';
 
 // Configuración
 const WS_URL = `ws://${window.location.hostname}:8080`;
