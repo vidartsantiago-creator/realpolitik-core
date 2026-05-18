@@ -270,10 +270,14 @@ async function main() {
                 global.gameServer.broadcast(payload);
             }
         });
+        
+        // Arrancar el motor de tiempo
+        startTimeEngine();
 
         // ============================================
-        // Sección: Puente de Eventos IA → WebSocket
+        // SECCIÓN NUEVA: Puente de Eventos IA → WebSocket
         // ============================================
+        // Insertar AQUÍ el siguiente bloque:
 
         // Suscribirse a sugerencias del asesor IA y reenviarlas a clientes
         on('advisor_suggestion', (payload) => {
@@ -287,7 +291,7 @@ async function main() {
             }
         });
 
-        // Suscribirse a señales de inteligencia y reenviarlas a clientes
+        // Suscribirse a señales de inteligencia y reenviarlas a clientes  
         on('intel_signal', (payload) => {
             if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
                 global.gameServer.broadcast({
@@ -299,13 +303,13 @@ async function main() {
             }
         });
 
-        // Arrancar el motor de tiempo
-        startTimeEngine();
-
     } catch (error) {
         console.error('[main] Error fatal en arranque:', error);
         console.error(error.stack);
         process.exit(1);
+
+
+
     }
 }
 
