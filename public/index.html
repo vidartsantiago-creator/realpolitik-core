@@ -247,9 +247,9 @@
     <div id="modal-overlay"></div>
 
     <script type="module">
-        import { MapRenderer } from './client/components/MapRenderer.js';
+        import { MapRenderer } from './client/MapRenderer.js';
         import { NetworkOverlay } from './client/components/NetworkOverlay.js';
-        import { subscribe, sendMessage, initSyncClient, isConnected } from '../../workspace/public/client/SyncClient.js';
+        import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
 
         // Inicializar SyncClient inmediatamente
         initSyncClient();

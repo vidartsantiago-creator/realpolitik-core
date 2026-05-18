@@ -13,8 +13,8 @@
  * @module AlertRouter
  */
 
-import { getState } from '../core/StateManager.js';
-import { subscribe, publish } from '../core/EventDispatcher.js';
+import { getState } from '../../core/StateManager.js';
+import { subscribe, publish } from '../../core/EventDispatcher.js';
 
 // ============================================================================
 // CONFIGURACIÓN Y CONSTANTES
