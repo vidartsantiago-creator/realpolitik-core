@@ -117,10 +117,11 @@ function handleMessage(message) {
       // Actualización completa de estado
       if (state) {
         localState = state;
+        window.lastKnownState = state; // Para depuración en DevTools
       }
       notifySubscribers('state_update', { state: localState, tick });
       break;
-      window.lastKnownState = message.state; // Para depuración en DevTools
+      
 
     case 'delta':
       // Actualización delta (patch)
@@ -337,7 +338,6 @@ if (typeof window !== 'undefined') {
     // Descomenta la siguiente línea si 'playerId' es una variable accesible en este scope
     // window.getPlayerId = () => playerId; 
     // Escuchar state_update para guardar estado global
-    const originalOnMessage = window.lastKnownState;
 
     console.log('[SyncClient] ✅ Funciones expuestas globalmente para debugging.');
 }
