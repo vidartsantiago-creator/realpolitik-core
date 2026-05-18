@@ -21,6 +21,10 @@ export function init() {
     handlers.set('diplomacy', handleDiplomacy);
     handlers.set('build_unit', handleBuildUnit);
     handlers.set('move_unit', handleMoveUnit); // Placeholder básico
+
+    handlers.set('nation_select', handleNationSelect);
+    handlers.set('policy_propose', handlePolicyPropose);
+    handlers.set('crisis_trigger', handleCrisisTrigger);
     
     console.log('[IntentProcessor] Handlers registrados:', Array.from(handlers.keys()));
 }
@@ -253,6 +257,151 @@ function handleMoveUnit(state, intent) {
     ];
 
     return { success: true, deltas: deltas };
+}
+/**
+ * Handler: Selección de Nación
+ * Asigna un jugador a una nación y actualiza el estado
+ */
+function handleNationSelect(intent, state) {
+    const { playerId, nationId } = intent;
+    
+    console.log(`[IntentProcessor] ${playerId} seleccionando nación ${nationId}`);
+    
+    // Validar que la nación existe
+    if (!state.nations[nationId]) {
+        return { 
+            success: false, 
+            deltas: [], 
+            error: `Nación ${nationId} no existe en el mapa.` 
+        };
+    }
+    
+    // Validar que la nación no esté ya ocupada por otro jugador
+    // (Esto requeriría un tracking de jugadores activos, simplificado aquí)
+    
+    // Generar delta para registrar la selección
+    const deltas = [{
+        type: 'nation_selected',
+        playerId: playerId,
+        nationId: nationId,
+        reason: 'player_choice'
+    }];
+    
+    console.log(`[IntentProcessor] ✅ Nación ${nationId} asignada a ${playerId}`);
+    
+    return { success: true, deltas };
+}
+
+/**
+ * Handler: Propuesta de Políticas
+ * Valida recursos y aplica efectos de políticas internas
+ */
+function handlePolicyPropose(intent, state) {
+    const { playerId, nationId, payload } = intent;
+    const policyData = payload?.payload || payload || {};
+    const { policyId } = policyData;
+    
+    console.log(`[IntentProcessor] ${playerId} proponiendo política ${policyId} para ${nationId}`);
+    
+    if (!policyId) {
+        return { success: false, deltas: [], error: 'ID de política no especificado.' };
+    }
+    
+    if (!state.nations[nationId]) {
+        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
+    }
+    
+    // Definición de políticas (puede moverse a config)
+    const POLICIES = {
+        'pol_econ_stimulus': { cost: 50, effects: { economy: 5 } },
+        'pol_mil_draft': { cost: 30, effects: { stability: -5, influence: 2 } },
+        'pol_dip_soft': { cost: 40, effects: { influence: 10 } }
+    };
+    
+    const policy = POLICIES[policyId];
+    if (!policy) {
+        return { success: false, deltas: [], error: `Política ${policyId} no reconocida.` };
+    }
+    
+    // Verificar recursos
+    const currentGold = state.nations[nationId].resources?.gold || 0;
+    if (currentGold < policy.cost) {
+        return { 
+            success: false, 
+            deltas: [], 
+            error: `Fondos insuficientes. Se requiere ${policy.cost} oro.` 
+        };
+    }
+    
+    // Generar deltas
+    const deltas = [{
+        type: 'resource_update',
+        nations: {
+            [nationId]: {
+                resources: { gold: -policy.cost }
+            }
+        },
+        reason: `Implementación de ${policyId}`
+    }];
+    
+    // Aplicar efectos de la política (simplificado: aplicar directamente al estado)
+    // En producción, esto debería ser otro delta específico
+    Object.entries(policy.effects).forEach(([stat, value]) => {
+        deltas.push({
+            type: 'stat_change',
+            nations: {
+                [nationId]: {
+                    [stat]: value
+                }
+            },
+            reason: `Efecto de ${policyId}`
+        });
+    });
+    
+    console.log(`[IntentProcessor] ✅ Política ${policyId} propuesta con éxito`);
+    
+    return { success: true, deltas };
+}
+
+/**
+ * Handler: Activación de Crisis
+ * Inicia una crisis geopolítica con naciones involucradas
+ */
+function handleCrisisTrigger(intent, state) {
+    const { playerId, nationId, payload } = intent;
+    const crisisData = payload?.payload || payload || {};
+    const { crisisType, severity, involvedNations } = crisisData;
+    
+    console.log(`[IntentProcessor] Crisis activada: ${crisisType} (${severity})`);
+    
+    if (!crisisType || !severity) {
+        return { success: false, deltas: [], error: 'Datos de crisis incompletos.' };
+    }
+    
+    // Validar naciones involucradas
+    if (!involvedNations || involvedNations.length === 0) {
+        return { success: false, deltas: [], error: 'Debe especificar naciones involucradas.' };
+    }
+    
+    for (const natId of involvedNations) {
+        if (!state.nations[natId]) {
+            return { success: false, deltas: [], error: `Nación ${natId} no existe.` };
+        }
+    }
+    
+    // Generar delta para activar crisis
+    const deltas = [{
+        type: 'crisis_activation',
+        crisisType: crisisType,
+        severity: severity,
+        involvedNations: involvedNations,
+        triggeredBy: playerId,
+        reason: 'crisis_trigger'
+    }];
+    
+    console.log(`[IntentProcessor] ✅ Crisis ${crisisType} activada`);
+    
+    return { success: true, deltas };
 }
 
 // Exportar default para compatibilidad con imports anteriores si los hubiera

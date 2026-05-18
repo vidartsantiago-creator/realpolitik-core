@@ -88,6 +88,18 @@ export class GameWebSocketServer {
         emit('ws.message.player_intent', message.payload || message);
         break;
 
+      case 'nation_select':
+      case 'policy_propose':
+      case 'crisis_trigger':
+        // Envolver estos mensajes como player_intent para que IntentProcessor los maneje
+        const wrappedPayload = {
+          type: message.type,
+          ...message,
+          payload: message
+        };
+        emit('ws.message.player_intent', wrappedPayload);
+        break;  
+
       case 'command_save_game':
         // Reenviar comando de guardado al PersistenceManager
         emit('command_save_game', message.payload || {});

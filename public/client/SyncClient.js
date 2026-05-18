@@ -120,6 +120,7 @@ function handleMessage(message) {
       }
       notifySubscribers('state_update', { state: localState, tick });
       break;
+      window.lastKnownState = message.state; // Para depuración en DevTools
 
     case 'delta':
       // Actualización delta (patch)
@@ -253,20 +254,6 @@ function sendHandshake() {
   });
 }
 
-// --- EXPOSICIÓN GLOBAL PARA DEBUGGING (DEVTOOLS) ---
-// Esto permite ejecutar comandos desde la consola del navegador
-if (typeof window !== 'undefined') {
-    window.sendMessage = sendMessage;       // Expone la función de envío
-    window.initSyncClient = initSyncClient; // Expone el inicializador (si es necesario)
-    window.isConnected = isConnected;       // Expone el estado de conexión
-    
-    // Opcional: Exponer el ID del jugador si existe una variable interna como 'playerId'
-    // Descomenta la siguiente línea si 'playerId' es una variable accesible en este scope
-    // window.getPlayerId = () => playerId; 
-    
-    console.log('[SyncClient] ✅ Funciones expuestas globalmente para debugging.');
-}
-
 /**
  * Envía una decisión de política al servidor.
  * @param {string} nationId - ID de la nación
@@ -326,4 +313,31 @@ export function queryAdvisor(type, params) {
     type,
     ...params
   });
+}
+
+// Hook para depuración: Guarda el último estado recibido
+if (typeof window !== 'undefined') {
+    const originalHandler = window.handleMessage || (() => {}); // Ajusta según tu implementación real
+    
+    // Sobrescribe temporalmente para capturar el estado (solo si usas un patrón específico)
+    // MEJOR OPCIÓN: Busca donde dice "state_update" en tu código y agrega:
+    // window.lastKnownState = data.state;
+    
+    console.log('[SyncClient] 🕵️‍♂️ Modo Debug Activo: Guardando estados en window.lastKnownState');
+}
+
+// --- EXPOSICIÓN GLOBAL PARA DEBUGGING (DEVTOOLS) ---
+// Esto permite ejecutar comandos desde la consola del navegador
+if (typeof window !== 'undefined') {
+    window.sendMessage = sendMessage;       // Expone la función de envío
+    window.initSyncClient = initSyncClient; // Expone el inicializador (si es necesario)
+    window.isConnected = isConnected;       // Expone el estado de conexión
+    window.getState = () => window.lastKnownState || null;
+    // Opcional: Exponer el ID del jugador si existe una variable interna como 'playerId'
+    // Descomenta la siguiente línea si 'playerId' es una variable accesible en este scope
+    // window.getPlayerId = () => playerId; 
+    // Escuchar state_update para guardar estado global
+    const originalOnMessage = window.lastKnownState;
+
+    console.log('[SyncClient] ✅ Funciones expuestas globalmente para debugging.');
 }
