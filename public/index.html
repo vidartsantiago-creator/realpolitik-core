@@ -247,29 +247,48 @@
     <div id="modal-overlay"></div>
 
     <script type="module">
-        import { MapRenderer } from './client/MapRenderer.js';
-        import { NetworkOverlay } from './client/components/NetworkOverlay.js';
+        import MapRenderer from './client/MapRenderer.js';
+        import NetworkOverlay from './client/components/NetworkOverlay.js';
+        import IntelFeed from './client/components/IntelFeed.js';
         import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
 
-        // Inicializar SyncClient inmediatamente
-        initSyncClient();
-
-        const mapRenderer = new MapRenderer('world-canvas');
+        const mapRenderer = new MapRenderer();
         const networkOverlay = new NetworkOverlay('network-canvas');
+        const intelFeed = new IntelFeed();
+
         networkOverlay.setMapRenderer(mapRenderer);
 
         let gameState = null;
         let playerNationId = 'nation_001';
         let isPaused = false;
 
+        // Suscribirse a eventos de inteligencia y asesor IA
         subscribe((eventType, data) => {
+            if (eventType === 'intel_signal' && data?.signal) {
+                intelFeed.addSignal(data.signal);
+                return;
+            }
+            
+            if (eventType === 'advisor_suggestion' && data?.suggestion) {
+                const advisorContent = document.getElementById('advisor-content');
+                const suggestion = data.suggestion;
+                advisorContent.innerHTML = `
+                    <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
+                        <strong style="color: #e94560;">${suggestion.title}</strong>
+                        <p style="margin: 0.5rem 0; color: #e0e0e0;">${suggestion.description}</p>
+                        ${suggestion.action ? `<button onclick="sendMessage('player_intent', { type: '${suggestion.action}', payload: ${JSON.stringify(suggestion.payload || {})} })" style="margin-top: 0.5rem;">${suggestion.actionLabel || 'Ejecutar'}</button>` : ''}
+                    </div>
+                `;
+                logEvent(`🤖 Asesor: ${suggestion.title}`, 'info');
+                return;
+            }
+
             switch (eventType) {
                 case 'connected':
                     logEvent('✅ Conectado al servidor', 'success');
                     document.getElementById('connection-status').textContent = 'Conectado';
                     document.getElementById('connection-status').className = 'text-success';
 
-                    // Actualizar botón de conectar
                     const btn = document.getElementById('btn-connect');
                     if (btn) {
                         btn.textContent = '✅ Conectado';
@@ -282,7 +301,6 @@
                     document.getElementById('connection-status').textContent = 'Desconectado';
                     document.getElementById('connection-status').className = 'text-danger';
 
-                    // Resetear botón
                     const btnDisc = document.getElementById('btn-connect');
                     if (btnDisc) {
                         btnDisc.textContent = '🔌 Conectar';
@@ -306,13 +324,15 @@
             }
         });
 
+        initSyncClient();
+
         function updateUI(state, tick) {
             if (!state?.nations?.[playerNationId]) return;
             const nation = state.nations[playerNationId];
             document.getElementById('nation-name').textContent = nation.name;
             document.getElementById('metric-tick').textContent = tick || 0;
             document.getElementById('metric-gdp').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
-            document.getElementById('metric-budget').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
+            document.getElementById('metric-budget').textContent = `$${(nation.stats?.budget || 0).toLocaleString()}M`;
             document.getElementById('metric-stability').textContent = `${nation.stats?.stability || 0}%`;
             mapRenderer.update(state, playerNationId);
             networkOverlay.update(state, playerNationId);
@@ -358,8 +378,6 @@
             btn.textContent = '⏳ Conectando...';
             btn.disabled = true;
 
-            // SyncClient ya está inicializado y reconectará automáticamente
-            // Solo esperamos a que el evento 'connected' llegue
             setTimeout(() => {
                 if (!isConnected()) {
                     btn.textContent = '🔌 Conectar';

@@ -149,6 +149,16 @@ function handleMessage(message) {
       notifySubscribers('intel_update', { items: message.items });
       break;
 
+    case 'intel_signal':
+    // Señal de inteligencia individual
+    notifySubscribers('intel_signal', { signal: message.signal });
+    break;
+
+    case 'advisor_suggestion':
+    // Sugerencia del asesor IA
+    notifySubscribers('advisor_suggestion', { suggestion: message.suggestion });
+    break;
+
     case 'command_response':
       // Respuesta a comando (save_game, load_game, etc.)
       notifySubscribers('command_response', {
