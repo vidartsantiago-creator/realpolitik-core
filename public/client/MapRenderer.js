@@ -7,7 +7,7 @@
  */
 
 export class MapRenderer {
-    constructor(canvasId) {
+    constructor(canvasId = 'world-canvas') {
         this.canvas = document.getElementById(canvasId);
         if (!this.canvas) {
             console.warn('[MapRenderer] Canvas no encontrado, modo headless.');
@@ -663,3 +663,4 @@ export class MapRenderer {
         return this._onNodeSelect;
     }
 }
+export default MapRenderer;

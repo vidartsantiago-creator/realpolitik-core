@@ -586,3 +586,4 @@ export class NetworkOverlay {
         this.render();
     }
 }
+export default NetworkOverlay;

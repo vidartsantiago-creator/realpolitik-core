@@ -7,16 +7,38 @@
 import { TickConverter } from '../utils/TickConverter.js';
 
 export class IntelFeed {
-    constructor(containerId) {
-        this.container = document.getElementById(containerId);
-        this.feedList = this.container.querySelector('#feed-list');
+    constructor(containerId = 'intel-feed') {
+        this.containerId = containerId;
+        this.container = null;
+        this.feedList = null;
         this.signals = [];
         this.filter = 'all';
+        this.onActionCallback = null;
+        
+        // Intentar inicializar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.init());
+        } else {
+            this.init();
+        }
+    }
+
+    init() {
+        this.container = document.getElementById(this.containerId);
+        if (!this.container) {
+            console.warn(`[IntelFeed] Contenedor #${this.containerId} no encontrado. Modo headless.`);
+            return;
+        }
+        
+        // Si existe #feed-list lo usamos, si no, usamos el propio contenedor
+        this.feedList = this.container.querySelector('#feed-list') || this.container;
         
         this.setupTabs();
     }
 
     setupTabs() {
+        if (!this.container) return;
+        
         this.container.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 this.container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -50,6 +72,8 @@ export class IntelFeed {
     }
 
     render() {
+        if (!this.feedList) return;
+        
         this.feedList.innerHTML = '';
         const filtered = this.filter === 'all' 
             ? this.signals 
@@ -63,21 +87,24 @@ export class IntelFeed {
             
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between;">
-                    <strong>${signal.source.toUpperCase()}</strong>
-                    <small style="color:${color}">${signal.confidenceLevel}% Confianza</small>
+                    <strong>${signal.source?.toUpperCase() || 'DESCONOCIDA'}</strong>
+                    <small style="color:${color}">${signal.confidenceLevel || 0}% Confianza</small>
                 </div>
-                <p style="margin: 5px 0; font-style: italic;">"${signal.signalText}"</p>
+                <p style="margin: 5px 0; font-style: italic;">"${signal.signalText || 'Sin información'}"</p>
                 <div class="confidence-bar">
-                    <div class="confidence-fill" style="width: ${signal.confidenceLevel}%; background-color: ${color}"></div>
+                    <div class="confidence-fill" style="width: ${signal.confidenceLevel || 0}%; background-color: ${color}"></div>
                 </div>
-                <button class="investigate-btn" data-id="${signal.signalId}" style="margin-top:5px; font-size:0.8rem;">
+                <button class="investigate-btn" data-id="${signal.signalId || ''}" style="margin-top:5px; font-size:0.8rem;">
                     Investigar (-$100k)
                 </button>
             `;
 
-            card.querySelector('.investigate-btn').addEventListener('click', () => {
-                this.onInvestigate(signal.signalId);
-            });
+            const btn = card.querySelector('.investigate-btn');
+            if (btn && signal.signalId) {
+                btn.addEventListener('click', () => {
+                    this.onInvestigate(signal.signalId);
+                });
+            }
 
             this.feedList.appendChild(card);
         });
@@ -88,13 +115,21 @@ export class IntelFeed {
      * @param {string} signalId 
      */
     onInvestigate(signalId) {
-        // El envío real lo gestiona app.js a través del callback
         if (this.onActionCallback) {
             this.onActionCallback('intel_action', { signalId, action: 'investigate' });
+        } else {
+            console.log('[IntelFeed] Acción de investigar:', signalId);
         }
     }
 
     setActionCallback(callback) {
         this.onActionCallback = callback;
     }
+    
+    clear() {
+        this.signals = [];
+        this.render();
+    }
 }
+
+export default IntelFeed;

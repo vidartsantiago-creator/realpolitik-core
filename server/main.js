@@ -18,12 +18,18 @@ import { initTimeEngine, start as startTimeEngine, onTickStart, onTickEnd, execu
 import { GameWebSocketServer } from '../network/WebSocketServer.js';
 import { InformationLayer } from '../modules/InformationLayer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
+import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
+
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+
+
+
+initIntentParser({ engine: null, world: null, modules: null });
 
 // ============================================
 // Sección: Carga de Configuración
@@ -273,6 +279,10 @@ async function main() {
         
         // Arrancar el motor de tiempo
         startTimeEngine();
+
+        // Inicializar parser de intenciones (Asesor IA)
+        initIntentParser({ engine: null, world: null, modules: null });
+        console.log('[main] 🤖 IntentParser inicializado');
 
         // ============================================
         // SECCIÓN NUEVA: Puente de Eventos IA → WebSocket
