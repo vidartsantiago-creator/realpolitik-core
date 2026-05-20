@@ -19,6 +19,7 @@ import { GameWebSocketServer } from '../network/WebSocketServer.js';
 import { InformationLayer } from '../modules/InformationLayer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
+import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 
 
 // Configuración de rutas
@@ -283,6 +284,7 @@ async function main() {
         // Inicializar parser de intenciones (Asesor IA)
         initIntentParser({ engine: null, world: null, modules: null });
         console.log('[main] 🤖 IntentParser inicializado');
+        initIntelGenerator({ engine: null, world: null, modules: null });
 
         // ============================================
         // SECCIÓN NUEVA: Puente de Eventos IA → WebSocket
