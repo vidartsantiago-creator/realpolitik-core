@@ -178,6 +178,16 @@
         }
         button:hover { background: #2563eb; }
         button:disabled { background: #64748b; cursor: not-allowed; }
+        
+        /* Estilos específicos para botones de asesor */
+        .advisor-action-btn {
+            background: #e94560;
+            margin-top: 0.5rem;
+            width: 100%;
+        }
+        .advisor-action-btn:hover {
+            background: #c0354e;
+        }
     </style>
 </head>
 <body>
@@ -187,7 +197,7 @@
             <div>Nación: <span id="nation-name">Cargando...</span></div>
             <div>Tick: <span id="metric-tick">0</span></div>
             <div>Conexión: <span id="connection-status" class="text-warning">Desconectado</span></div>
-            <button id="btn-connect" >🔌 Conectar</button>
+            <button id="btn-connect">🔌 Conectar</button>
         </div>
     </header>
 
@@ -252,9 +262,11 @@
         import IntelFeed from './client/components/IntelFeed.js';
         import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
 
+        // Inicialización de componentes
         const mapRenderer = new MapRenderer();
         const networkOverlay = new NetworkOverlay('network-canvas');
-        const intelFeed = new IntelFeed();
+        const intelFeed = new IntelFeed('intel-feed');
+        window.intelFeed = intelFeed;
 
         networkOverlay.setMapRenderer(mapRenderer);
 
@@ -262,41 +274,33 @@
         let playerNationId = 'nation_001';
         let isPaused = false;
 
-        // Suscribirse a eventos de inteligencia y asesor IA
+        // Función auxiliar para ejecutar acciones desde el DOM
+        window.executeAdvisorAction = (type, payload) => {
+            console.log('[UI] Ejecutando acción:', type, payload);
+            sendMessage('player_intent', { type, payload });
+            logEvent(`⚡ Acción ejecutada: ${type}`, 'success');
+        };
+
+        // Suscripción global de eventos
         subscribe((eventType, data) => {
+            // 1. Manejo de Inteligencia
             if (eventType === 'intel_signal' && data?.signal) {
                 intelFeed.addSignal(data.signal);
                 return;
             }
             
+            // 2. Manejo del Asesor IA
             if (eventType === 'advisor_suggestion' && data?.suggestion) {
-                const advisorContent = document.getElementById('advisor-content');
-                const suggestion = data.suggestion;
-                advisorContent.innerHTML = `
-                    <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
-                        <strong style="color: #e94560;">${suggestion.title}</strong>
-                        <p style="margin: 0.5rem 0; color: #e0e0e0;">${suggestion.text || 'Sin descripción disponible'}</p>
-                        ${suggestion.actions && suggestion.actions.length > 0 ? `
-                            <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                ${suggestion.actions.map(action => `
-                                    <button onclick="sendMessage('player_intent', { type: '${action.type}', payload: ${JSON.stringify(action.payload)} })" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
-                                        ${action.label || 'Ejecutar'}
-                                    </button>
-                                `).join('')}
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-                logEvent(`🤖 Asesor: ${suggestion.title}`, 'info');
+                renderAdvisorSuggestion(data.suggestion);
                 return;
             }
 
+            // 3. Eventos del sistema
             switch (eventType) {
                 case 'connected':
                     logEvent('✅ Conectado al servidor', 'success');
                     document.getElementById('connection-status').textContent = 'Conectado';
                     document.getElementById('connection-status').className = 'text-success';
-
                     const btn = document.getElementById('btn-connect');
                     if (btn) {
                         btn.textContent = '✅ Conectado';
@@ -304,11 +308,11 @@
                         btn.disabled = false;
                     }
                     break;
+                    
                 case 'disconnected':
                     logEvent('❌ Desconectado del servidor', 'error');
                     document.getElementById('connection-status').textContent = 'Desconectado';
                     document.getElementById('connection-status').className = 'text-danger';
-
                     const btnDisc = document.getElementById('btn-connect');
                     if (btnDisc) {
                         btnDisc.textContent = '🔌 Conectar';
@@ -316,14 +320,17 @@
                         btnDisc.disabled = false;
                     }
                     break;
+                    
                 case 'handshake_ack':
                     logEvent('✅ Handshake completado: ' + (data.nationId || 'Nación asignada'), 'success');
                     playerNationId = data.nationId || playerNationId;
                     break;
+                    
                 case 'state_update':
                     gameState = data.state;
                     updateUI(data.state, data.tick);
                     break;
+                    
                 case 'command_response':
                     if (data.command === 'save_game' && data.success) {
                         logEvent(`💾 Partida guardada: ${data.path}`, 'success');
@@ -332,20 +339,63 @@
             }
         });
 
+        // Iniciar cliente de sincronización
         initSyncClient();
 
+        /**
+         * Renderiza la sugerencia del asesor de forma segura
+         */
+        function renderAdvisorSuggestion(suggestion) {
+            const container = document.getElementById('advisor-content');
+            if (!container) return;
+
+            const { title, text, actions } = suggestion;
+            
+            let actionsHtml = '';
+            if (actions && actions.length > 0) {
+                actionsHtml = '<div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">';
+                actions.forEach(action => {
+                    // Codificamos el payload para evitar errores de sintaxis en HTML
+                    const encodedPayload = encodeURIComponent(JSON.stringify(action.payload));
+                    actionsHtml += `
+                        <button class="advisor-action-btn" 
+                            onclick="window.executeAdvisorAction('${action.type}', JSON.parse(decodeURIComponent('${encodedPayload}')))">
+                            ${action.label || 'Ejecutar'}
+                        </button>
+                    `;
+                });
+                actionsHtml += '</div>';
+            }
+
+            container.innerHTML = `
+                <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
+                    <strong style="color: #e94560; font-size: 1.1rem;">${title}</strong>
+                    <p style="margin: 0.5rem 0; color: #e0e0e0; line-height: 1.5;">${text || 'Sin descripción disponible.'}</p>
+                    ${actionsHtml}
+                </div>
+            `;
+            
+            logEvent(`🤖 Asesor: ${title}`, 'info');
+        }
+
+        /**
+         * Actualiza la interfaz principal con los datos del estado
+         */
         function updateUI(state, tick) {
             if (!state?.nations?.[playerNationId]) return;
             const nation = state.nations[playerNationId];
+            
             document.getElementById('nation-name').textContent = nation.name;
             document.getElementById('metric-tick').textContent = tick || 0;
             document.getElementById('metric-gdp').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
             document.getElementById('metric-budget').textContent = `$${(nation.stats?.budget || 0).toLocaleString()}M`;
             document.getElementById('metric-stability').textContent = `${nation.stats?.stability || 0}%`;
+            
             mapRenderer.update(state, playerNationId);
             networkOverlay.update(state, playerNationId);
         }
 
+        // Control de capas
         document.querySelectorAll('#layer-controls button').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const layer = e.target.dataset.layer;
@@ -357,10 +407,12 @@
             });
         });
 
+        // Callback de selección de nodos
         mapRenderer.onNodeSelect = (node) => {
             if (node) logEvent(`Nodo seleccionado: ${node.name}`, 'info');
         };
 
+        // Funciones globales para botones HTML
         window.requestSaveGame = () => {
             const filename = `partida_${Date.now()}.json.gz`;
             sendMessage('command_save_game', { filename, source: 'manual' });
@@ -375,17 +427,13 @@
 
         window.manualConnect = () => {
             const btn = document.getElementById('btn-connect');
-            const status = document.getElementById('connection-status');
-
             if (isConnected()) {
                 logEvent('Ya está conectado al servidor', 'warning');
                 return;
             }
-
-            logEvent('🔌 Intentando conectar al servidor...', 'info');
+            logEvent('🔌 Intentando conectar...', 'info');
             btn.textContent = '⏳ Conectando...';
             btn.disabled = true;
-
             setTimeout(() => {
                 if (!isConnected()) {
                     btn.textContent = '🔌 Conectar';
@@ -394,8 +442,11 @@
             }, 5000);
         };
 
+        // Sistema de logs
         function logEvent(message, type = 'info') {
             const container = document.getElementById('log-container');
+            if (!container) return;
+            
             const entry = document.createElement('div');
             entry.className = 'log-entry';
             const time = new Date().toLocaleTimeString();
