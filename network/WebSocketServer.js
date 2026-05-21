@@ -105,18 +105,24 @@ export class GameWebSocketServer {
         emit('command_save_game', message.payload || {});
         break;
 
-      case 'command_load_game':
-        // Reenviar comando de carga al PersistenceManager
-        emit('command_load_game', message.payload || {});
-        break;
+            case 'command_load_game':
+              // Extraer filename directamente si viene en la raíz o en payload
+              const loadFilename = message.filename || (message.payload && message.payload.filename);
+              if (!loadFilename) {
+                  console.error('[WS] Error: command_load_game sin filename. Mensaje:', message);
+              }
+              emit('command_load_game', { filename: loadFilename });
+              break;
 
-      case 'command_list_saves':
-        emit('command_list_saves', message.payload || {});
-        break;
-
-      case 'command_delete_save':
-        emit('command_delete_save', dmessage.payload || {});
-        break;
+            case 'command_delete_save':
+              // Extraer filename directamente si viene en la raíz o en payload
+              const deleteFilename = message.filename || (message.payload && message.payload.filename);
+              emit('command_delete_save', { filename: deleteFilename });
+              break;
+            
+            case 'command_list_saves':
+              emit('command_list_saves', {});
+              break;
 
       case 'ping':
         this.send(clientId, { type: 'pong', timestamp: Date.now() });

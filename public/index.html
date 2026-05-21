@@ -537,16 +537,35 @@
         };
 
         window.loadGameFile = (filename) => {
+            console.log('[UI] loadGameFile llamado con:', filename);
+            
+            if (!filename) {
+                console.error('[UI] ERROR: filename es undefined o vacío');
+                return;
+            }
+
             if (confirm(`¿Cargar partida "${filename}"? Se perderá el progreso actual.`)) {
-                sendMessage('command_load_game', { filename });
-                logEvent(`Solicitando carga: ${filename}`, 'info');
+                // Construir el payload EXPLÍCITAMENTE
+                const payload = { filename: filename };
+                
+                console.log('[UI] Enviando payload crudo:', JSON.stringify(payload));
+                
+                // Enviar comando
+                sendMessage('command_load_game', payload);
+                
+                logEvent(`📂 Solicitando carga: ${filename}`, 'info');
             }
         };
 
         window.deleteGameFile = (filename) => {
+            console.log('[UI] Eliminando partida:', filename);
+            if (!filename) {
+                console.error('[UI] ERROR: Nombre de archivo vacío');
+                return;
+            }
             if (confirm(`¿Eliminar permanentemente "${filename}"? Esta acción no se puede deshacer.`)) {
-                sendMessage('command_delete_save', { filename });
-                logEvent(`Solicitando eliminación: ${filename}`, 'warning');
+                sendMessage('command_delete_save', { filename: filename });
+                logEvent(`🗑️ Solicitando eliminación: ${filename}`, 'warning');
             }
         };
 
@@ -570,53 +589,52 @@
                 return;
             }
 
-            // Limpiar contenedor
-            container.innerHTML = '';
-            const list = document.createElement('ul');
-            list.className = 'save-list';
-
+            let html = '<ul class="save-list" style="list-style:none; padding:0;">';
             saves.forEach(save => {
                 const date = new Date(save.date).toLocaleString();
                 const sizeKB = (save.size / 1024).toFixed(1);
                 
-                const li = document.createElement('li');
-                li.className = 'save-item';
-                
-                li.innerHTML = `
-                    <div class="save-info">
-                        <div class="save-filename">${save.filename}</div>
-                        <div class="save-meta">
-                            Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
+                // Usamos atributos data- en lugar de onclick inline
+                html += `
+                    <li class="save-item" style="background:rgba(15,52,96,0.3); border:1px solid #0f3460; border-radius:4px; padding:1rem; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
+                        <div class="save-info">
+                            <div class="save-filename" style="font-weight:bold; color:#3b82f6;">${save.filename}</div>
+                            <div class="save-meta" style="font-size:0.8rem; color:#94a3b8;">
+                                Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
+                            </div>
                         </div>
-                    </div>
-                    <div class="save-actions">
-                        <button class="btn-load" data-filename="${save.filename}">📥 Cargar</button>
-                        <button class="btn-delete" data-filename="${save.filename}">🗑️ Eliminar</button>
-                    </div>
+                        <div class="save-actions" style="display:flex; gap:0.5rem;">
+                            <button class="btn-load" data-action="load" data-filename="${save.filename}" style="background:#10b981; color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer;">
+                                📥 Cargar
+                            </button>
+                            <button class="btn-delete" data-action="delete" data-filename="${save.filename}" style="background:#ef4444; color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer;">
+                                🗑️ Eliminar
+                            </button>
+                        </div>
+                    </li>
                 `;
-                
-                // Agregar Event Listeners directamente (evita problemas de onclick y quotes)
-                const loadBtn = li.querySelector('.btn-load');
-                loadBtn.addEventListener('click', () => {
-                    console.log(`[UI] Cargando partida: ${save.filename}`);
-                    sendMessage('command_load_game', { filename: save.filename });
-                    logEvent(`Solicitando carga: ${save.filename}`, 'info');
-                });
-                
-                const deleteBtn = li.querySelector('.btn-delete');
-                deleteBtn.addEventListener('click', () => {
-                    if (confirm(`¿Eliminar permanentemente "${save.filename}"?`)) {
-                        console.log(`[UI] Eliminando partida: ${save.filename}`);
-                        sendMessage('command_delete_save', { filename: save.filename });
-                        logEvent(`Solicitando eliminación: ${save.filename}`, 'warning');
-                    }
-                });
-                
-                list.appendChild(li);
             });
-            
-            container.appendChild(list);
+            html += '</ul>';
+            container.innerHTML = html;
+
+            // Agregar listeners delegados después de renderizar
+            container.querySelectorAll('.btn-load').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const filename = e.target.dataset.filename;
+                    console.log('[UI] Click en Cargar:', filename);
+                    loadGameFile(filename);
+                });
+            });
+
+            container.querySelectorAll('.btn-delete').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const filename = e.target.dataset.filename;
+                    console.log('[UI] Click en Eliminar:', filename);
+                    deleteGameFile(filename);
+                });
+            });
         }
+
         window.togglePause = () => {
             isPaused = !isPaused;
             sendMessage('command_pause', { paused: isPaused });
