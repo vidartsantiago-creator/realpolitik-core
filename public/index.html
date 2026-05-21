@@ -179,14 +179,16 @@
         button:hover { background: #2563eb; }
         button:disabled { background: #64748b; cursor: not-allowed; }
         
-        /* Estilos específicos para botones de asesor */
-        .advisor-action-btn {
-            background: #e94560;
-            margin-top: 0.5rem;
-            width: 100%;
+        /* Estilos específicos para tarjetas investigadas */
+        .intel-card.investigated {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
         }
-        .advisor-action-btn:hover {
-            background: #c0354e;
+        .verified-badge {
+            color: #10b981;
+            font-weight: bold;
+            font-size: 0.8rem;
+            text-transform: uppercase;
         }
     </style>
 </head>
@@ -197,7 +199,7 @@
             <div>Nación: <span id="nation-name">Cargando...</span></div>
             <div>Tick: <span id="metric-tick">0</span></div>
             <div>Conexión: <span id="connection-status" class="text-warning">Desconectado</span></div>
-            <button id="btn-connect">🔌 Conectar</button>
+            <button id="btn-connect" >🔌 Conectar</button>
         </div>
     </header>
 
@@ -266,7 +268,10 @@
         const mapRenderer = new MapRenderer();
         const networkOverlay = new NetworkOverlay('network-canvas');
         const intelFeed = new IntelFeed('intel-feed');
+        
+        // Exponer globalmente para debugging y acceso desde HTML dinámico
         window.intelFeed = intelFeed;
+        window.mapRenderer = mapRenderer;
 
         networkOverlay.setMapRenderer(mapRenderer);
 
@@ -274,33 +279,144 @@
         let playerNationId = 'nation_001';
         let isPaused = false;
 
-        // Función auxiliar para ejecutar acciones desde el DOM
-        window.executeAdvisorAction = (type, payload) => {
-            console.log('[UI] Ejecutando acción:', type, payload);
-            sendMessage('player_intent', { type, payload });
-            logEvent(`⚡ Acción ejecutada: ${type}`, 'success');
+        // ==========================================
+        // FUNCIONES GLOBALES PARA ACCIONES UI
+        // ==========================================
+        
+        /**
+         * Función global para investigar señales de inteligencia
+         * Accesible desde los botones generados dinámicamente en IntelFeed
+         */
+        window.investigateSignal = (signalId) => {
+            console.log(`[UI] Investigando señal: ${signalId}`);
+            logEvent(`🔍 Iniciando investigación de señal ${signalId}...`, 'info');
+            
+            sendMessage('player_intent', {
+                type: 'intel_investigate',
+                payload: { signalId }
+            });
         };
 
-        // Suscripción global de eventos
+        /**
+         * Función global para ejecutar acciones del asesor IA
+         */
+        window.executeAdvisorAction = (type, payload) => {
+            console.log(`[UI] Ejecutando acción: ${type}`, payload);
+            logEvent(`⚡ Acción ejecutada: ${type}`, 'success');
+            
+            try {
+                // Serializar payload de forma segura
+                const serializedPayload = JSON.stringify(payload).replace(/"/g, '&quot;');
+                sendMessage('player_intent', {
+                    type: type,
+                    payload: payload
+                });
+            } catch (e) {
+                console.error('Error serializando payload:', e);
+                logEvent('❌ Error al ejecutar acción', 'error');
+            }
+        };
+
+        // ==========================================
+        // SUSCRIPCIÓN A EVENTOS DEL SERVIDOR
+        // ==========================================
+        
         subscribe((eventType, data) => {
-            // 1. Manejo de Inteligencia
+            // Manejo específico de Inteligencia
             if (eventType === 'intel_signal' && data?.signal) {
                 intelFeed.addSignal(data.signal);
                 return;
             }
-            
-            // 2. Manejo del Asesor IA
-            if (eventType === 'advisor_suggestion' && data?.suggestion) {
-                renderAdvisorSuggestion(data.suggestion);
+
+            // Manejo específico de Actualización de Inteligencia (tras investigar)
+            if (eventType === 'intel_updated' && data?.signal) {
+                // Actualizar la señal específica en el feed
+                const updatedSignal = data.signal;
+                
+                // Buscar y actualizar la señal existente o agregarla de nuevo
+                const index = intelFeed.signals.findIndex(s => s.signalId === updatedSignal.signalId);
+                if (index !== -1) {
+                    intelFeed.signals[index] = updatedSignal;
+                    intelFeed.render();
+                    logEvent(`✅ Inteligencia verificada: ${updatedSignal.source}`, 'success');
+                } else {
+                    intelFeed.addSignal(updatedSignal);
+                }
                 return;
             }
-
-            // 3. Eventos del sistema
+            
+            // Manejo específico del Asesor IA
+            
+            if (eventType === 'advisor_suggestion' && data?.suggestion) {
+                const advisorContent = document.getElementById('advisor-content');
+                const suggestion = data.suggestion;
+                
+                // Crear contenedor seguro
+                const container = document.createElement('div');
+                container.style.cssText = 'background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;';
+                
+                // Título
+                const title = document.createElement('strong');
+                title.style.color = '#e94560';
+                title.textContent = suggestion.title;
+                container.appendChild(title);
+                
+                // Descripción
+                const desc = document.createElement('p');
+                desc.style.cssText = 'margin: 0.5rem 0; color: #e0e0e0;';
+                desc.textContent = suggestion.text || suggestion.description;
+                container.appendChild(desc);
+                
+                // Botón (si existe acción)
+                if (suggestion.action || (suggestion.actions && suggestion.actions.length > 0)) {
+                    const btn = document.createElement('button');
+                    btn.style.cssText = 'margin-top: 0.5rem; width: 100%;';
+                    
+                    // Determinar qué acción usar
+                    let actionType = suggestion.action;
+                    let actionPayload = suggestion.payload;
+                    let actionLabel = suggestion.actionLabel || 'Ejecutar';
+                    
+                    // Si viene como array de acciones, usar la primera
+                    if (suggestion.actions && suggestion.actions.length > 0) {
+                        actionType = suggestion.actions[0].type;
+                        actionPayload = suggestion.actions[0].payload;
+                        actionLabel = suggestion.actions[0].label;
+                    }
+                    
+                    btn.textContent = actionLabel;
+                    
+                    // Guardar datos en el botón (NO generar código inline)
+                    btn.dataset.actionType = actionType;
+                    btn.dataset.actionPayload = JSON.stringify(actionPayload || {});
+                    
+                    // Agregar event listener seguro
+                    btn.addEventListener('click', () => {
+                        console.log('[UI] Ejecutando acción:', actionType, actionPayload);
+                        sendMessage('player_intent', {
+                            type: actionType,
+                            payload: actionPayload
+                        });
+                        logEvent(`⚡ Acción ejecutada: ${actionType}`, 'info');
+                    });
+                    
+                    container.appendChild(btn);
+                }
+                
+                // Limpiar y agregar nuevo contenido
+                advisorContent.innerHTML = '';
+                advisorContent.appendChild(container);
+                
+                logEvent(`🤖 Asesor: ${suggestion.title}`, 'info');
+                return;
+            }
+            // Switch estándar para otros eventos
             switch (eventType) {
                 case 'connected':
                     logEvent('✅ Conectado al servidor', 'success');
                     document.getElementById('connection-status').textContent = 'Conectado';
                     document.getElementById('connection-status').className = 'text-success';
+
                     const btn = document.getElementById('btn-connect');
                     if (btn) {
                         btn.textContent = '✅ Conectado';
@@ -308,11 +424,11 @@
                         btn.disabled = false;
                     }
                     break;
-                    
                 case 'disconnected':
                     logEvent('❌ Desconectado del servidor', 'error');
                     document.getElementById('connection-status').textContent = 'Desconectado';
                     document.getElementById('connection-status').className = 'text-danger';
+
                     const btnDisc = document.getElementById('btn-connect');
                     if (btnDisc) {
                         btnDisc.textContent = '🔌 Conectar';
@@ -320,82 +436,65 @@
                         btnDisc.disabled = false;
                     }
                     break;
-                    
                 case 'handshake_ack':
                     logEvent('✅ Handshake completado: ' + (data.nationId || 'Nación asignada'), 'success');
                     playerNationId = data.nationId || playerNationId;
                     break;
-                    
                 case 'state_update':
                     gameState = data.state;
                     updateUI(data.state, data.tick);
                     break;
-                    
                 case 'command_response':
                     if (data.command === 'save_game' && data.success) {
                         logEvent(`💾 Partida guardada: ${data.path}`, 'success');
                     }
                     break;
+                case 'intent_processed':
+                    // Feedback visual cuando se procesa una intención
+                    if (data.success) {
+                        if (data.intent?.type === 'intel_investigate') {
+                            logEvent('✅ Investigación completada exitosamente', 'success');
+                        }
+                    } else {
+                        logEvent(`❌ Error: ${data.error}`, 'error');
+                    }
+                    break;
             }
         });
 
-        // Iniciar cliente de sincronización
+        // Inicializar SyncClient
         initSyncClient();
 
-        /**
-         * Renderiza la sugerencia del asesor de forma segura
-         */
-        function renderAdvisorSuggestion(suggestion) {
-            const container = document.getElementById('advisor-content');
-            if (!container) return;
+        // ==========================================
+        // LÓGICA DE ACTUALIZACIÓN DE UI
+        // ==========================================
 
-            const { title, text, actions } = suggestion;
-            
-            let actionsHtml = '';
-            if (actions && actions.length > 0) {
-                actionsHtml = '<div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">';
-                actions.forEach(action => {
-                    // Codificamos el payload para evitar errores de sintaxis en HTML
-                    const encodedPayload = encodeURIComponent(JSON.stringify(action.payload));
-                    actionsHtml += `
-                        <button class="advisor-action-btn" 
-                            onclick="window.executeAdvisorAction('${action.type}', JSON.parse(decodeURIComponent('${encodedPayload}')))">
-                            ${action.label || 'Ejecutar'}
-                        </button>
-                    `;
-                });
-                actionsHtml += '</div>';
-            }
-
-            container.innerHTML = `
-                <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
-                    <strong style="color: #e94560; font-size: 1.1rem;">${title}</strong>
-                    <p style="margin: 0.5rem 0; color: #e0e0e0; line-height: 1.5;">${text || 'Sin descripción disponible.'}</p>
-                    ${actionsHtml}
-                </div>
-            `;
-            
-            logEvent(`🤖 Asesor: ${title}`, 'info');
-        }
-
-        /**
-         * Actualiza la interfaz principal con los datos del estado
-         */
         function updateUI(state, tick) {
             if (!state?.nations?.[playerNationId]) return;
+            
             const nation = state.nations[playerNationId];
             
             document.getElementById('nation-name').textContent = nation.name;
             document.getElementById('metric-tick').textContent = tick || 0;
+            
+            // Formato inteligente para presupuesto (decimales si es < 1)
+            const budget = nation.stats?.budget || 0;
+            const budgetDisplay = budget < 1 
+                ? `$${budget.toFixed(2)}M` 
+                : `$${Math.round(budget).toLocaleString()}M`;
+            
             document.getElementById('metric-gdp').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
-            document.getElementById('metric-budget').textContent = `$${(nation.stats?.budget || 0).toLocaleString()}M`;
+            document.getElementById('metric-budget').textContent = budgetDisplay;
             document.getElementById('metric-stability').textContent = `${nation.stats?.stability || 0}%`;
             
             mapRenderer.update(state, playerNationId);
             networkOverlay.update(state, playerNationId);
         }
 
-        // Control de capas
+        // ==========================================
+        // CONTROLES DE CAPAS Y EVENTOS
+        // ==========================================
+
         document.querySelectorAll('#layer-controls button').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const layer = e.target.dataset.layer;
@@ -407,12 +506,10 @@
             });
         });
 
-        // Callback de selección de nodos
         mapRenderer.onNodeSelect = (node) => {
             if (node) logEvent(`Nodo seleccionado: ${node.name}`, 'info');
         };
 
-        // Funciones globales para botones HTML
         window.requestSaveGame = () => {
             const filename = `partida_${Date.now()}.json.gz`;
             sendMessage('command_save_game', { filename, source: 'manual' });
@@ -427,13 +524,17 @@
 
         window.manualConnect = () => {
             const btn = document.getElementById('btn-connect');
+            const status = document.getElementById('connection-status');
+
             if (isConnected()) {
                 logEvent('Ya está conectado al servidor', 'warning');
                 return;
             }
-            logEvent('🔌 Intentando conectar...', 'info');
+
+            logEvent('🔌 Intentando conectar al servidor...', 'info');
             btn.textContent = '⏳ Conectando...';
             btn.disabled = true;
+
             setTimeout(() => {
                 if (!isConnected()) {
                     btn.textContent = '🔌 Conectar';
@@ -442,11 +543,8 @@
             }, 5000);
         };
 
-        // Sistema de logs
         function logEvent(message, type = 'info') {
             const container = document.getElementById('log-container');
-            if (!container) return;
-            
             const entry = document.createElement('div');
             entry.className = 'log-entry';
             const time = new Date().toLocaleTimeString();

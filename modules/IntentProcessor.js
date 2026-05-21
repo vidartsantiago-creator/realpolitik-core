@@ -25,6 +25,7 @@ export function init() {
     handlers.set('nation_select', handleNationSelect);
     handlers.set('policy_propose', handlePolicyPropose);
     handlers.set('crisis_trigger', handleCrisisTrigger);
+    handlers.set('intel_investigate', handleIntelInvestigate);
     
     console.log('[IntentProcessor] Handlers registrados:', Array.from(handlers.keys()));
 }
@@ -402,6 +403,102 @@ function handleCrisisTrigger(intent, state) {
     console.log(`[IntentProcessor] ✅ Crisis ${crisisType} activada`);
     
     return { success: true, deltas };
+}
+
+/**
+ * Handler: Investigar Señal de Inteligencia
+ * Descuenta $100k y revela información detallada con 100% de confianza
+ */
+function handleIntelInvestigate(intent, state) {
+    const { playerId, nationId, payload } = intent;
+    const intelData = payload?.payload || payload || {};
+    const { signalId } = intelData;
+
+    console.log(`[IntentProcessor] ${playerId} investigando señal ${signalId}`);
+
+    if (!signalId) {
+        return { success: false, deltas: [], error: 'ID de señal no especificado.' };
+    }
+
+    if (!state.nations[nationId]) {
+        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
+    }
+
+    const nation = state.nations[nationId];
+    const currentBudget = nation.stats?.budget || 0;
+    const investigationCost = 0.1; // $100k
+
+    if (currentBudget < investigationCost) {
+        return {
+            success: false,
+            deltas: [],
+            error: `Fondos insuficientes. Costo: $${investigationCost}M. Disponible: $${currentBudget}M.`
+        };
+    }
+
+    // Generar información detallada simulada
+    const detailedInfo = generateDetailedIntel(signalId, state);
+
+    // Generar deltas
+    const deltas = [
+        {
+            type: 'resource_update',
+            nationId: nationId,
+            changes: { 
+            budget: -0.1  // $100k = 0.1M
+            },
+            reason: 'investigacion_inteligencia'
+        },
+        {
+            type: 'intel_updated',
+            signalId: signalId,
+            confidenceLevel: 100,
+            isInvestigated: true,
+            detailedInfo: detailedInfo,
+            reason: 'investigacion_completada'
+        }
+    ];
+
+    console.log(`[IntentProcessor] ✅ Señal ${signalId} investigada. Costo: $${investigationCost}M`);
+
+    console.log(`[IntentProcessor] Presupuesto antes: ${currentBudget}M`);
+    console.log(`[IntentProcessor] Costo investigación: 0.1M ($100k)`);
+    console.log(`[IntentProcessor] Deltas a emitir:`, JSON.stringify(deltas, null, 2));
+
+    return { success: true, deltas };
+}
+
+/**
+ * Genera información detallada para una señal investigada
+ * @param {string} signalId - ID de la señal
+ * @param {Object} state - Estado actual del juego
+ * @returns {Object} Información detallada
+ */
+function generateDetailedIntel(signalId, state) {
+    // En producción, esto buscaría en una base de datos de señales
+    // Aquí generamos información contextual basada en el estado
+    
+    const nationIds = Object.keys(state.nations);
+    const randomNation = nationIds[Math.floor(Math.random() * nationIds.length)];
+    const nation = state.nations[randomNation];
+
+    return {
+        originalSignal: 'Señal interceptada y verificada',
+        verifiedData: {
+            nationInvolved: nation?.name || 'Desconocida',
+            troopMovement: Math.floor(Math.random() * 10000) + 1000,
+            equipmentType: ['Blindados', 'Infantería', 'Aéreo', 'Naval'][Math.floor(Math.random() * 4)],
+            strategicIntent: ['Defensivo', 'Ofensivo', 'Disuasión', 'Ejercicios'][Math.floor(Math.random() * 4)],
+            timeFrame: 'Próximas 48-72 horas',
+            reliability: 'Confirmada por múltiples fuentes'
+        },
+        analysis: 'Análisis completado. La inteligencia ha sido verificada cruzando datos de satélite, interceptaciones y fuentes humanas.',
+        recommendations: [
+            'Monitorear movimientos en las próximas 24h',
+            'Considerar despliegue preventivo',
+            'Iniciar canales diplomáticos de emergencia'
+        ]
+    };
 }
 
 // Exportar default para compatibilidad con imports anteriores si los hubiera

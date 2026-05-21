@@ -83,27 +83,56 @@ export class IntelFeed {
             const card = document.createElement('div');
             card.className = `intel-card ${this.getCssClassForConfidence(signal.confidenceLevel)}`;
             
-            const color = this.getColorForConfidence(signal.confidenceLevel);
+            const color = signal.isInvestigated ? '#10b981' : this.getColorForConfidence(signal.confidenceLevel);
+            const confidenceDisplay = signal.isInvestigated ? '100% (VERIFICADO)' : `${signal.confidenceLevel}% Confianza`;
+            
+            // Mostrar información detallada si está investigada
+            let contentHtml = '';
+            if (signal.isInvestigated && signal.detailedInfo) {
+                const info = signal.detailedInfo;
+                contentHtml = `
+                    <div style="background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; padding: 0.8rem; margin-top: 0.5rem;">
+                        <strong style="color: #10b981;">✅ INFORMACIÓN VERIFICADA</strong>
+                        <p style="margin: 0.5rem 0; font-size: 0.85rem;">${info.analysis}</p>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">
+                            <p><strong>Nación:</strong> ${info.verifiedData.nationInvolved}</p>
+                            <p><strong>Tropas:</strong> ${info.verifiedData.troopMovement} efectivos</p>
+                            <p><strong>Equipo:</strong> ${info.verifiedData.equipmentType}</p>
+                            <p><strong>Intención:</strong> ${info.verifiedData.strategicIntent}</p>
+                            <p><strong>Marco Temporal:</strong> ${info.verifiedData.timeFrame}</p>
+                        </div>
+                        <div style="margin-top: 0.5rem; font-style: italic; font-size: 0.75rem; color: #94a3b8;">
+                            ${info.recommendations.map(r => `• ${r}`).join('<br>')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                contentHtml = `
+                    <p style="margin: 5px 0; font-style: italic;">"${signal.signalText || 'Sin información'}"</p>
+                    <button class="investigate-btn" data-id="${signal.signalId || ''}" style="margin-top:5px; font-size:0.8rem;">
+                        Investigar (-$100k)
+                    </button>
+                `;
+            }
             
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between;">
                     <strong>${signal.source?.toUpperCase() || 'DESCONOCIDA'}</strong>
-                    <small style="color:${color}">${signal.confidenceLevel || 0}% Confianza</small>
+                    <small style="color:${color}">${confidenceDisplay}</small>
                 </div>
-                <p style="margin: 5px 0; font-style: italic;">"${signal.signalText || 'Sin información'}"</p>
-                <div class="confidence-bar">
-                    <div class="confidence-fill" style="width: ${signal.confidenceLevel || 0}%; background-color: ${color}"></div>
-                </div>
-                <button class="investigate-btn" data-id="${signal.signalId || ''}" style="margin-top:5px; font-size:0.8rem;">
-                    Investigar (-$100k)
-                </button>
+                ${contentHtml}
             `;
 
-            const btn = card.querySelector('.investigate-btn');
-            if (btn && signal.signalId) {
-                btn.addEventListener('click', () => {
-                    this.onInvestigate(signal.signalId);
-                });
+            // Agregar event listener solo si no está investigada
+            if (!signal.isInvestigated) {
+                const btn = card.querySelector('.investigate-btn');
+                if (btn && signal.signalId) {
+                    btn.addEventListener('click', () => {
+                        if (typeof window.investigateSignal === 'function') {
+                            window.investigateSignal(signal.signalId);
+                        }
+                    });
+                }
             }
 
             this.feedList.appendChild(card);
