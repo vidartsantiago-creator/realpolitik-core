@@ -162,11 +162,12 @@ function handleMessage(message) {
     case 'command_response':
       // Respuesta a comando (save_game, load_game, etc.)
       notifySubscribers('command_response', {
-        command,
-        success,
-        error,
-        path,
-        tick
+            command: message.command,
+            success: message.success,
+            error: message.error,
+            path: message.path,       // ✅ Agregar
+            tick: message.tick,       // ✅ Agregar
+            saves: message.saves      // ✅ Agregar ESTO ES CRÍTICO
       });
       break;
 

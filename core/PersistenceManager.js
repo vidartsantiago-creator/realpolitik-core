@@ -425,21 +425,28 @@ async function handleLoadCommand(payload) {
  * Maneja el comando de listar partidas guardadas
  */
 async function handleListSavesCommand() {
+  console.log('[PersistenceManager] 📋 COMANDO RECIBIDO: list_saves'); // <--- AGREGAR ESTO
+  console.log('[PersistenceManager] Directorio de saves:', managerState.savePath);
+  console.log('[PersistenceManager] Archivos en directorio:', await fs.readdir(managerState.savePath));
+  
   try {
     const result = await listSaves();
-    
+    console.log('[PersistenceManager] Resultado de listSaves:', result.success ? 'ÉXITO' : 'ERROR', result.saves?.length || 0, 'partidas'); // <--- AGREGAR ESTO
+
     emit('command_response', {
       command: 'list_saves',
       success: result.success,
       saves: result.saves || [],
       error: result.error
     });
-  } catch (error) {
+    console.log('[PersistenceManager] Evento command_response emitido para list_saves'); // <--- AGREGAR ESTO
+  } catch (readError) {
+    console.error(`[PersistenceManager] ERROR CRÍTICO leyendo ${file}:`, readError);
     emit('command_response', {
       command: 'list_saves',
       success: false,
       saves: [],
-      error: error.message
+      error: readError.message
     });
   }
 }

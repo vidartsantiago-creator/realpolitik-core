@@ -110,6 +110,14 @@ export class GameWebSocketServer {
         emit('command_load_game', message.payload || {});
         break;
 
+      case 'command_list_saves':
+        emit('command_list_saves', message.payload || {});
+        break;
+
+      case 'command_delete_save':
+        emit('command_delete_save', dmessage.payload || {});
+        break;
+
       case 'ping':
         this.send(clientId, { type: 'pong', timestamp: Date.now() });
         break;

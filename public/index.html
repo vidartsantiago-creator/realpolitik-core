@@ -431,22 +431,49 @@
                     closeSaveManager();
                     break;
                 case 'command_response':
-                    if (data.command === 'save_game' && data.success) {
-                        logEvent(`💾 Partida guardada: ${data.path}`, 'success');
-                    } else if (data.command === 'load_game') {
-                        if (data.success) {
-                            logEvent(`📂 Partida cargada exitosamente (Tick ${data.tick})`, 'success');
-                            // El evento state_reset se encargará de actualizar la UI
-                        } else {
-                            logEvent(`❌ Error al cargar partida: ${data.error}`, 'error');
-                        }
-                    } else if (data.command === 'list_saves' && data.success) {
-                        renderSaveList(data.saves);
-                    } else if (data.command === 'delete_save' && data.success) {
-                        logEvent(`🗑️ Partida eliminada`, 'success');
-                        refreshSaveList(); // Recargar lista
-                    }
-                    break;
+        // LOG DE DEPURACIÓN PROFUNDA
+        console.log('[UI] command_response recibido:', JSON.stringify(data, null, 2));
+        
+        if (data.command === 'list_saves') {
+            if (data.success) {
+                console.log('[UI] list_saves - Éxito. Saves:', data.saves);
+                console.log('[UI] list_saves - ¿Es array?', Array.isArray(data.saves));
+                // Llamada directa a renderSaveList pasando el array completo
+                if (Array.isArray(data.saves)) {
+                    renderSaveList(data.saves);
+                } else {
+                    console.error('[UI] ERROR: data.saves no es un array:', data.saves);
+                    document.getElementById('save-list-container').innerHTML = '<p style="color:red">Error de formato en datos</p>';
+                }
+            } else {
+                console.error('[UI] list_saves - Error:', data.error);
+                document.getElementById('save-list-container').innerHTML = `<p style="color:red">Error: ${data.error}</p>`;
+            }
+        } 
+        else if (data.command === 'save_game') {
+            if (data.success) {
+                logEvent(`💾 Partida guardada: ${data.path}`, 'success');
+            } else {
+                logEvent(`❌ Error al guardar: ${data.error}`, 'error');
+            }
+        } 
+        else if (data.command === 'load_game') {
+            if (data.success) {
+                logEvent(`📂 Partida cargada exitosamente (Tick ${data.tick})`, 'success');
+                // No cerramos el modal aquí, esperamos el evento state_reset
+            } else {
+                logEvent(`❌ Error al cargar partida: ${data.error}`, 'error');
+            }
+        } 
+        else if (data.command === 'delete_save') {
+            if (data.success) {
+                logEvent(`🗑️ Partida eliminada`, 'success');
+                refreshSaveList(); // Recargar lista
+            } else {
+                logEvent(`❌ Error al eliminar: ${data.error}`, 'error');
+            }
+        }
+        break;
             }
         });
 
@@ -524,6 +551,7 @@
         };
 
         window.refreshSaveList = () => {
+            console.log('[UI] 📤 Enviando comando command_list_saves al servidor'); // <--- AGREGAR ESTO
             const listContainer = document.getElementById('save-list-container');
             if (!listContainer) return;
             
@@ -534,6 +562,7 @@
         };
 
         function renderSaveList(saves) {
+            console.log('[UI] renderSaveList llamada con:', saves);
             const container = document.getElementById('save-list-container');
             
             if (!saves || saves.length === 0) {
@@ -541,29 +570,53 @@
                 return;
             }
 
-            let html = '<ul class="save-list">';
+            // Limpiar contenedor
+            container.innerHTML = '';
+            const list = document.createElement('ul');
+            list.className = 'save-list';
+
             saves.forEach(save => {
                 const date = new Date(save.date).toLocaleString();
                 const sizeKB = (save.size / 1024).toFixed(1);
-                html += `
-                    <li class="save-item">
-                        <div class="save-info">
-                            <div class="save-filename">${save.filename}</div>
-                            <div class="save-meta">
-                                Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
-                            </div>
+                
+                const li = document.createElement('li');
+                li.className = 'save-item';
+                
+                li.innerHTML = `
+                    <div class="save-info">
+                        <div class="save-filename">${save.filename}</div>
+                        <div class="save-meta">
+                            Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
                         </div>
-                        <div class="save-actions">
-                            <button class="btn-load" onclick="loadGameFile('${save.filename}')">Cargar</button>
-                            <button class="btn-delete" onclick="deleteGameFile('${save.filename}')">Eliminar</button>
-                        </div>
-                    </li>
+                    </div>
+                    <div class="save-actions">
+                        <button class="btn-load" data-filename="${save.filename}">📥 Cargar</button>
+                        <button class="btn-delete" data-filename="${save.filename}">🗑️ Eliminar</button>
+                    </div>
                 `;
+                
+                // Agregar Event Listeners directamente (evita problemas de onclick y quotes)
+                const loadBtn = li.querySelector('.btn-load');
+                loadBtn.addEventListener('click', () => {
+                    console.log(`[UI] Cargando partida: ${save.filename}`);
+                    sendMessage('command_load_game', { filename: save.filename });
+                    logEvent(`Solicitando carga: ${save.filename}`, 'info');
+                });
+                
+                const deleteBtn = li.querySelector('.btn-delete');
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm(`¿Eliminar permanentemente "${save.filename}"?`)) {
+                        console.log(`[UI] Eliminando partida: ${save.filename}`);
+                        sendMessage('command_delete_save', { filename: save.filename });
+                        logEvent(`Solicitando eliminación: ${save.filename}`, 'warning');
+                    }
+                });
+                
+                list.appendChild(li);
             });
-            html += '</ul>';
-            container.innerHTML = html;
+            
+            container.appendChild(list);
         }
-
         window.togglePause = () => {
             isPaused = !isPaused;
             sendMessage('command_pause', { paused: isPaused });
