@@ -21,16 +21,11 @@ import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 
-
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
-
-
-
-initIntentParser({ engine: null, world: null, modules: null });
 
 // ============================================
 // Sección: Carga de Configuración
@@ -289,7 +284,6 @@ async function main() {
         // ============================================
         // SECCIÓN NUEVA: Puente de Eventos IA → WebSocket
         // ============================================
-        // Insertar AQUÍ el siguiente bloque:
 
         // Suscribirse a sugerencias del asesor IA y reenviarlas a clientes
         on('advisor_suggestion', (payload) => {
@@ -319,9 +313,6 @@ async function main() {
         console.error('[main] Error fatal en arranque:', error);
         console.error(error.stack);
         process.exit(1);
-
-
-
     }
 }
 

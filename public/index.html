@@ -129,24 +129,30 @@
             font-size: 0.8rem;
         }
         .log-entry { margin-bottom: 0.3rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Modal Styles */
         #modal-overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.7);
+            background: rgba(0,0,0,0.8);
             z-index: 1000;
             display: none;
+            justify-content: center;
+            align-items: center;
         }
+        #modal-overlay.active { display: flex; }
         .modal-window {
-            position: absolute;
             background: #1a1a2e;
             border: 2px solid #e94560;
             border-radius: 8px;
-            min-width: 400px;
-            max-width: 600px;
+            width: 600px;
+            max-height: 80vh;
             box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+            display: flex;
+            flex-direction: column;
         }
         .modal-header {
             background: linear-gradient(135deg, #1a1a2e 0%, #e94560 100%);
@@ -155,9 +161,48 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            cursor: move;
         }
-        .modal-body { padding: 1.5rem; }
+        .modal-header h3 { color: white; margin: 0; }
+        .close-modal {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .close-modal:hover { color: #e94560; background: transparent; }
+        .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+        
+        /* Save List Styles */
+        .save-list { list-style: none; }
+        .save-item {
+            background: rgba(15, 52, 96, 0.3);
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .save-item:hover { background: rgba(15, 52, 96, 0.6); }
+        .save-info { flex: 1; }
+        .save-filename { font-weight: bold; color: #3b82f6; margin-bottom: 0.3rem; }
+        .save-meta { font-size: 0.8rem; color: #94a3b8; }
+        .save-actions { display: flex; gap: 0.5rem; }
+        .btn-load { background: #10b981; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .btn-load:hover { background: #059669; }
+        .btn-delete { background: #ef4444; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+        .btn-delete:hover { background: #dc2626; }
+        .empty-saves { text-align: center; color: #94a3b8; padding: 2rem; font-style: italic; }
+
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
@@ -178,18 +223,6 @@
         }
         button:hover { background: #2563eb; }
         button:disabled { background: #64748b; cursor: not-allowed; }
-        
-        /* Estilos específicos para tarjetas investigadas */
-        .intel-card.investigated {
-            border-left-color: #10b981;
-            background: rgba(16, 185, 129, 0.05);
-        }
-        .verified-badge {
-            color: #10b981;
-            font-weight: bold;
-            font-size: 0.8rem;
-            text-transform: uppercase;
-        }
     </style>
 </head>
 <body>
@@ -217,6 +250,7 @@
         <div class="dashboard-card">
             <h3>⚡ Acciones Rápidas</h3>
             <button onclick="requestSaveGame()" style="width: 100%; margin-bottom: 0.5rem;">💾 Guardar Partida</button>
+            <button onclick="openSaveManager()" style="width: 100%; margin-bottom: 0.5rem;">📂 Cargar Partida</button>
             <button onclick="togglePause()" style="width: 100%;">⏸️ Pausar</button>
         </div>
     </aside>
@@ -256,7 +290,20 @@
         </div>
     </footer>
 
-    <div id="modal-overlay"></div>
+    <!-- Modal de Gestión de Partidas -->
+    <div id="modal-overlay">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h3>📂 Gestionar Partidas Guardadas</h3>
+                <button class="close-modal" onclick="closeSaveManager()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="save-list-container">
+                    <p class="empty-saves">Cargando lista de partidas...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script type="module">
         import MapRenderer from './client/MapRenderer.js';
@@ -264,14 +311,12 @@
         import IntelFeed from './client/components/IntelFeed.js';
         import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
 
-        // Inicialización de componentes
         const mapRenderer = new MapRenderer();
         const networkOverlay = new NetworkOverlay('network-canvas');
         const intelFeed = new IntelFeed('intel-feed');
         
-        // Exponer globalmente para debugging y acceso desde HTML dinámico
+        // Exponer globalmente para debugging y acceso desde HTML inline
         window.intelFeed = intelFeed;
-        window.mapRenderer = mapRenderer;
 
         networkOverlay.setMapRenderer(mapRenderer);
 
@@ -279,138 +324,72 @@
         let playerNationId = 'nation_001';
         let isPaused = false;
 
-        // ==========================================
-        // FUNCIONES GLOBALES PARA ACCIONES UI
-        // ==========================================
-        
-        /**
-         * Función global para investigar señales de inteligencia
-         * Accesible desde los botones generados dinámicamente en IntelFeed
-         */
-        window.investigateSignal = (signalId) => {
-            console.log(`[UI] Investigando señal: ${signalId}`);
-            logEvent(`🔍 Iniciando investigación de señal ${signalId}...`, 'info');
-            
-            sendMessage('player_intent', {
-                type: 'intel_investigate',
-                payload: { signalId }
-            });
-        };
-
-        /**
-         * Función global para ejecutar acciones del asesor IA
-         */
-        window.executeAdvisorAction = (type, payload) => {
-            console.log(`[UI] Ejecutando acción: ${type}`, payload);
-            logEvent(`⚡ Acción ejecutada: ${type}`, 'success');
-            
-            try {
-                // Serializar payload de forma segura
-                const serializedPayload = JSON.stringify(payload).replace(/"/g, '&quot;');
-                sendMessage('player_intent', {
-                    type: type,
-                    payload: payload
-                });
-            } catch (e) {
-                console.error('Error serializando payload:', e);
-                logEvent('❌ Error al ejecutar acción', 'error');
-            }
-        };
-
-        // ==========================================
-        // SUSCRIPCIÓN A EVENTOS DEL SERVIDOR
-        // ==========================================
-        
+        // Suscribirse a eventos
         subscribe((eventType, data) => {
-            // Manejo específico de Inteligencia
+            // Manejo de Inteligencia
             if (eventType === 'intel_signal' && data?.signal) {
                 intelFeed.addSignal(data.signal);
                 return;
             }
-
-            // Manejo específico de Actualización de Inteligencia (tras investigar)
+            
+            // Manejo de actualización de inteligencia tras investigación
             if (eventType === 'intel_updated' && data?.signal) {
                 // Actualizar la señal específica en el feed
-                const updatedSignal = data.signal;
-                
-                // Buscar y actualizar la señal existente o agregarla de nuevo
-                const index = intelFeed.signals.findIndex(s => s.signalId === updatedSignal.signalId);
+                const index = intelFeed.signals.findIndex(s => s.signalId === data.signal.signalId);
                 if (index !== -1) {
-                    intelFeed.signals[index] = updatedSignal;
+                    intelFeed.signals[index] = data.signal;
                     intelFeed.render();
-                    logEvent(`✅ Inteligencia verificada: ${updatedSignal.source}`, 'success');
-                } else {
-                    intelFeed.addSignal(updatedSignal);
                 }
+                logEvent(`🔍 Inteligencia verificada: ${data.signal.source}`, 'success');
                 return;
             }
-            
-            // Manejo específico del Asesor IA
-            
+
+            // Manejo de sugerencias del Asesor IA
             if (eventType === 'advisor_suggestion' && data?.suggestion) {
                 const advisorContent = document.getElementById('advisor-content');
                 const suggestion = data.suggestion;
                 
-                // Crear contenedor seguro
-                const container = document.createElement('div');
-                container.style.cssText = 'background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;';
-                
-                // Título
-                const title = document.createElement('strong');
-                title.style.color = '#e94560';
-                title.textContent = suggestion.title;
-                container.appendChild(title);
-                
-                // Descripción
-                const desc = document.createElement('p');
-                desc.style.cssText = 'margin: 0.5rem 0; color: #e0e0e0;';
-                desc.textContent = suggestion.text || suggestion.description;
-                container.appendChild(desc);
-                
-                // Botón (si existe acción)
-                if (suggestion.action || (suggestion.actions && suggestion.actions.length > 0)) {
-                    const btn = document.createElement('button');
-                    btn.style.cssText = 'margin-top: 0.5rem; width: 100%;';
-                    
-                    // Determinar qué acción usar
-                    let actionType = suggestion.action;
-                    let actionPayload = suggestion.payload;
-                    let actionLabel = suggestion.actionLabel || 'Ejecutar';
-                    
-                    // Si viene como array de acciones, usar la primera
-                    if (suggestion.actions && suggestion.actions.length > 0) {
-                        actionType = suggestion.actions[0].type;
-                        actionPayload = suggestion.actions[0].payload;
-                        actionLabel = suggestion.actions[0].label;
-                    }
-                    
-                    btn.textContent = actionLabel;
-                    
-                    // Guardar datos en el botón (NO generar código inline)
-                    btn.dataset.actionType = actionType;
-                    btn.dataset.actionPayload = JSON.stringify(actionPayload || {});
-                    
-                    // Agregar event listener seguro
-                    btn.addEventListener('click', () => {
-                        console.log('[UI] Ejecutando acción:', actionType, actionPayload);
-                        sendMessage('player_intent', {
-                            type: actionType,
-                            payload: actionPayload
-                        });
-                        logEvent(`⚡ Acción ejecutada: ${actionType}`, 'info');
+                // Generar acciones seguras sin eval
+                let actionsHtml = '';
+                if (suggestion.actions && suggestion.actions.length > 0) {
+                    actionsHtml = '<div style="margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">';
+                    suggestion.actions.forEach((action, idx) => {
+                        const actionId = `action_${Date.now()}_${idx}`;
+                        actionsHtml += `
+                            <button id="${actionId}" style="font-size: 0.8rem; padding: 0.4rem;">
+                                ${action.label || 'Ejecutar'}
+                            </button>
+                        `;
+                        // Usamos setTimeout para asegurar que el elemento existe antes de añadir listener
+                        setTimeout(() => {
+                            const btn = document.getElementById(actionId);
+                            if (btn) {
+                                btn.addEventListener('click', () => {
+                                    console.log('[UI] Ejecutando acción:', action.type, action.payload);
+                                    sendMessage('player_intent', {
+                                        type: action.type,
+                                        payload: action.payload || {}
+                                    });
+                                    logEvent(`⚡ Acción ejecutada: ${action.type}`, 'info');
+                                });
+                            }
+                        }, 0);
                     });
-                    
-                    container.appendChild(btn);
+                    actionsHtml += '</div>';
                 }
-                
-                // Limpiar y agregar nuevo contenido
-                advisorContent.innerHTML = '';
-                advisorContent.appendChild(container);
-                
+
+                advisorContent.innerHTML = `
+                    <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
+                        <strong style="color: #e94560;">${suggestion.title}</strong>
+                        <p style="margin: 0.5rem 0; color: #e0e0e0;">${suggestion.text || suggestion.description}</p>
+                        ${actionsHtml}
+                    </div>
+                `;
                 logEvent(`🤖 Asesor: ${suggestion.title}`, 'info');
                 return;
             }
-            // Switch estándar para otros eventos
+
+            // Eventos estándar
             switch (eventType) {
                 case 'connected':
                     logEvent('✅ Conectado al servidor', 'success');
@@ -444,40 +423,42 @@
                     gameState = data.state;
                     updateUI(data.state, data.tick);
                     break;
+                case 'state_reset':
+                    // Evento disparado al cargar una partida
+                    logEvent('🔄 Estado restaurado desde partida guardada', 'success');
+                    gameState = data.state;
+                    updateUI(data.state, data.tick);
+                    closeSaveManager();
+                    break;
                 case 'command_response':
                     if (data.command === 'save_game' && data.success) {
                         logEvent(`💾 Partida guardada: ${data.path}`, 'success');
-                    }
-                    break;
-                case 'intent_processed':
-                    // Feedback visual cuando se procesa una intención
-                    if (data.success) {
-                        if (data.intent?.type === 'intel_investigate') {
-                            logEvent('✅ Investigación completada exitosamente', 'success');
+                    } else if (data.command === 'load_game') {
+                        if (data.success) {
+                            logEvent(`📂 Partida cargada exitosamente (Tick ${data.tick})`, 'success');
+                            // El evento state_reset se encargará de actualizar la UI
+                        } else {
+                            logEvent(`❌ Error al cargar partida: ${data.error}`, 'error');
                         }
-                    } else {
-                        logEvent(`❌ Error: ${data.error}`, 'error');
+                    } else if (data.command === 'list_saves' && data.success) {
+                        renderSaveList(data.saves);
+                    } else if (data.command === 'delete_save' && data.success) {
+                        logEvent(`🗑️ Partida eliminada`, 'success');
+                        refreshSaveList(); // Recargar lista
                     }
                     break;
             }
         });
 
-        // Inicializar SyncClient
         initSyncClient();
-
-        // ==========================================
-        // LÓGICA DE ACTUALIZACIÓN DE UI
-        // ==========================================
 
         function updateUI(state, tick) {
             if (!state?.nations?.[playerNationId]) return;
-            
             const nation = state.nations[playerNationId];
-            
             document.getElementById('nation-name').textContent = nation.name;
             document.getElementById('metric-tick').textContent = tick || 0;
             
-            // Formato inteligente para presupuesto (decimales si es < 1)
+            // Formato correcto para presupuesto (con decimales si es < 1)
             const budget = nation.stats?.budget || 0;
             const budgetDisplay = budget < 1 
                 ? `$${budget.toFixed(2)}M` 
@@ -490,10 +471,6 @@
             mapRenderer.update(state, playerNationId);
             networkOverlay.update(state, playerNationId);
         }
-
-        // ==========================================
-        // CONTROLES DE CAPAS Y EVENTOS
-        // ==========================================
 
         document.querySelectorAll('#layer-controls button').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -510,11 +487,82 @@
             if (node) logEvent(`Nodo seleccionado: ${node.name}`, 'info');
         };
 
+        // Funciones globales para accesos desde HTML
         window.requestSaveGame = () => {
             const filename = `partida_${Date.now()}.json.gz`;
             sendMessage('command_save_game', { filename, source: 'manual' });
             logEvent(`Solicitando guardado: ${filename}`, 'info');
         };
+
+        window.openSaveManager = () => {
+            document.getElementById('modal-overlay').classList.add('active');
+            refreshSaveList();
+        };
+
+        window.closeSaveManager = () => {
+            document.getElementById('modal-overlay').classList.remove('active');
+        };
+
+        window.refreshSaveList = () => {
+            const container = document.getElementById('save-list-container');
+            container.innerHTML = '<p class="empty-saves">Cargando lista...</p>';
+            sendMessage('command_list_saves', {});
+        };
+
+        window.loadGameFile = (filename) => {
+            if (confirm(`¿Cargar partida "${filename}"? Se perderá el progreso actual.`)) {
+                sendMessage('command_load_game', { filename });
+                logEvent(`Solicitando carga: ${filename}`, 'info');
+            }
+        };
+
+        window.deleteGameFile = (filename) => {
+            if (confirm(`¿Eliminar permanentemente "${filename}"? Esta acción no se puede deshacer.`)) {
+                sendMessage('command_delete_save', { filename });
+                logEvent(`Solicitando eliminación: ${filename}`, 'warning');
+            }
+        };
+
+        window.refreshSaveList = () => {
+            const listContainer = document.getElementById('save-list-container');
+            if (!listContainer) return;
+            
+            listContainer.innerHTML = '<p style="text-align:center; color:#94a3b8;">Cargando lista...</p>';
+            
+            // Simplemente enviamos el comando. La respuesta se maneja en el switch de subscribe
+            sendMessage('command_list_saves', {});
+        };
+
+        function renderSaveList(saves) {
+            const container = document.getElementById('save-list-container');
+            
+            if (!saves || saves.length === 0) {
+                container.innerHTML = '<p class="empty-saves">No hay partidas guardadas.</p>';
+                return;
+            }
+
+            let html = '<ul class="save-list">';
+            saves.forEach(save => {
+                const date = new Date(save.date).toLocaleString();
+                const sizeKB = (save.size / 1024).toFixed(1);
+                html += `
+                    <li class="save-item">
+                        <div class="save-info">
+                            <div class="save-filename">${save.filename}</div>
+                            <div class="save-meta">
+                                Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
+                            </div>
+                        </div>
+                        <div class="save-actions">
+                            <button class="btn-load" onclick="loadGameFile('${save.filename}')">Cargar</button>
+                            <button class="btn-delete" onclick="deleteGameFile('${save.filename}')">Eliminar</button>
+                        </div>
+                    </li>
+                `;
+            });
+            html += '</ul>';
+            container.innerHTML = html;
+        }
 
         window.togglePause = () => {
             isPaused = !isPaused;
@@ -541,6 +589,16 @@
                     btn.disabled = false;
                 }
             }, 5000);
+        };
+
+        // Función global para investigar señales
+        window.investigateSignal = (signalId) => {
+            console.log(`[UI] Investigando señal: ${signalId}`);
+            sendMessage('player_intent', {
+                type: 'intel_investigate',
+                payload: { signalId }
+            });
+            logEvent(`🔍 Investigando señal ${signalId} (-0.1M)`, 'info');
         };
 
         function logEvent(message, type = 'info') {

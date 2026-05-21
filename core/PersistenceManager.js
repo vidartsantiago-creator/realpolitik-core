@@ -84,6 +84,8 @@ export async function initPersistenceManager(options = {}) {
     // Suscribirse a comandos de guardado/carga
     on('command_save_game', handleSaveCommand, 100);
     on('command_load_game', handleLoadCommand, 100);
+    on('command_list_saves', handleListSavesCommand, 100);
+    on('command_delete_save', handleDeleteSaveCommand, 100);
 
     emit('persistence_initialized', {
       saveDir,
@@ -415,6 +417,54 @@ async function handleLoadCommand(payload) {
     command: 'load_game',
     success: result.success,
     tick: result.tick,
+    error: result.error
+  });
+}
+
+/**
+ * Maneja el comando de listar partidas guardadas
+ */
+async function handleListSavesCommand() {
+  try {
+    const result = await listSaves();
+    
+    emit('command_response', {
+      command: 'list_saves',
+      success: result.success,
+      saves: result.saves || [],
+      error: result.error
+    });
+  } catch (error) {
+    emit('command_response', {
+      command: 'list_saves',
+      success: false,
+      saves: [],
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Maneja el comando de eliminar partida
+ * @param {{ filename: string }} payload
+ */
+async function handleDeleteSaveCommand(payload) {
+  const filename = payload?.filename;
+
+  if (!filename) {
+    emit('command_response', {
+      command: 'delete_save',
+      success: false,
+      error: 'Nombre de archivo requerido'
+    });
+    return;
+  }
+
+  const result = await deleteSave(filename);
+
+  emit('command_response', {
+    command: 'delete_save',
+    success: result.success,
     error: result.error
   });
 }
