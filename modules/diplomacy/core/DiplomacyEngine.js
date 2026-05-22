@@ -116,7 +116,17 @@ function dispatchAction(actionId, payload, actorId) {
 
   // 1. Validar Requisitos (Antes de gastar recursos)
   const validation = validateRequirements(actionDef, actorNation, targetNation, state);
+
+  // --- LOGS DE DEBUG AGREGADOS ---
+console.log(`[DiplomacyEngine] 🔍 Debug Validación:`);
+console.log(`   - Action: ${actionId}`);
+console.log(`   - Actor Budget: ${actorNation.stats?.budget} (Req: ${actionDef.requirements.minBudget})`);
+console.log(`   - Target Stability: ${targetNation.stats?.stability} (Req Max: ${actionDef.requirements.targetStabilityMax})`);
+console.log(`   - Resultado Validación:`, validation);
+// -------------------------------
+ 
   if (!validation.valid) {
+    console.warn(`[DiplomacyEngine] ❌ VALIDACIÓN FALLIDA: ${validation.error}`);
     emitResult(actionId, false, validation.error, payload);
     return;
   }
