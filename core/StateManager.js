@@ -293,7 +293,13 @@ export function ResetForTests(initialState = null) {
     tick: 0,
     version: 0,
     nations: {},
-    diplomacy: { relations: {}, channels: {} },
+    diplomacy: {
+      relations: {}, // Clave: "USA_CHN", Valor: { value: 0, history: [], treaties: [] }
+      reputation: {}, // Clave: "USA", Valor: { score: 0, trend: 'stable' }
+      active_sanctions: [], // Array de { source, target, type, expiresAt }
+      active_investments: [], // Array de { source, target, type, incomePerTick }
+      covert_ops: {} // Clave: opId, Valor: { type, target, successChance, revealed: false }
+    },
     factions: {},
     crisis: { active: false, phase: 0, type: null, treaties: {} },
     espionage: { operations: {}, signals: [] }

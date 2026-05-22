@@ -20,6 +20,8 @@ import { InformationLayer } from '../modules/InformationLayer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
+import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
+import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -163,6 +165,14 @@ async function main() {
 
         // 3. Registrar módulos
         await registerModules();
+        initDiplomacyEngine();
+
+        // Inicializar módulos de diplomacia
+        console.log('[main] ✅ DiplomacyEngine listo.');
+
+        // Inicializar IA diplomática (Mundo vivo)
+        initDiplomacyAI();
+        console.log('[main] ✅ DiplomacyAI activa.');
 
         // 4. Inicializar PersistenceManager para autoguardado
         try {

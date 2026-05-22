@@ -105,24 +105,49 @@ export class GameWebSocketServer {
         emit('command_save_game', message.payload || {});
         break;
 
-            case 'command_load_game':
-              // Extraer filename directamente si viene en la raíz o en payload
-              const loadFilename = message.filename || (message.payload && message.payload.filename);
-              if (!loadFilename) {
-                  console.error('[WS] Error: command_load_game sin filename. Mensaje:', message);
-              }
-              emit('command_load_game', { filename: loadFilename });
-              break;
+      case 'command_load_game':
+        // Extraer filename directamente si viene en la raíz o en payload
+        const loadFilename = message.filename || (message.payload && message.payload.filename);
+        if (!loadFilename) {
+            console.error('[WS] Error: command_load_game sin filename. Mensaje:', message);
+          }
+        emit('command_load_game', { filename: loadFilename });
+        break;
 
-            case 'command_delete_save':
-              // Extraer filename directamente si viene en la raíz o en payload
-              const deleteFilename = message.filename || (message.payload && message.payload.filename);
-              emit('command_delete_save', { filename: deleteFilename });
-              break;
+      case 'command_delete_save':
+        // Extraer filename directamente si viene en la raíz o en payload
+        const deleteFilename = message.filename || (message.payload && message.payload.filename);
+        emit('command_delete_save', { filename: deleteFilename });
+        break;
             
-            case 'command_list_saves':
-              emit('command_list_saves', {});
-              break;
+      case 'command_list_saves':
+        emit('command_list_saves', {});
+        break; 
+        
+      // Capturar acciones diplomáticas dinámicas
+      case 'covert_coup':
+      case 'sanctions_economic':
+      case 'sanctions_financial':
+      case 'aid_humanitarian':
+      case 'aid_refugees':
+      case 'investment_infrastructure':
+      case 'investment_cultural':
+        // Envolver como player_intent para que DiplomacyEngine lo procese
+        const diplomaticPayload = {
+          type: message.type,
+          playerId: client.playerId,
+          nationId: client.nationId,
+          payload: message.payload || { targetNation: message.targetNation } 
+        };
+        
+        // Asegurar que targetNation esté en el payload
+        if (!diplomaticPayload.payload.targetNation && message.targetNation) {
+            diplomaticPayload.payload.targetNation = message.targetNation;
+        }
+
+        console.log(`[WS] 🕵️ Acción diplomática detectada: ${message.type} contra ${diplomaticPayload.payload.targetNation}`);
+        emit('ws.message.player_intent', diplomaticPayload);
+        break;
 
       case 'ping':
         this.send(clientId, { type: 'pong', timestamp: Date.now() });
