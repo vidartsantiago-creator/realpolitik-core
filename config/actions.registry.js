@@ -2,7 +2,7 @@
  * Registro Central de Acciones Diplomáticas
  * @description Define la metadata de todas las acciones posibles.
  *              El sistema lee esto para validar, calcular costos y ejecutar efectos.
- * 
+ *
  * Estructura de una acción:
  * - id: Identificador único (clave del objeto)
  * - label: Nombre visible en UI
@@ -25,11 +25,12 @@ export const ACTION_REGISTRY = {
       relationDelta: -15,
       reputationDelta: -5,
       targetEffect: { tradeIncomeMultiplier: 0.5 }, // Reduce ingresos comerciales del objetivo
+      actorEffect: { passiveGoldIncome: -2 }, // Costo de mantenimiento por tick
       duration: 20 // Ticks
     },
     aiWeight: 0.7
   },
-  
+
   'sanctions_financial': {
     label: 'Sanciones Financieras',
     category: 'economic',
@@ -38,7 +39,7 @@ export const ACTION_REGISTRY = {
     effects: {
       relationDelta: -10,
       reputationDelta: -2,
-      targetEffect: { budgetDecayPerTick: 0.5 }, // Drena presupuesto lentamente
+      targetEffect: { budgetDecayPerTick: 2 }, // Drena presupuesto lentamente (aumentado de 0.5)
       duration: 15
     },
     aiWeight: 0.6
@@ -48,16 +49,16 @@ export const ACTION_REGISTRY = {
   'covert_coup': {
     label: 'Promover Golpe de Estado',
     category: 'covert',
-    cost: { gold: 300, influence: 50 },
-    requirements: { minRelation: -50, minBudget: 200, targetStabilityMax: 60 },
+    cost: { gold: 150, influence: 30 },
+    requirements: { minRelation: -30, minBudget: 80, targetStabilityMax: 70 },
     effects: {
       relationDelta: -40, // Si falla o se descubre
       reputationDelta: -20,
-      successChanceBase: 0.3, // 30% base + modificadores
+      successChanceBase: 0.35, // 35% base + modificadores
       onSuccess: { stabilityDamage: 50, regimeChange: true },
-      onFail: { warRisk: 0.8 } // 80% probabilidad de guerra
+      onFail: { warRisk: 0.6 } // 60% probabilidad de guerra
     },
-    aiWeight: 0.2
+    aiWeight: 0.3
   },
 
   // --- AYUDA HUMANITARIA ---
@@ -93,13 +94,13 @@ export const ACTION_REGISTRY = {
   'investment_infrastructure': {
     label: 'Inversión en Infraestructura',
     category: 'investment',
-    cost: { gold: 500 },
+    cost: { gold: 400 },
     requirements: { minRelation: 20, minBudget: 300 },
     effects: {
       relationDelta: 10,
       reputationDelta: 5,
       targetEffect: { economyGrowthMultiplier: 1.2 },
-      actorEffect: { passiveGoldIncome: 5 }, // Retorno de inversión por tick
+      actorEffect: { passiveGoldIncome: 6 }, // Retorno de inversión por tick (aumentado para ROI positivo)
       duration: 100 // Duración del tratado
     },
     aiWeight: 0.9

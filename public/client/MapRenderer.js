@@ -402,39 +402,72 @@ export class MapRenderer {
      */
     renderRelations() {
         const relations = this.state.diplomacy?.relations || {};
-        const myRelations = relations[this.playerNationId] || {};
 
-        for (const [targetId, data] of Object.entries(myRelations)) {
-            if (!this.nodes.has(targetId) || !this.nodes.has(this.playerNationId)) continue;
+        // Renderizar TODAS las relaciones, no solo las del jugador
+        // Usamos un Set para evitar duplicados (cada relación se almacena una vez con clave ordenada)
+        const renderedPairs = new Set();
 
-            const start = this.nodes.get(this.playerNationId);
-            const end = this.nodes.get(targetId);
+        for (const [relationKey, data] of Object.entries(relations)) {
+            // La clave es "NATION1_NATION2" ordenada alfabéticamente
+            const [nation1, nation2] = relationKey.split('_');
 
-            // Color según valor de relación
+            // Evitar procesar la misma relación dos veces
+            if (renderedPairs.has(relationKey)) continue;
+            renderedPairs.add(relationKey);
+
+            if (!this.nodes.has(nation1) || !this.nodes.has(nation2)) continue;
+
+            const start = this.nodes.get(nation1);
+            const end = this.nodes.get(nation2);
+
+            // Color según valor de relación (escala -100 a 100)
             const relationValue = data.value ?? 0;
             let color;
-            if (relationValue > 0.6) {
+            let statusLabel;
+
+            if (relationValue >= 60) {
                 color = '#10b981'; // Verde (aliado)
-            } else if (relationValue > 0.3) {
+                statusLabel = 'Alianza';
+            } else if (relationValue >= 20) {
+                color = '#3b82f6'; // Azul (amistoso)
+                statusLabel = 'Amistoso';
+            } else if (relationValue >= -20) {
                 color = '#fbbf24'; // Amarillo (neutral)
+                statusLabel = 'Neutral';
+            } else if (relationValue >= -60) {
+                color = '#f97316'; // Naranja (tenso)
+                statusLabel = 'Tenso';
             } else {
-                color = '#ef4444'; // Rojo (hostil)
+                color = '#ef4444'; // Rojo (hostil/guerra)
+                statusLabel = 'Hostil';
             }
 
-            // Grosor según fuerza de relación
-            const lineWidth = 2 + Math.abs(relationValue - 0.5) * 4;
+            // Grosor según intensidad de relación (más fuerte = más grueso)
+            const lineWidth = 2 + Math.abs(relationValue) / 25;
 
             // Dibujar arco
             this.drawCurvedLine(start, end, color, lineWidth);
 
-            // Label de valor
+            // Label de estado en el punto medio
             const midX = (start.x + end.x) / 2;
-            const midY = (start.y + end.y) / 2 - 30;
+            const midY = (start.y + end.y) / 2 - 25;
 
+            // Fondo semi-transparente para el label
+            const labelWidth = this.ctx.measureText(statusLabel).width + 8;
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            this.ctx.fillRect(midX - labelWidth / 2, midY - 12, labelWidth, 16);
+
+            // Texto de estado
             this.ctx.fillStyle = color;
-            this.ctx.font = '10px Arial';
+            this.ctx.font = 'bold 10px Arial';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(`${Math.round(relationValue * 100)}%`, midX, midY);
+            this.ctx.fillText(statusLabel, midX, midY);
+
+            // Valor numérico debajo
+            const valueY = midY + 12;
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '9px Arial';
+            this.ctx.fillText(`${Math.round(relationValue)}`, midX, valueY);
         }
     }
 

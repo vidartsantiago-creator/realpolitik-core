@@ -2,26 +2,24 @@
  * @file main.js
  * @description Punto de entrada principal del servidor. Inicializa núcleo, carga configuraciones,
  *              registra módulos y arranca el servidor WebSocket adjunto a HTTP.
- * @version 1.0.2
- * @author RealPolitik Core Team
+ * @version 1.0.3 (Corregido: Eliminada arquitectura fantasma)
  */
 
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import IntentProcessor from '../modules/IntentProcessor.js';
 import { fileURLToPath } from 'url';
 import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
 import { initTimeEngine, start as startTimeEngine, onTickStart, onTickEnd, executeTick, getCurrentTick } from '../core/TimeEngine.js';
 import { GameWebSocketServer } from '../network/WebSocketServer.js';
-import { InformationLayer } from '../modules/InformationLayer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
+import IntentProcessor from '../modules/IntentProcessor.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +45,7 @@ function loadConfig() {
     }
 }
 
-let CONFIG = loadConfig();
+const CONFIG = loadConfig();
 const PORT = CONFIG.port || process.env.PORT || 8080;
 
 // ============================================
@@ -62,10 +60,9 @@ async function registerModules() {
         'EconomyRule',
         'DiplomacyRule',
         'PolicyRule',
-        // 'InformationLayer', // Se maneja aparte si es una clase
         'GlobalState',
         'FactionRule',
-        'CrisisRule',
+        'CrisisRule', // Asegúrate de que este archivo exista en modules/
         'EspionageRule',
         'UIMessageHandler'
     ];
@@ -84,17 +81,19 @@ async function registerModules() {
             }
 
             if (initFn) {
-                await initFn();
+                await initFn({});
+                moduleRegistry[moduleName] = mod.default || mod;
                 console.log(`[main] ✅ Módulo '${moduleName}' inicializado correctamente.`);
             } else {
+                moduleRegistry[moduleName] = mod.default || mod;
                 console.warn(`[main] ⚠️ Módulo '${moduleName}' cargado pero no se encontró función de inicio.`);
             }
 
         } catch (error) {
             console.error(`[main] ❌ ERROR crítico inicializando ${moduleName}:`, error.message);
-            // Continuar sin detener el servidor para desarrollo, o usar process.exit(1) en producción
         }
     }
+    
     try {
         await IntentProcessor.init();
         console.log('[main] ✅ Módulo \'IntentProcessor\' inicializado correctamente.');
@@ -108,7 +107,6 @@ async function registerModules() {
 // ============================================
 function gameLoop(tick) {
     // Ejecutar lógica específica de cada módulo por tick si es necesario
-    // Aquí puedes llamar a funciones .tick() si tus módulos las exponen
     if (moduleRegistry.EconomyRule?.tick) moduleRegistry.EconomyRule.tick(tick);
     if (moduleRegistry.CrisisRule?.tick) moduleRegistry.CrisisRule.tick(tick);
     if (moduleRegistry.EspionageRule?.tick) moduleRegistry.EspionageRule.tick(tick);
@@ -134,16 +132,17 @@ async function main() {
         const nationsList = [
             { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
             { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
-            { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 }
+            { id: 'RUS', name: 'Rusia', stability: 60, economy: 50, influence: 75 },
+            { id: 'BRA', name: 'Brasil', stability: 60, economy: 70, influence: 50 },
+            { id: 'ARG', name: 'Argentina', stability: 50, economy: 60, influence: 45 }
         ];
 
-        // Transformar array a objeto indexado por ID
         const nationsMap = nationsList.reduce((acc, nation) => ({
             ...acc,
             [nation.id]: {
                 ...nation,
                 stats: { stability: nation.stability, economy: nation.economy, influence: nation.influence },
-                resources: { gold: 1000, food: 500 }, // Recursos iniciales por defecto
+                resources: { gold: 1000, food: 500 },
                 units: [],
                 factions: {}
             }
@@ -151,13 +150,15 @@ async function main() {
 
         const initialState = {
             meta: { tick: 0, status: 'running' },
-            nations: nationsMap, // Ahora es un objeto: { USA: {...}, CHN: {...} }
+            nations: nationsMap,
             policies: [],
             intel: [],
+            intelQueue: [], // Cola para señales pendientes
             diplomacy: { relations: {}, channels: {} },
-            crisis: { active: false, phase: 0 },
+            crisis: { active: false, phase: 0, type: null, epicenter: null, intensity: 0, treaties: [] },
             espionage: { operations: {} },
-            factions: {}
+            factions: {},
+            playerNationId: 'ARG' // Jugador controla Argentina por defecto
         };
 
         setInitialState(initialState);
@@ -165,16 +166,15 @@ async function main() {
 
         // 3. Registrar módulos
         await registerModules();
+        
+        // Inicializar subsistemas de diplomacia explícitamente
         initDiplomacyEngine();
-
-        // Inicializar módulos de diplomacia
         console.log('[main] ✅ DiplomacyEngine listo.');
 
-        // Inicializar IA diplomática (Mundo vivo)
         initDiplomacyAI();
         console.log('[main] ✅ DiplomacyAI activa.');
 
-        // 4. Inicializar PersistenceManager para autoguardado
+        // 4. Inicializar PersistenceManager
         try {
             const persistenceResult = await initPersistenceManager({
                 saveDir: path.join(ROOT_DIR, 'saves'),
@@ -191,24 +191,14 @@ async function main() {
             console.error('[main] ❌ ERROR inicializando PersistenceManager:', e.message);
         }
 
-        // 5. Inicializar InformationLayer (si requiere instancia)
-        try {
-            // Ajustar según cómo InformationLayer necesite ser instanciado
-            // const infoLayer = new InformationLayer(getState(), on);
-            console.log('[main] InformationLayer listo (si aplica).');
-        } catch (e) {
-            console.warn('[main] InformationLayer no inicializado como clase.', e.message);
-        }
-
-        // 6. Inicializar TimeEngine
+        // 5. Inicializar TimeEngine
         console.log('[main] Inicializando TimeEngine...');
         initTimeEngine({ tickRate: CONFIG.tickRate, mode: 'continuous' });
 
-        // 7. Configurar Servidor HTTP (ÚNICA VEZ)
+        // 6. Configurar Servidor HTTP y WebSocket
         const httpServer = http.createServer((req, res) => {
             let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
 
-            // Seguridad básica
             if (!filePath.startsWith(PUBLIC_DIR)) {
                 res.writeHead(403);
                 res.end('Forbidden');
@@ -243,17 +233,11 @@ async function main() {
             });
         });
 
-        // 7. Configurar WebSocketServer adjunto al HTTP
         console.log('[main] Iniciando WebSocketServer adjunto a HTTP...');
         const wsServer = new GameWebSocketServer(httpServer, CONFIG);
-
-        // Guardar referencia global para el broadcast desde el game loop
         global.gameServer = wsServer;
-
-        // Iniciar lógica interna del WS (adjuntar eventos)
         wsServer.start();
 
-        // 8. Iniciar Servidor HTTP (Escucha el puerto)
         httpServer.listen(PORT, () => {
             console.log('[main] ========================================');
             console.log(`[HTTP] Servidor web corriendo en http://localhost:${PORT}`);
@@ -261,15 +245,11 @@ async function main() {
             console.log('[main] ========================================');
         });
 
-        // 9. Suscribirse al bucle de ticks
+        // 7. Suscribirse al bucle de ticks
         onTickStart((tick) => {
-            // Ejecutar lógica de juego
             gameLoop(tick);
-
-            // Obtener estado actualizado
             const currentState = getState();
 
-            // Preparar paquete de broadcast
             const payload = {
                 type: 'state_update',
                 tick: tick,
@@ -277,45 +257,79 @@ async function main() {
                 timestamp: Date.now()
             };
 
-            // Enviar a todos los clientes
             if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
                 global.gameServer.broadcast(payload);
             }
         });
-        
+
         // Arrancar el motor de tiempo
         startTimeEngine();
 
-        // Inicializar parser de intenciones (Asesor IA)
+        // Inicializar parser de intenciones (Asesor IA) y Generador de Intel
         initIntentParser({ engine: null, world: null, modules: null });
         console.log('[main] 🤖 IntentParser inicializado');
+        
         initIntelGenerator({ engine: null, world: null, modules: null });
+        console.log('[main] 📡 IntelGenerator inicializado');
 
         // ============================================
-        // SECCIÓN NUEVA: Puente de Eventos IA → WebSocket
+        // Puente de Eventos → WebSocket
         // ============================================
 
-        // Suscribirse a sugerencias del asesor IA y reenviarlas a clientes
+        // Asesor IA
         on('advisor_suggestion', (payload) => {
-            if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
-                global.gameServer.broadcast({
-                    type: 'advisor_suggestion',
-                    suggestion: payload.suggestion,
-                    timestamp: Date.now()
-                });
-                console.log('[main] 🤖 Sugerencia de asesor broadcasted:', payload.suggestion.title);
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'advisor_suggestion', suggestion: payload.suggestion, timestamp: Date.now() });
             }
         });
 
-        // Suscribirse a señales de inteligencia y reenviarlas a clientes  
+        // Inteligencia
         on('intel_signal', (payload) => {
-            if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
-                global.gameServer.broadcast({
-                    type: 'intel_signal',
-                    signal: payload.signal,
-                    timestamp: Date.now()
-                });
-                console.log('[main] 📡 Señal de inteligencia broadcasted:', payload.signal?.source || 'desconocida');
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'intel_signal', signal: payload.signal, timestamp: Date.now() });
+            }
+        });
+
+        // Diplomacia
+        on('diplomacy_action_result', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'diplomacy_action_result', ...payload, timestamp: Date.now() });
+                console.log('[main] 💼 Resultado diplomático:', payload.actionId, payload.success ? '✅' : '❌');
+            }
+        });
+
+        // Crisis (Conexión con el módulo CrisisRule en /modules)
+        on('crisis_started', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'crisis_started', ...payload, timestamp: Date.now() });
+                console.log('[main] 🚨 Crisis iniciada:', payload.type, 'en', payload.epicenter);
+            }
+        });
+
+        on('crisis_escalated', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'crisis_escalated', ...payload, timestamp: Date.now() });
+                console.log('[main] ⬆️ Crisis escalada:', payload.fromPhase, '→', payload.toPhase);
+            }
+        });
+
+        on('crisis_resolved', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'crisis_resolved', ...payload, timestamp: Date.now() });
+                console.log('[main] ✅ Crisis resuelta:', payload.type, payload.resolution);
+            }
+        });
+
+        on('treaty_signed', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'treaty_signed', ...payload, timestamp: Date.now() });
+                console.log('[main] 📜 Tratado firmado:', payload.name);
+            }
+        });
+
+        on('treaty_expired', (payload) => {
+            if (global.gameServer?.broadcast) {
+                global.gameServer.broadcast({ type: 'treaty_expired', ...payload, timestamp: Date.now() });
             }
         });
 

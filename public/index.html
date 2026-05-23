@@ -3,305 +3,336 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealPolitik Core - Interfaz Principal</title>
+    <title>RealPolitik Core - Strategic Simulator</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg-dark: #121212;
+            --bg-panel: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent: #4caf50;
+            --accent-hover: #45a049;
+            --danger: #f44336;
+            --warning: #ff9800;
+            --info: #2196f3;
+            --border: #333;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #0f0f1a;
-            color: #e0e0e0;
-            overflow: hidden;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
             height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Layout Principal */
+        #app-container {
             display: grid;
             grid-template-columns: 300px 1fr 350px;
-            grid-template-rows: 60px 1fr 200px;
-        }
-        #btn-connect {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-            margin-left: 1rem;
-        }
-        #btn-connect:hover { background: #059669; }
-        #btn-connect.connected { background: #64748b; cursor: default; }
-
-        header {
-            grid-column: 1 / -1;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-bottom: 2px solid #e94560;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 2rem;
-            z-index: 100;
-        }
-        header h1 { font-size: 1.5rem; color: #e94560; text-shadow: 0 0 10px rgba(233, 69, 96, 0.5); }
-        .header-info { display: flex; gap: 2rem; font-size: 0.9rem; }
-        .header-info span { color: #3b82f6; }
-        #left-panel {
-            background: rgba(26, 26, 46, 0.95);
-            border-right: 1px solid #0f3460;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-        .dashboard-card {
-            background: rgba(15, 52, 96, 0.5);
-            border: 1px solid #0f3460;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        .dashboard-card h3 { color: #e94560; font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px; }
-        .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .metric:last-child { border-bottom: none; }
-        .metric-value { color: #3b82f6; font-weight: bold; }
-        #map-container { position: relative; background: #0a0a14; overflow: hidden; }
-        #world-canvas, #network-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #network-canvas { pointer-events: none; }
-        #layer-controls {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: rgba(26, 26, 46, 0.95);
-            border: 1px solid #0f3460;
-            border-radius: 8px;
-            padding: 0.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            z-index: 50;
-        }
-        #layer-controls button {
-            background: transparent;
-            border: 1px solid #3b82f6;
-            color: #3b82f6;
-            padding: 0.4rem 0.8rem;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-        #layer-controls button:hover { background: rgba(59, 130, 246, 0.2); }
-        #layer-controls button.active { background: #3b82f6; color: white; }
-        #right-panel {
-            background: rgba(26, 26, 46, 0.95);
-            border-left: 1px solid #0f3460;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        #intel-feed { flex: 1; overflow-y: auto; padding: 1rem; }
-        .intel-card {
-            background: rgba(15, 52, 96, 0.5);
-            border-left: 3px solid #3b82f6;
-            border-radius: 4px;
-            padding: 0.8rem;
-            margin-bottom: 0.8rem;
-            font-size: 0.85rem;
-        }
-        .intel-card.high { border-left-color: #ef4444; }
-        .intel-card.medium { border-left-color: #fbbf24; }
-        .intel-card.low { border-left-color: #64748b; }
-        .confidence-bar { background: rgba(255,255,255,0.1); height: 4px; border-radius: 2px; margin: 0.5rem 0; overflow: hidden; }
-        .confidence-fill { height: 100%; transition: width 0.3s; }
-        #bottom-panel {
-            grid-column: 1 / -1;
-            background: rgba(26, 26, 46, 0.95);
-            border-top: 1px solid #0f3460;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            overflow: hidden;
-        }
-        #advisor-panel, #log-panel { padding: 1rem; overflow-y: auto; }
-        #advisor-content { font-size: 0.9rem; line-height: 1.6; }
-        #log-container {
-            background: rgba(0,0,0,0.3);
-            border-radius: 4px;
-            padding: 0.5rem;
-            height: 100%;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.8rem;
-        }
-        .log-entry { margin-bottom: 0.3rem; padding-bottom: 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        
-        /* Modal Styles */
-        #modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.8);
-            z-index: 1000;
-            display: none;
-            justify-content: center;
-            align-items: center;
         }
-        #modal-overlay.active { display: flex; }
-        .modal-window {
-            background: #1a1a2e;
-            border: 2px solid #e94560;
-            border-radius: 8px;
-            width: 600px;
-            max-height: 80vh;
-            box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+
+        /* Paneles Laterales */
+        .sidebar {
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            border-left: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            padding: 10px;
+            overflow-y: auto;
         }
-        .modal-header {
-            background: linear-gradient(135deg, #1a1a2e 0%, #e94560 100%);
-            padding: 1rem;
-            border-radius: 6px 6px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .modal-header h3 { color: white; margin: 0; }
-        .close-modal {
-            background: transparent;
-            border: none;
-            color: white;
-            font-size: 1.5rem;
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .close-modal:hover { color: #e94560; background: transparent; }
-        .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
-        
-        /* Save List Styles */
-        .save-list { list-style: none; }
-        .save-item {
-            background: rgba(15, 52, 96, 0.3);
-            border: 1px solid #0f3460;
-            border-radius: 4px;
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background 0.2s;
-        }
-        .save-item:hover { background: rgba(15, 52, 96, 0.6); }
-        .save-info { flex: 1; }
-        .save-filename { font-weight: bold; color: #3b82f6; margin-bottom: 0.3rem; }
-        .save-meta { font-size: 0.8rem; color: #94a3b8; }
-        .save-actions { display: flex; gap: 0.5rem; }
-        .btn-load { background: #10b981; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .btn-load:hover { background: #059669; }
-        .btn-delete { background: #ef4444; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
-        .btn-delete:hover { background: #dc2626; }
-        .empty-saves { text-align: center; color: #94a3b8; padding: 2rem; font-style: italic; }
 
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar-thumb { background: #3b82f6; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #2563eb; }
-        .text-success { color: #10b981; }
-        .text-warning { color: #fbbf24; }
-        .text-danger { color: #ef4444; }
-        .text-info { color: #3b82f6; }
-        button {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
+        .panel-section {
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.03);
             border-radius: 4px;
-            cursor: pointer;
+            padding: 10px;
+            border: 1px solid var(--border);
+        }
+
+        h2, h3 { color: var(--text-main); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+        h3 { font-size: 0.85rem; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+
+        /* Métricas */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
             font-size: 0.9rem;
+        }
+        .metric-val { font-weight: bold; color: var(--accent); }
+        .metric-val.negative { color: var(--danger); }
+
+        /* Canvas */
+        #map-container {
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Logs & Feed */
+        #log-feed, #intel-feed {
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.2);
+            padding: 5px;
+            border: 1px solid var(--border);
+        }
+        .log-entry { margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
+        .log-time { color: var(--text-muted); font-size: 0.7rem; margin-right: 5px; }
+        
+        .intel-card {
+            background: rgba(33, 150, 243, 0.1);
+            border-left: 3px solid var(--info);
+            padding: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
             transition: background 0.2s;
         }
-        button:hover { background: #2563eb; }
-        button:disabled { background: #64748b; cursor: not-allowed; }
+        .intel-card:hover { background: rgba(33, 150, 243, 0.2); }
+        .intel-card.investigated { opacity: 0.6; border-left-color: var(--text-muted); }
+
+        /* Botones Generales */
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+            width: 100%;
+            margin-top: 5px;
+        }
+        button:hover { background: var(--accent-hover); }
+        button.danger { background: var(--danger); }
+        button.danger:hover { background: #d32f2f; }
+        button.secondary { background: #555; }
+        button.secondary:hover { background: #666; }
+
+        /* --- NUEVO: Panel de Crisis --- */
+        #crisis-panel {
+            border: 1px solid var(--danger);
+            background: rgba(244, 67, 54, 0.05);
+            display: none; /* Oculto por defecto */
+        }
+        #crisis-panel.active { display: block; animation: pulseBorder 2s infinite; }
+        
+        .crisis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: var(--danger);
+            font-weight: bold;
+        }
+        
+        .crisis-phase-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            background: #333;
+        }
+        .phase-latent { background: #fbc02d; color: #000; }
+        .phase-emergent { background: #ff9800; color: #000; }
+        .phase-acute { background: #f44336; color: #fff; }
+        .phase-systemic { background: #b71c1c; color: #fff; }
+
+        .intensity-bar-container {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .intensity-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #fbc02d, #f44336);
+            transition: width 0.5s ease;
+        }
+
+        .treaty-list {
+            list-style: none;
+            font-size: 0.8rem;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .treaty-item {
+            padding: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* --- NUEVO: Notificaciones Toast --- */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            min-width: 250px;
+            padding: 12px 16px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out forwards;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            backdrop-filter: blur(5px);
+        }
+        .toast.info { background: rgba(33, 150, 243, 0.9); border-left: 4px solid var(--info); }
+        .toast.warning { background: rgba(255, 152, 0, 0.9); border-left: 4px solid var(--warning); }
+        .toast.error { background: rgba(244, 67, 54, 0.9); border-left: 4px solid var(--danger); }
+        .toast.success { background: rgba(76, 175, 80, 0.9); border-left: 4px solid var(--accent); }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+        @keyframes pulseBorder {
+            0% { box-shadow: 0 0 5px rgba(244, 67, 54, 0.2); }
+            50% { box-shadow: 0 0 15px rgba(244, 67, 54, 0.5); }
+            100% { box-shadow: 0 0 5px rgba(244, 67, 54, 0.2); }
+        }
+
+        /* Modal Genérico */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 5px;
+            width: 400px;
+            max-width: 90%;
+            border: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
-    <header>
-        <h1>🌍 RealPolitik Core</h1>
-        <div class="header-info">
-            <div>Nación: <span id="nation-name">Cargando...</span></div>
-            <div>Tick: <span id="metric-tick">0</span></div>
-            <div>Conexión: <span id="connection-status" class="text-warning">Desconectado</span></div>
-            <button id="btn-connect" >🔌 Conectar</button>
-        </div>
-    </header>
 
-    <aside id="left-panel">
-        <div class="dashboard-card">
-            <h3>📊 Métricas Nacionales</h3>
-            <div class="metric"><span>PIB</span><span class="metric-value" id="metric-gdp">$0M</span></div>
-            <div class="metric"><span>Presupuesto</span><span class="metric-value" id="metric-budget">$0M</span></div>
-            <div class="metric"><span>Estabilidad</span><span class="metric-value" id="metric-stability">0%</span></div>
-        </div>
-        <div class="dashboard-card">
-            <h3>🎯 Objetivos</h3>
-            <p style="font-size: 0.85rem; color: #94a3b8;">Sin objetivos activos</p>
-        </div>
-        <div class="dashboard-card">
-            <h3>⚡ Acciones Rápidas</h3>
-            <button onclick="requestSaveGame()" style="width: 100%; margin-bottom: 0.5rem;">💾 Guardar Partida</button>
-            <button onclick="openSaveManager()" style="width: 100%; margin-bottom: 0.5rem;">📂 Cargar Partida</button>
-            <button onclick="togglePause()" style="width: 100%;">⏸️ Pausar</button>
-        </div>
-    </aside>
+    <!-- Contenedor de Notificaciones -->
+    <div id="toast-container"></div>
 
-    <main id="map-container">
-        <canvas id="world-canvas"></canvas>
-        <canvas id="network-canvas"></canvas>
-        <div id="layer-controls">
-            <button data-layer="borders" class="active">Fronteras</button>
-            <button data-layer="relations">Diplomacia</button>
-            <button data-layer="espionage">Espionaje</button>
-            <button data-layer="economy">Economía</button>
-            <button data-layer="crisis">Crisis</button>
-        </div>
-    </main>
-
-    <aside id="right-panel">
-        <div style="padding: 1rem; border-bottom: 1px solid #0f3460;">
-            <h3 style="color: #e94560;">📡 Inteligencia</h3>
-        </div>
-        <div id="intel-feed">
-            <div class="intel-card low">
-                <strong>SISTEMA</strong>
-                <p style="margin: 0.5rem 0; font-style: italic;">"Bienvenido a RealPolitik Core"</p>
+    <div id="app-container">
+        <!-- Panel Izquierdo: Estado & Métricas -->
+        <aside class="sidebar">
+            <div class="panel-section">
+                <h2>RealPolitik Core</h2>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+                    Tick: <span id="tick-display">0</span> | Día: <span id="day-display">1</span>
+                </div>
+                <button id="btn-save" class="secondary">💾 Guardar Partida</button>
+                <button id="btn-load" class="secondary">📂 Cargar Partida</button>
+                <button id="btn-settings" class="secondary">⚙️ Ajustes</button>
             </div>
-        </div>
-    </aside>
 
-    <footer id="bottom-panel">
-        <div id="advisor-panel">
-            <h3 style="color: #e94560; margin-bottom: 1rem;">🤖 Asesor IA</h3>
-            <div id="advisor-content"><p>Esperando datos del servidor...</p></div>
-        </div>
-        <div id="log-panel">
-            <h3 style="color: #e94560; margin-bottom: 1rem;">📋 Registro de Eventos</h3>
-            <div id="log-container"></div>
-        </div>
-    </footer>
-
-    <!-- Modal de Gestión de Partidas -->
-    <div id="modal-overlay">
-        <div class="modal-window">
-            <div class="modal-header">
-                <h3>📂 Gestionar Partidas Guardadas</h3>
-                <button class="close-modal" onclick="closeSaveManager()">×</button>
-            </div>
-            <div class="modal-body">
-                <div id="save-list-container">
-                    <p class="empty-saves">Cargando lista de partidas...</p>
+            <div class="panel-section">
+                <h3>Métricas Nacionales</h3>
+                <div id="metrics-container">
+                    <!-- Se llena dinámicamente -->
+                    <div class="metric-row"><span>Cargando...</span></div>
                 </div>
             </div>
+
+            <div class="panel-section">
+                <h3>Acciones Rápidas</h3>
+                <button onclick="window.openDiplomacyModal()">🌍 Diplomacia</button>
+                <button onclick="window.openIntelMarket()">🕵️ Mercado Intel</button>
+            </div>
+            
+            <div class="panel-section">
+                <h3>Registro de Eventos</h3>
+                <div id="log-feed"></div>
+            </div>
+        </aside>
+
+        <!-- Centro: Mapa -->
+        <main id="map-container">
+            <canvas id="game-map"></canvas>
+            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 3px; font-size: 0.8rem;">
+                Capas: <input type="checkbox" id="layer-borders" checked> Fronteras
+                <input type="checkbox" id="layer-relations" checked> Relaciones
+                <input type="checkbox" id="layer-crisis" checked> Crisis
+            </div>
+        </main>
+
+        <!-- Panel Derecho: Inteligencia & Crisis -->
+        <aside class="sidebar">
+            <div class="panel-section">
+                <h3>Feed de Inteligencia</h3>
+                <div id="intel-feed">
+                    <div style="color: var(--text-muted); font-style: italic; font-size: 0.8rem;">Esperando señales...</div>
+                </div>
+            </div>
+
+            <!-- NUEVO: Panel de Crisis -->
+            <div id="crisis-panel" class="panel-section">
+                <div class="crisis-header">
+                    <span>⚠️ CRISIS ACTIVA</span>
+                    <span id="crisis-phase-badge" class="crisis-phase-badge phase-latent">Latente</span>
+                </div>
+                <div style="font-size: 0.9rem; margin-bottom: 5px;">
+                    Tipo: <strong id="crisis-type">Desconocido</strong>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">
+                    Epicentro: <span id="crisis-epicenter">-</span>
+                </div>
+                
+                <div style="font-size: 0.75rem; margin-top: 8px;">Intensidad</div>
+                <div class="intensity-bar-container">
+                    <div id="crisis-intensity-bar" class="intensity-bar"></div>
+                </div>
+
+                <div style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 5px;">
+                    <h3>Tratados Activos</h3>
+                    <ul id="crisis-treaty-list" class="treaty-list">
+                        <li style="color: var(--text-muted); font-size: 0.75rem;">Ninguno</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>Asesor IA</h3>
+                <div id="advisor-text" style="font-size: 0.85rem; line-height: 1.4; color: var(--text-muted);">
+                    Analizando situación global...
+                </div>
+                <div id="advisor-actions" style="margin-top: 10px;"></div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modales (Estructura básica) -->
+    <div id="modal-generic" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title">Título</h2>
+            <div id="modal-body" style="margin: 15px 0; max-height: 300px; overflow-y: auto;"></div>
+            <button onclick="document.getElementById('modal-generic').style.display='none'">Cerrar</button>
         </div>
     </div>
 
@@ -309,382 +340,209 @@
         import MapRenderer from './client/MapRenderer.js';
         import NetworkOverlay from './client/components/NetworkOverlay.js';
         import IntelFeed from './client/components/IntelFeed.js';
-        import { subscribe, sendMessage, initSyncClient, isConnected } from './client/SyncClient.js';
-
+        import { subscribe, sendMessage, initSyncClient, isConnected, getState } from './client/SyncClient.js';
+   	
         const mapRenderer = new MapRenderer();
         const networkOverlay = new NetworkOverlay('network-canvas');
         const intelFeed = new IntelFeed('intel-feed');
-        
-        // Exponer globalmente para debugging y acceso desde HTML inline
-        window.intelFeed = intelFeed;
 
-        networkOverlay.setMapRenderer(mapRenderer);
+        // --- Inicialización Global ---
+        window.gameState = null;
+        window.mapRenderer = null;
+        window.client = null;
 
-        let gameState = null;
-        let playerNationId = 'nation_001';
-        let isPaused = false;
-
-        // Suscribirse a eventos
-        subscribe((eventType, data) => {
-            // Manejo de Inteligencia
-            if (eventType === 'intel_signal' && data?.signal) {
-                intelFeed.addSignal(data.signal);
-                return;
-            }
+        // --- Sistema de Notificaciones Toast ---
+        window.showNotification = (message, type = 'info') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
             
-            // Manejo de actualización de inteligencia tras investigación
-            if (eventType === 'intel_updated' && data?.signal) {
-                // Actualizar la señal específica en el feed
-                const index = intelFeed.signals.findIndex(s => s.signalId === data.signal.signalId);
-                if (index !== -1) {
-                    intelFeed.signals[index] = data.signal;
-                    intelFeed.render();
-                }
-                logEvent(`🔍 Inteligencia verificada: ${data.signal.source}`, 'success');
-                return;
-            }
+            let icon = 'ℹ️';
+            if (type === 'error') icon = '❌';
+            if (type === 'success') icon = '✅';
+            if (type === 'warning') icon = '⚠️';
 
-            // Manejo de sugerencias del Asesor IA
-            if (eventType === 'advisor_suggestion' && data?.suggestion) {
-                const advisorContent = document.getElementById('advisor-content');
-                const suggestion = data.suggestion;
-                
-                // Generar acciones seguras sin eval
-                let actionsHtml = '';
-                if (suggestion.actions && suggestion.actions.length > 0) {
-                    actionsHtml = '<div style="margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">';
-                    suggestion.actions.forEach((action, idx) => {
-                        const actionId = `action_${Date.now()}_${idx}`;
-                        actionsHtml += `
-                            <button id="${actionId}" style="font-size: 0.8rem; padding: 0.4rem;">
-                                ${action.label || 'Ejecutar'}
-                            </button>
-                        `;
-                        // Usamos setTimeout para asegurar que el elemento existe antes de añadir listener
-                        setTimeout(() => {
-                            const btn = document.getElementById(actionId);
-                            if (btn) {
-                                btn.addEventListener('click', () => {
-                                    console.log('[UI] Ejecutando acción:', action.type, action.payload);
-                                    sendMessage('player_intent', {
-                                        type: action.type,
-                                        payload: action.payload || {}
-                                    });
-                                    logEvent(`⚡ Acción ejecutada: ${action.type}`, 'info');
-                                });
-                            }
-                        }, 0);
-                    });
-                    actionsHtml += '</div>';
-                }
+            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
 
-                advisorContent.innerHTML = `
-                    <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 1rem; border-radius: 4px;">
-                        <strong style="color: #e94560;">${suggestion.title}</strong>
-                        <p style="margin: 0.5rem 0; color: #e0e0e0;">${suggestion.text || suggestion.description}</p>
-                        ${actionsHtml}
-                    </div>
-                `;
-                logEvent(`🤖 Asesor: ${suggestion.title}`, 'info');
-                return;
-            }
-
-            // Eventos estándar
-            switch (eventType) {
-                case 'connected':
-                    logEvent('✅ Conectado al servidor', 'success');
-                    document.getElementById('connection-status').textContent = 'Conectado';
-                    document.getElementById('connection-status').className = 'text-success';
-
-                    const btn = document.getElementById('btn-connect');
-                    if (btn) {
-                        btn.textContent = '✅ Conectado';
-                        btn.classList.add('connected');
-                        btn.disabled = false;
-                    }
-                    break;
-                case 'disconnected':
-                    logEvent('❌ Desconectado del servidor', 'error');
-                    document.getElementById('connection-status').textContent = 'Desconectado';
-                    document.getElementById('connection-status').className = 'text-danger';
-
-                    const btnDisc = document.getElementById('btn-connect');
-                    if (btnDisc) {
-                        btnDisc.textContent = '🔌 Conectar';
-                        btnDisc.classList.remove('connected');
-                        btnDisc.disabled = false;
-                    }
-                    break;
-                case 'handshake_ack':
-                    logEvent('✅ Handshake completado: ' + (data.nationId || 'Nación asignada'), 'success');
-                    playerNationId = data.nationId || playerNationId;
-                    break;
-                case 'state_update':
-                    gameState = data.state;
-                    updateUI(data.state, data.tick);
-                    break;
-                case 'state_reset':
-                    // Evento disparado al cargar una partida
-                    logEvent('🔄 Estado restaurado desde partida guardada', 'success');
-                    gameState = data.state;
-                    updateUI(data.state, data.tick);
-                    closeSaveManager();
-                    break;
-                case 'command_response':
-        // LOG DE DEPURACIÓN PROFUNDA
-        console.log('[UI] command_response recibido:', JSON.stringify(data, null, 2));
-        
-        if (data.command === 'list_saves') {
-            if (data.success) {
-                console.log('[UI] list_saves - Éxito. Saves:', data.saves);
-                console.log('[UI] list_saves - ¿Es array?', Array.isArray(data.saves));
-                // Llamada directa a renderSaveList pasando el array completo
-                if (Array.isArray(data.saves)) {
-                    renderSaveList(data.saves);
-                } else {
-                    console.error('[UI] ERROR: data.saves no es un array:', data.saves);
-                    document.getElementById('save-list-container').innerHTML = '<p style="color:red">Error de formato en datos</p>';
-                }
-            } else {
-                console.error('[UI] list_saves - Error:', data.error);
-                document.getElementById('save-list-container').innerHTML = `<p style="color:red">Error: ${data.error}</p>`;
-            }
-        } 
-        else if (data.command === 'save_game') {
-            if (data.success) {
-                logEvent(`💾 Partida guardada: ${data.path}`, 'success');
-            } else {
-                logEvent(`❌ Error al guardar: ${data.error}`, 'error');
-            }
-        } 
-        else if (data.command === 'load_game') {
-            if (data.success) {
-                logEvent(`📂 Partida cargada exitosamente (Tick ${data.tick})`, 'success');
-                // No cerramos el modal aquí, esperamos el evento state_reset
-            } else {
-                logEvent(`❌ Error al cargar partida: ${data.error}`, 'error');
-            }
-        } 
-        else if (data.command === 'delete_save') {
-            if (data.success) {
-                logEvent(`🗑️ Partida eliminada`, 'success');
-                refreshSaveList(); // Recargar lista
-            } else {
-                logEvent(`❌ Error al eliminar: ${data.error}`, 'error');
-            }
-        }
-        break;
-            }
-        });
-
-        initSyncClient();
-
-        function updateUI(state, tick) {
-            if (!state?.nations?.[playerNationId]) return;
-            const nation = state.nations[playerNationId];
-            document.getElementById('nation-name').textContent = nation.name;
-            document.getElementById('metric-tick').textContent = tick || 0;
-            
-            // Formato correcto para presupuesto (con decimales si es < 1)
-            const budget = nation.stats?.budget || 0;
-            const budgetDisplay = budget < 1 
-                ? `$${budget.toFixed(2)}M` 
-                : `$${Math.round(budget).toLocaleString()}M`;
-            
-            document.getElementById('metric-gdp').textContent = `$${(nation.stats?.economy || 0).toLocaleString()}M`;
-            document.getElementById('metric-budget').textContent = budgetDisplay;
-            document.getElementById('metric-stability').textContent = `${nation.stats?.stability || 0}%`;
-            
-            mapRenderer.update(state, playerNationId);
-            networkOverlay.update(state, playerNationId);
-        }
-
-        document.querySelectorAll('#layer-controls button').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const layer = e.target.dataset.layer;
-                e.target.classList.toggle('active');
-                const isActive = e.target.classList.contains('active');
-                mapRenderer.setLayer(layer, isActive);
-                networkOverlay.setLayer(layer, isActive);
-                logEvent(`Capa '${layer}' ${isActive ? 'activada' : 'desactivada'}`, 'info');
-            });
-        });
-
-        mapRenderer.onNodeSelect = (node) => {
-            if (node) logEvent(`Nodo seleccionado: ${node.name}`, 'info');
-        };
-
-        // Funciones globales para accesos desde HTML
-        window.requestSaveGame = () => {
-            const filename = `partida_${Date.now()}.json.gz`;
-            sendMessage('command_save_game', { filename, source: 'manual' });
-            logEvent(`Solicitando guardado: ${filename}`, 'info');
-        };
-
-        window.openSaveManager = () => {
-            document.getElementById('modal-overlay').classList.add('active');
-            refreshSaveList();
-        };
-
-        window.closeSaveManager = () => {
-            document.getElementById('modal-overlay').classList.remove('active');
-        };
-
-        window.refreshSaveList = () => {
-            const container = document.getElementById('save-list-container');
-            container.innerHTML = '<p class="empty-saves">Cargando lista...</p>';
-            sendMessage('command_list_saves', {});
-        };
-
-        window.loadGameFile = (filename) => {
-            console.log('[UI] loadGameFile llamado con:', filename);
-            
-            if (!filename) {
-                console.error('[UI] ERROR: filename es undefined o vacío');
-                return;
-            }
-
-            if (confirm(`¿Cargar partida "${filename}"? Se perderá el progreso actual.`)) {
-                // Construir el payload EXPLÍCITAMENTE
-                const payload = { filename: filename };
-                
-                console.log('[UI] Enviando payload crudo:', JSON.stringify(payload));
-                
-                // Enviar comando
-                sendMessage('command_load_game', payload);
-                
-                logEvent(`📂 Solicitando carga: ${filename}`, 'info');
-            }
-        };
-
-        window.deleteGameFile = (filename) => {
-            console.log('[UI] Eliminando partida:', filename);
-            if (!filename) {
-                console.error('[UI] ERROR: Nombre de archivo vacío');
-                return;
-            }
-            if (confirm(`¿Eliminar permanentemente "${filename}"? Esta acción no se puede deshacer.`)) {
-                sendMessage('command_delete_save', { filename: filename });
-                logEvent(`🗑️ Solicitando eliminación: ${filename}`, 'warning');
-            }
-        };
-
-        window.refreshSaveList = () => {
-            console.log('[UI] 📤 Enviando comando command_list_saves al servidor'); // <--- AGREGAR ESTO
-            const listContainer = document.getElementById('save-list-container');
-            if (!listContainer) return;
-            
-            listContainer.innerHTML = '<p style="text-align:center; color:#94a3b8;">Cargando lista...</p>';
-            
-            // Simplemente enviamos el comando. La respuesta se maneja en el switch de subscribe
-            sendMessage('command_list_saves', {});
-        };
-
-        function renderSaveList(saves) {
-            console.log('[UI] renderSaveList llamada con:', saves);
-            const container = document.getElementById('save-list-container');
-            
-            if (!saves || saves.length === 0) {
-                container.innerHTML = '<p class="empty-saves">No hay partidas guardadas.</p>';
-                return;
-            }
-
-            let html = '<ul class="save-list" style="list-style:none; padding:0;">';
-            saves.forEach(save => {
-                const date = new Date(save.date).toLocaleString();
-                const sizeKB = (save.size / 1024).toFixed(1);
-                
-                // Usamos atributos data- en lugar de onclick inline
-                html += `
-                    <li class="save-item" style="background:rgba(15,52,96,0.3); border:1px solid #0f3460; border-radius:4px; padding:1rem; margin-bottom:0.5rem; display:flex; justify-content:space-between; align-items:center;">
-                        <div class="save-info">
-                            <div class="save-filename" style="font-weight:bold; color:#3b82f6;">${save.filename}</div>
-                            <div class="save-meta" style="font-size:0.8rem; color:#94a3b8;">
-                                Tick: ${save.tick} | Fecha: ${date} | Tamaño: ${sizeKB} KB
-                            </div>
-                        </div>
-                        <div class="save-actions" style="display:flex; gap:0.5rem;">
-                            <button class="btn-load" data-action="load" data-filename="${save.filename}" style="background:#10b981; color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer;">
-                                📥 Cargar
-                            </button>
-                            <button class="btn-delete" data-action="delete" data-filename="${save.filename}" style="background:#ef4444; color:white; border:none; padding:0.4rem 0.8rem; border-radius:4px; cursor:pointer;">
-                                🗑️ Eliminar
-                            </button>
-                        </div>
-                    </li>
-                `;
-            });
-            html += '</ul>';
-            container.innerHTML = html;
-
-            // Agregar listeners delegados después de renderizar
-            container.querySelectorAll('.btn-load').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const filename = e.target.dataset.filename;
-                    console.log('[UI] Click en Cargar:', filename);
-                    loadGameFile(filename);
-                });
-            });
-
-            container.querySelectorAll('.btn-delete').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const filename = e.target.dataset.filename;
-                    console.log('[UI] Click en Eliminar:', filename);
-                    deleteGameFile(filename);
-                });
-            });
-        }
-
-        window.togglePause = () => {
-            isPaused = !isPaused;
-            sendMessage('command_pause', { paused: isPaused });
-            logEvent(`Juego ${isPaused ? 'pausado' : 'reanudado'}`, 'info');
-        };
-
-        window.manualConnect = () => {
-            const btn = document.getElementById('btn-connect');
-            const status = document.getElementById('connection-status');
-
-            if (isConnected()) {
-                logEvent('Ya está conectado al servidor', 'warning');
-                return;
-            }
-
-            logEvent('🔌 Intentando conectar al servidor...', 'info');
-            btn.textContent = '⏳ Conectando...';
-            btn.disabled = true;
-
+            // Auto eliminar
             setTimeout(() => {
-                if (!isConnected()) {
-                    btn.textContent = '🔌 Conectar';
-                    btn.disabled = false;
-                }
-            }, 5000);
+                toast.style.animation = 'fadeOut 0.5s ease-in forwards';
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
         };
 
-        // Función global para investigar señales
-        window.investigateSignal = (signalId) => {
-            console.log(`[UI] Investigando señal: ${signalId}`);
-            sendMessage('player_intent', {
-                type: 'intel_investigate',
-                payload: { signalId }
+        // --- Lógica de Crisis UI ---
+        window.updateCrisisUI = (data) => {
+            if (!data || !data.active) {
+                hideCrisisPanel();
+                return;
+            }
+
+            const panel = document.getElementById('crisis-panel');
+            panel.classList.add('active');
+            panel.style.display = 'block';
+
+            // Actualizar textos
+            document.getElementById('crisis-type').textContent = data.type.toUpperCase();
+            document.getElementById('crisis-epicenter').textContent = data.epicenter || 'Global';
+            
+            // Actualizar Fase
+            const badge = document.getElementById('crisis-phase-badge');
+            badge.textContent = data.phase;
+            badge.className = `crisis-phase-badge phase-${data.phase.toLowerCase()}`;
+
+            // Actualizar Barra
+            const intensity = data.intensity || 0;
+            document.getElementById('crisis-intensity-bar').style.width = `${intensity}%`;
+
+            // Actualizar Tratados
+            const list = document.getElementById('crisis-treaty-list');
+            list.innerHTML = '';
+            if (data.treaties && data.treaties.length > 0) {
+                data.treaties.forEach(t => {
+                    const li = document.createElement('li');
+                    li.className = 'treaty-item';
+                    li.innerHTML = `<span>${t.name}</span> <span style="color:var(--accent)">Activo</span>`;
+                    list.appendChild(li);
+                });
+            } else {
+                list.innerHTML = '<li style="color: var(--text-muted); font-size: 0.75rem;">Ninguno</li>';
+            }
+        };
+
+        window.hideCrisisPanel = () => {
+            const panel = document.getElementById('crisis-panel');
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+        };
+
+        // --- Conexión WebSocket & Eventos ---
+        function initApp() {
+            const canvas = document.getElementById('game-map');
+            window.mapRenderer = new MapRenderer(canvas);
+            
+            window.client = new SyncClient({
+                onStateUpdate: (state) => {
+                    window.gameState = state;
+                    updateMetrics(state);
+                    window.mapRenderer.render(state);
+                    updateAdvisor(state.advisorMessage);
+                },
+                onLog: (msg) => addLog(msg),
+                onIntelSignal: (signal) => addIntelSignal(signal),
+                onCustomEvent: (event) => handleCustomEvent(event)
             });
-            logEvent(`🔍 Investigando señal ${signalId} (-0.1M)`, 'info');
-        };
 
-        function logEvent(message, type = 'info') {
-            const container = document.getElementById('log-container');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            const time = new Date().toLocaleTimeString();
-            const colorClass = type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : type === 'warning' ? 'text-warning' : 'text-info';
-            entry.innerHTML = `<span class="${colorClass}">[${time}]</span> ${message}`;
-            container.appendChild(entry);
-            container.scrollTop = container.scrollHeight;
-            while (container.children.length > 100) container.removeChild(container.firstChild);
+            // Listeners de UI
+            document.getElementById('btn-save').onclick = () => window.client.saveGame();
+            document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
+            
+            // Input file oculto para carga
+            const fileInput = document.createElement('input');
+            fileInput.id = 'file-input';
+            fileInput.type = 'file';
+            fileInput.style.display = 'none';
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if(file) window.client.loadGame(file);
+            };
+            document.body.appendChild(fileInput);
         }
 
-        logEvent('🚀 Iniciando RealPolitik Core...', 'info');
+        // --- Manejo de Eventos Personalizados (CRISIS) ---
+        function handleCustomEvent(event) {
+            console.log("Evento recibido:", event);
+            
+            switch(event.type) {
+                case 'crisis_started':
+                    window.showNotification(`⚠️ CRISIS INICIADA: ${event.data.type} en fase ${event.data.phase}`, 'warning');
+                    window.updateCrisisUI(event.data);
+                    break;
+                    
+                case 'crisis_escalated':
+                    window.showNotification(`🔥 Crisis escalada a fase ${event.data.phase}`, 'error');
+                    window.updateCrisisUI(event.data); // Actualiza badge y barra
+                    break;
+                    
+                case 'crisis_resolved':
+                    window.showNotification(`✅ Crisis resuelta: ${event.data.reason}`, 'success');
+                    window.hideCrisisPanel();
+                    break;
+                    
+                case 'treaty_signed':
+                    window.showNotification(`✅ Tratado '${event.data.treatyName}' firmado`, 'success');
+                    // Refrescar datos si tenemos estado
+                    if(window.gameState && window.gameState.crisis) {
+                        window.updateCrisisUI(window.gameState.crisis);
+                    }
+                    break;
+
+                case 'treaty_expired':
+                    window.showNotification(`⏳ Tratado '${event.data.treatyName}' vencido`, 'info');
+                    break;
+
+                case 'diplomacy_action_result':
+                    // Manejo de resultados de acciones diplomáticas
+                    if(event.data.success) {
+                        window.showNotification(`✅ ${event.data.actionName} exitosa`, 'success');
+                    } else {
+                        window.showNotification(`❌ ${event.data.actionName} fallida: ${event.data.reason}`, 'error');
+                    }
+                    break;
+            }
+        }
+
+        // --- Helpers de UI ---
+        function updateMetrics(state) {
+            if(!state || !state.nations) return;
+            const player = state.nations.find(n => n.id === state.playerNationId) || state.nations[0];
+            const container = document.getElementById('metrics-container');
+            
+            document.getElementById('tick-display').textContent = state.tick;
+            document.getElementById('day-display').textContent = Math.floor(state.tick / 24) + 1;
+
+            container.innerHTML = `
+                <div class="metric-row"><span>💰 Presupuesto</span> <span class="metric-val">$${player.budget}M</span></div>
+                <div class="metric-row"><span>🛡️ Estabilidad</span> <span class="metric-val">${player.stability}%</span></div>
+                <div class="metric-row"><span>🌍 Reputación</span> <span class="metric-val">${player.reputation}</span></div>
+                <div class="metric-row"><span>🤝 Influencia</span> <span class="metric-val">${player.influence}</span></div>
+            `;
+        }
+
+        function updateAdvisor(msg) {
+            if(msg) document.getElementById('advisor-text').textContent = msg;
+        }
+
+        function addLog(msg) {
+            const feed = document.getElementById('log-feed');
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+            feed.prepend(div);
+            if(feed.children.length > 50) feed.lastChild.remove();
+        }
+
+        function addIntelSignal(signal) {
+            const feed = document.getElementById('intel-feed');
+            const card = document.createElement('div');
+            card.className = 'intel-card';
+            card.innerHTML = `
+                <div style="font-weight:bold; color:var(--info)">${signal.type}</div>
+                <div style="font-size:0.75rem">${signal.summary}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Costo investigación: $100k</div>
+            `;
+            card.onclick = () => {
+                window.client.investigateSignal(signal.id);
+                card.classList.add('investigated');
+                card.style.pointerEvents = 'none';
+            };
+            feed.prepend(card);
+        }
+
+        // Iniciar
+        initApp();
     </script>
 </body>
 </html>

@@ -100,7 +100,8 @@ let signalCooldown = 0;
 export function init(cfg) {
   config = cfg;
   on('tick_start', processCrisisTick);
- // on('crisis_trigger', triggerCrisis); // Eliminada para tests
+  on('crisis_trigger', triggerCrisis);
+  on('crisis_activation', handleCrisisActivation);
   on('treaty_proposal', handleTreatyProposal);
   on('treaty_sign', handleTreatySigning);
   on('policy_change', evaluatePolicyImpactOnCrisis);
@@ -141,6 +142,108 @@ function processCrisisTick(tick) {
 // TRIGGER Y ESCALADA
 // ============================================================================
 
+/**
+ * Handler: Trigger de Crisis (evento legacy/alternativo)
+ * Permite activar crisis desde eventos externos
+ */
+function triggerCrisis(data) {
+  const state = getState();
+  const tick = state?.tick || 0;
+
+  const { crisisType, severity, epicenter, involvedNations } = data;
+
+  if (!crisisType || !epicenter) {
+    console.warn('[CrisisRule] triggerCrisis: datos inválidos');
+    return;
+  }
+
+  const nations = involvedNations || [epicenter];
+  const intensityMap = { 'low': 0.3, 'medium': 0.5, 'high': 0.7, 'critical': 0.9 };
+  const intensity = intensityMap[severity] || 0.5;
+
+  activeCrisis = {
+    type: crisisType,
+    phase: 0,
+    epicenter,
+    affectedNations: [...nations],
+    startTick: tick,
+    ticksInPhase: 0,
+    intensity,
+    treatiesActive: [],
+     initCrisisData(crisisType)
+  };
+
+  emit('crisis_started', {
+    type: crisisType,
+    phase: 'Latente',
+    epicenter,
+    tick,
+    severity
+  });
+
+  console.log(`[CrisisRule] Crisis ${crisisType} triggered en ${epicenter}`);
+}
+
+/**
+ * Handler: Activación de Crisis desde IntentProcessor
+ * Recibe datos de crisis_activation delta y crea la crisis
+ */
+function handleCrisisActivation(delta) {
+  const state = getState();
+  const tick = state?.tick || 0;
+
+  const { crisisType, severity, involvedNations, triggeredBy } = delta;
+
+  if (!crisisType || !involvedNations || involvedNations.length === 0) {
+    console.warn('[CrisisRule] handleCrisisActivation: datos inválidos');
+    return;
+  }
+
+  // Determinar epicentro (primera nación o la más vulnerable)
+  let epicenter = involvedNations[0];
+  let maxVuln = -1;
+
+  for (const nid of involvedNations) {
+    const nation = state.nations?.[nid];
+    if (nation) {
+      const vuln = calculateVulnerability(nation, crisisType);
+      if (vuln > maxVuln) {
+        maxVuln = vuln;
+        epicenter = nid;
+      }
+    }
+  }
+
+  // Mapear severidad a intensidad
+  const intensityMap = { 'low': 0.3, 'medium': 0.5, 'high': 0.7, 'critical': 0.9 };
+  const intensity = intensityMap[severity] || 0.5;
+
+  activeCrisis = {
+    type: crisisType,
+    phase: 0,
+    epicenter,
+    affectedNations: [...involvedNations],
+    startTick: tick,
+    ticksInPhase: 0,
+    intensity,
+    treatiesActive: [],
+     initCrisisData(crisisType),
+    triggeredBy
+  };
+
+  emit('crisis_started', {
+    type: crisisType,
+    phase: 'Latente',
+    epicenter,
+    tick,
+    severity,
+    involvedNations,
+    triggeredBy
+  });
+
+  console.log(`[CrisisRule] Crisis ${crisisType} activada manualmente en ${epicenter} por ${triggeredBy}`);
+}
+
 function triggerSpontaneousCrisis(tick) {
   const state = getState();
   const nationIds = Object.keys(state?.nations || {});
@@ -164,7 +267,7 @@ function triggerSpontaneousCrisis(tick) {
   activeCrisis = {
     type: crisisType, phase: 0, epicenter, affectedNations: [epicenter],
     startTick: tick, ticksInPhase: 0, intensity: 0.3, treatiesActive: [],
-    data: initCrisisData(crisisType)
+     initCrisisData(crisisType)
   };
 
   emit('crisis_started', { type: crisisType, phase: 'Latente', epicenter, tick });
@@ -423,7 +526,8 @@ export const EMERGENCY_TREATIES_PUBLIC = EMERGENCY_TREATIES;
 export default {
   init, getCrisisInfo, getTreatyDefinition, getAvailableTreaties,
   CRISIS_PHASES: CRISIS_PHASES_PUBLIC, CRISIS_TYPES: CRISIS_TYPES_PUBLIC,
-  EMERGENCY_TREATIES: EMERGENCY_TREATIES_PUBLIC
+  EMERGENCY_TREATIES: EMERGENCY_TREATIES_PUBLIC,
+  triggerCrisis, handleCrisisActivation
 };
 
 /**
