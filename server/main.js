@@ -93,7 +93,7 @@ async function registerModules() {
             console.error(`[main] ❌ ERROR crítico inicializando ${moduleName}:`, error.message);
         }
     }
-    
+
     try {
         await IntentProcessor.init();
         console.log('[main] ✅ Módulo \'IntentProcessor\' inicializado correctamente.');
@@ -166,7 +166,7 @@ async function main() {
 
         // 3. Registrar módulos
         await registerModules();
-        
+
         // Inicializar subsistemas de diplomacia explícitamente
         initDiplomacyEngine();
         console.log('[main] ✅ DiplomacyEngine listo.');
@@ -268,7 +268,7 @@ async function main() {
         // Inicializar parser de intenciones (Asesor IA) y Generador de Intel
         initIntentParser({ engine: null, world: null, modules: null });
         console.log('[main] 🤖 IntentParser inicializado');
-        
+
         initIntelGenerator({ engine: null, world: null, modules: null });
         console.log('[main] 📡 IntelGenerator inicializado');
 
@@ -330,6 +330,35 @@ async function main() {
         on('treaty_expired', (payload) => {
             if (global.gameServer?.broadcast) {
                 global.gameServer.broadcast({ type: 'treaty_expired', ...payload, timestamp: Date.now() });
+            }
+        });
+
+        // --- RELACIONES BILATERALES DETALLADAS (Respuesta punto a punto) ---
+        on('relations_detail_response', (payload) => {
+            // Este evento requiere envío directo al cliente solicitante, no broadcast
+            const { wsClientId, success, error, requestId, data } = payload;
+
+            if (!wsClientId) {
+                console.warn('[main] ⚠️ relations_detail_response sin wsClientId, usando broadcast');
+                if (global.gameServer?.broadcast) {
+                    global.gameServer.broadcast({ type: 'relations_detail', ...payload, timestamp: Date.now() });
+                }
+                return;
+            }
+
+            // Enviar solo al cliente que lo solicitó
+            if (global.gameServer?.send) {
+                global.gameServer.send(wsClientId, {
+                    type: 'relations_detail',
+                    success,
+                    error: error || null,
+                    requestId,
+                    data,
+                    timestamp: Date.now()
+                });
+                console.log(`[main] 📤 Respuesta de relaciones enviada a cliente ${wsClientId}`);
+            } else {
+                console.error('[main] ❌ Error: gameServer.send no está disponible');
             }
         });
 

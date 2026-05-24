@@ -98,7 +98,7 @@ export class GameWebSocketServer {
           payload: message
         };
         emit('ws.message.player_intent', wrappedPayload);
-        break;  
+        break;
 
       case 'command_save_game':
         // Reenviar comando de guardado al PersistenceManager
@@ -119,11 +119,24 @@ export class GameWebSocketServer {
         const deleteFilename = message.filename || (message.payload && message.payload.filename);
         emit('command_delete_save', { filename: deleteFilename });
         break;
-            
+
       case 'command_list_saves':
         emit('command_list_saves', {});
-        break; 
-        
+        break;
+
+      // --- SOLICITUD DE RELACIONES BILATERALES DETALLADAS ---
+      case 'get_relations_detail':
+        // Reenviar como evento para que main.js lo procese
+        // Incluir el socket o clientId para responder directamente
+        const relationsPayload = {
+          nationId: message.nationId || client.nationId,
+          requestId: message.requestId || Date.now(),
+          wsClientId: clientId // Para poder responder directamente
+        };
+        console.log(`[WS] 📊 Solicitud de relaciones detalladas para nación: ${relationsPayload.nationId}`);
+        emit('request_relations_detail', relationsPayload);
+        break;
+
       // Capturar acciones diplomáticas dinámicas
       case 'covert_coup':
       case 'sanctions_economic':
@@ -137,9 +150,9 @@ export class GameWebSocketServer {
           type: message.type,
           playerId: client.playerId,
           nationId: client.nationId,
-          payload: message.payload || { targetNation: message.targetNation } 
+          payload: message.payload || { targetNation: message.targetNation }
         };
-        
+
         // Asegurar que targetNation esté en el payload
         if (!diplomaticPayload.payload.targetNation && message.targetNation) {
             diplomaticPayload.payload.targetNation = message.targetNation;

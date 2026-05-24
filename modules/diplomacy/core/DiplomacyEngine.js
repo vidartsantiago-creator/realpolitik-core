@@ -549,3 +549,27 @@ function registerEconomicEffect(targetEffects, actorEffects, actorId, targetId, 
     }
   };
 }
+
+// Al final del archivo, antes de export default, agregar:
+
+/**
+ * Obtiene tratados activos entre dos naciones
+ * @param {string} nationA - ID de la primera nación
+ * @param {string} nationB - ID de la segunda nación
+ * @returns {Array} Lista de tratados activos
+ */
+export function getActiveTreaties(nationA, nationB) {
+    const state = getState();
+    const treaties = state.diplomacy?.treaties || [];
+    
+    return treaties.filter(t => {
+        const participants = t.participants || [];
+        return participants.includes(nationA) && participants.includes(nationB) && 
+               t.status === 'active' && (!t.expiresTick || t.expiresTick > (state.meta?.tick || state.tick));
+    }).map(t => ({
+        name: t.name,
+        signedTick: t.signedTick,
+        expiresTick: t.expiresTick,
+        type: t.type
+    }));
+}

@@ -19,7 +19,7 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
+
         body {
             background-color: var(--bg-dark);
             color: var(--text-main);
@@ -89,7 +89,7 @@
         }
         .log-entry { margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
         .log-time { color: var(--text-muted); font-size: 0.7rem; margin-right: 5px; }
-        
+
         .intel-card {
             background: rgba(33, 150, 243, 0.1);
             border-left: 3px solid var(--info);
@@ -124,10 +124,10 @@
         #crisis-panel {
             border: 1px solid var(--danger);
             background: rgba(244, 67, 54, 0.05);
-            display: none; 
+            display: none;
         }
         #crisis-panel.active { display: block; animation: pulseBorder 2s infinite; }
-        
+
         .crisis-header {
             display: flex;
             justify-content: space-between;
@@ -136,7 +136,7 @@
             color: var(--danger);
             font-weight: bold;
         }
-        
+
         .crisis-phase-badge {
             padding: 2px 6px;
             border-radius: 3px;
@@ -204,7 +204,7 @@
         .toast.warning { background: rgba(255, 152, 0, 0.9); border-left: 4px solid var(--warning); }
         .toast.error { background: rgba(244, 67, 54, 0.9); border-left: 4px solid var(--danger); }
         .toast.success { background: rgba(76, 175, 80, 0.9); border-left: 4px solid var(--accent); }
-        
+
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
@@ -264,7 +264,7 @@
                 <button id="btn-diplomacy">🌍 Diplomacia</button>
                 <button id="btn-intel-market">🕵️ Mercado Intel</button>
             </div>
-            
+
             <div class="panel-section">
                 <h3>Registro de Eventos</h3>
                 <div id="log-feed"></div>
@@ -275,7 +275,7 @@
         <main id="map-container">
             <canvas id="game-map"></canvas>
             <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 3px; font-size: 0.8rem; color: white;">
-                Capas: 
+                Capas:
                 <input type="checkbox" id="layer-borders" checked> Fronteras
                 <input type="checkbox" id="layer-relations" checked> Relaciones
                 <input type="checkbox" id="layer-crisis" checked> Crisis
@@ -303,7 +303,7 @@
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">
                     Epicentro: <span id="crisis-epicenter">-</span>
                 </div>
-                
+
                 <div style="font-size: 0.75rem; margin-top: 8px;">Intensidad</div>
                 <div class="intensity-bar-container">
                     <div id="crisis-intensity-bar" class="intensity-bar"></div>
@@ -359,7 +359,7 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            
+
             let icon = 'ℹ️';
             if (type === 'error') icon = '❌';
             if (type === 'success') icon = '✅';
@@ -387,7 +387,7 @@
 
             document.getElementById('crisis-type').textContent = data.type ? data.type.toUpperCase() : 'DESCONOCIDO';
             document.getElementById('crisis-epicenter').textContent = data.epicenter || 'Global';
-            
+
             const badge = document.getElementById('crisis-phase-badge');
             const phase = data.phase ? data.phase.toLowerCase() : 'latent';
             badge.textContent = data.phase || 'Latente';
@@ -420,7 +420,7 @@
                 // Inicialización de la Aplicación
         function initApp() {
             console.log("🚀 Iniciando interfaz de usuario...");
-            
+
             const canvas = document.getElementById('game-map');
             if (!canvas) {
                 console.error("❌ No se encontró el elemento canvas #game-map");
@@ -435,16 +435,16 @@
             // Instanciar renderizadores
             window.mapRenderer = new MapRenderer(canvas);
             console.log("✅ MapRenderer instanciado.");
-            
+
             // Conectar cliente WebSocket
             window.client = new SyncClient({
                 onStateUpdate: (state) => {
                     console.log("🔄 Estado actualizado recibido", state);
                     window.gameState = state;
-                    
+
                     // Actualizar UI
                     updateMetrics(state);
-                    
+
                     // Actualizar Asesor
                     if(state.advisorMessage) {
                         document.getElementById('advisor-text').textContent = state.advisorMessage;
@@ -466,20 +466,56 @@
             document.getElementById('btn-save').onclick = () => {
                 if(window.client) window.client.saveGame();
             };
-            
+
             document.getElementById('btn-load').onclick = () => {
                 document.getElementById('file-input').click();
             };
 
             document.getElementById('btn-diplomacy').onclick = () => {
-                showNotification("🌍 Módulo de Diplomacia: Abriendo modal...", "info");
-                // Aquí iría la lógica para abrir el modal de diplomacia
+                showNotification("🌍 Módulo de Diplomacia: Abriendo panel...", "info");
+                // Solicitar relaciones detalladas al servidor
+                loadRelationsDetail();
             };
+
+            /**
+             * Solicita relaciones bilaterales detalladas al servidor
+             */
+            function loadRelationsDetail() {
+                if (!window.client || !window.client.isConnected()) {
+                    showNotification("❌ No conectado al servidor", "error");
+                    return;
+                }
+
+                const state = window.client.getState();
+                const nationId = state?.playerNationId || 'ARG';
+                const requestId = Date.now();
+
+                console.log(`[UI] 📊 Solicitando relaciones para ${nationId} (requestId: ${requestId})`);
+
+                // Enviar solicitud al servidor
+                window.client.send('get_relations_detail', {
+                    nationId,
+                    requestId
+                });
+
+                // Mostrar modal de carga
+                showModal('Relaciones Bilaterales', '<div style="text-align:center;padding:20px;">Cargando datos diplomáticos...</div>');
+            }
+
+            /**
+             * Muestra un modal genérico con título y contenido HTML
+             */
+            function showModal(title, htmlContent) {
+                const modal = document.getElementById('modal-generic');
+                document.getElementById('modal-title').textContent = title;
+                document.getElementById('modal-body').innerHTML = htmlContent;
+                modal.style.display = 'flex';
+            }
 
             document.getElementById('btn-intel-market').onclick = () => {
                 showNotification("🕵️ Mercado de Inteligencia: Próximamente", "info");
             };
-            
+
             // Input file oculto para carga
             const fileInput = document.createElement('input');
             fileInput.id = 'file-input';
@@ -498,7 +534,7 @@
         // Manejo de Eventos Personalizados (CRISIS, DIPLOMACIA, etc.)
         function handleCustomEvent(event) {
             console.log("📨 Evento recibido:", event);
-            
+
             // Estructura defensiva: los datos pueden venir en event.data o directamente en event
             const data = event.data || event;
 
@@ -507,17 +543,17 @@
                     window.showNotification(`⚠️ CRISIS INICIADA: ${data.type} en fase ${data.phase}`, 'warning');
                     window.updateCrisisUI(data);
                     break;
-                    
+
                 case 'crisis_escalated':
                     window.showNotification(`🔥 Crisis escalada a fase ${data.phase}`, 'error');
                     window.updateCrisisUI(data);
                     break;
-                    
+
                 case 'crisis_resolved':
                     window.showNotification(`✅ Crisis resuelta: ${data.reason}`, 'success');
                     window.hideCrisisPanel();
                     break;
-                    
+
                 case 'treaty_signed':
                     window.showNotification(`✅ Tratado '${data.treatyName}' firmado`, 'success');
                     if(window.gameState && window.gameState.crisis) {
@@ -537,27 +573,90 @@
                         window.showNotification(`❌ ${data.actionName || data.actionId} fallida: ${data.reason || data.error}`, 'error');
                     }
                     break;
-                
+
                 case 'advisor_suggestion':
                     if(data.suggestion) {
                         document.getElementById('advisor-text').textContent = data.suggestion.title || "Sugerencia recibida";
                     }
                     break;
+
+                case 'relations_detail':
+                    // Respuesta del servidor con datos de relaciones bilaterales
+                    if (data.success && data.data) {
+                        renderRelationsModal(data.data);
+                    } else {
+                        showNotification(`❌ Error cargando relaciones: ${data.error || 'Desconocido'}`, 'error');
+                        // Cerrar modal de carga si está abierto
+                        document.getElementById('modal-generic').style.display = 'none';
+                    }
+                    break;
             }
+        }
+
+        /**
+         * Renderiza el contenido del modal con los datos de relaciones
+         * @param {Object} relationsData - Datos de relaciones del servidor
+         */
+        function renderRelationsModal(relationsData) {
+            const { treaties, relations, history, nationId, totalTreaties, totalRelations } = relationsData;
+
+            let html = `<div style="font-size: 0.9rem;">`;
+
+            // Sección de Tratados Activos
+            html += `<h3 style="margin-bottom: 10px; color: var(--accent);">📜 Tratados Activos (${totalTreaties})</h3>`;
+            if (treaties && treaties.length > 0) {
+                html += `<ul style="list-style: none; padding: 0;">`;
+                treaties.forEach(t => {
+                    html += `<li style="background: rgba(76, 175, 80, 0.1); border-left: 3px solid var(--accent); padding: 8px; margin-bottom: 5px; border-radius: 3px;">`;
+                    html += `<strong>${t.name}</strong><br>`;
+                    html += `<span style="color: var(--text-muted); font-size: 0.8rem;">Tipo: ${t.type} | Firmado: Tick ${t.signedAt}</span>`;
+                    if (t.expiresAt) {
+                        html += `<span style="color: var(--warning); font-size: 0.8rem;"> | Expira: Tick ${t.expiresAt}</span>`;
+                    }
+                    html += `</li>`;
+                });
+                html += `</ul>`;
+            } else {
+                html += `<p style="color: var(--text-muted); font-style: italic;">No hay tratados activos</p>`;
+            }
+
+            // Sección de Relaciones Bilaterales
+            html += `<h3 style="margin: 15px 0 10px 0; color: var(--info);">🌍 Relaciones Bilaterales (${totalRelations})</h3>`;
+            if (relations && relations.length > 0) {
+                html += `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">`;
+                html += `<thead><tr style="border-bottom: 1px solid var(--border);"><th style="text-align: left; padding: 5px;">Nación</th><th style="text-align: center;">Valor</th><th style="text-align: center;">Tendencia</th></tr></thead>`;
+                html += `<tbody>`;
+                relations.forEach(r => {
+                    const valueColor = r.value >= 50 ? 'var(--accent)' : r.value >= 0 ? 'var(--warning)' : 'var(--danger)';
+                    const trendIcon = r.trend === 'improving' ? '📈' : r.trend === 'declining' ? '📉' : '➡️';
+                    html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">`;
+                    html += `<td style="padding: 8px 5px;">${r.nationName}</td>`;
+                    html += `<td style="text-align: center; color: ${valueColor}; font-weight: bold;">${r.value}</td>`;
+                    html += `<td style="text-align: center;">${trendIcon}</td>`;
+                    html += `</tr>`;
+                });
+                html += `</tbody></table>`;
+            } else {
+                html += `<p style="color: var(--text-muted); font-style: italic;">No hay datos de relaciones</p>`;
+            }
+
+            html += `</div>`;
+
+            showModal('Relaciones Bilaterales - ' + (relationsData.nationName || nationId), html);
         }
 
         // Helpers de UI
         function updateMetrics(state) {
             if(!state || !state.nations) return;
-            
+
             // Intentar encontrar la nación del jugador, o usar la primera por defecto
             const playerNationId = state.playerNationId || Object.keys(state.nations)[0];
             const player = state.nations[playerNationId];
-            
+
             if (!player) return;
 
             const container = document.getElementById('metrics-container');
-            
+
             document.getElementById('tick-display').textContent = state.meta?.tick || state.tick || 0;
             document.getElementById('day-display').textContent = Math.floor((state.meta?.tick || state.tick || 0) / 24) + 1;
 
