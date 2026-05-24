@@ -120,11 +120,11 @@
         button.secondary { background: #555; }
         button.secondary:hover { background: #666; }
 
-        /* --- NUEVO: Panel de Crisis --- */
+        /* --- Panel de Crisis --- */
         #crisis-panel {
             border: 1px solid var(--danger);
             background: rgba(244, 67, 54, 0.05);
-            display: none; /* Oculto por defecto */
+            display: none; 
         }
         #crisis-panel.active { display: block; animation: pulseBorder 2s infinite; }
         
@@ -177,7 +177,7 @@
             justify-content: space-between;
         }
 
-        /* --- NUEVO: Notificaciones Toast --- */
+        /* --- Notificaciones Toast --- */
         #toast-container {
             position: fixed;
             top: 20px;
@@ -255,15 +255,14 @@
             <div class="panel-section">
                 <h3>Métricas Nacionales</h3>
                 <div id="metrics-container">
-                    <!-- Se llena dinámicamente -->
                     <div class="metric-row"><span>Cargando...</span></div>
                 </div>
             </div>
 
             <div class="panel-section">
                 <h3>Acciones Rápidas</h3>
-                <button onclick="window.openDiplomacyModal()">🌍 Diplomacia</button>
-                <button onclick="window.openIntelMarket()">🕵️ Mercado Intel</button>
+                <button id="btn-diplomacy">🌍 Diplomacia</button>
+                <button id="btn-intel-market">🕵️ Mercado Intel</button>
             </div>
             
             <div class="panel-section">
@@ -275,8 +274,9 @@
         <!-- Centro: Mapa -->
         <main id="map-container">
             <canvas id="game-map"></canvas>
-            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 3px; font-size: 0.8rem;">
-                Capas: <input type="checkbox" id="layer-borders" checked> Fronteras
+            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 3px; font-size: 0.8rem; color: white;">
+                Capas: 
+                <input type="checkbox" id="layer-borders" checked> Fronteras
                 <input type="checkbox" id="layer-relations" checked> Relaciones
                 <input type="checkbox" id="layer-crisis" checked> Crisis
             </div>
@@ -291,7 +291,7 @@
                 </div>
             </div>
 
-            <!-- NUEVO: Panel de Crisis -->
+            <!-- Panel de Crisis -->
             <div id="crisis-panel" class="panel-section">
                 <div class="crisis-header">
                     <span>⚠️ CRISIS ACTIVA</span>
@@ -327,7 +327,7 @@
         </aside>
     </div>
 
-    <!-- Modales (Estructura básica) -->
+    <!-- Modales -->
     <div id="modal-generic" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modal-title">Título</h2>
@@ -336,22 +336,25 @@
         </div>
     </div>
 
+    <!-- Script Principal Corregido -->
     <script type="module">
-        import MapRenderer from './client/MapRenderer.js';
-        import NetworkOverlay from './client/components/NetworkOverlay.js';
-        import IntelFeed from './client/components/IntelFeed.js';
-        import { subscribe, sendMessage, initSyncClient, isConnected, getState } from './client/SyncClient.js';
-   	
-        const mapRenderer = new MapRenderer();
-        const networkOverlay = new NetworkOverlay('network-canvas');
-        const intelFeed = new IntelFeed('intel-feed');
+        // Importación correcta de módulos
+        import { SyncClient } from './client/SyncClient.js';
+        import { MapRenderer } from './client/MapRenderer.js';
+        // Si existe NetworkOverlay, descomentar la siguiente línea
+        // import { NetworkOverlay } from './client/NetworkOverlay.js';
 
-        // --- Inicialización Global ---
+        // Exponer clases globalmente para debugging y acceso desde HTML
+        window.SyncClient = SyncClient;
+        window.MapRenderer = MapRenderer;
+        // window.NetworkOverlay = NetworkOverlay;
+
+        // Variables globales de estado
         window.gameState = null;
         window.mapRenderer = null;
         window.client = null;
 
-        // --- Sistema de Notificaciones Toast ---
+        // Sistema de Notificaciones Toast
         window.showNotification = (message, type = 'info') => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -365,17 +368,16 @@
             toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
             container.appendChild(toast);
 
-            // Auto eliminar
             setTimeout(() => {
                 toast.style.animation = 'fadeOut 0.5s ease-in forwards';
                 setTimeout(() => toast.remove(), 500);
             }, 4000);
         };
 
-        // --- Lógica de Crisis UI ---
+        // Lógica de Crisis UI
         window.updateCrisisUI = (data) => {
             if (!data || !data.active) {
-                hideCrisisPanel();
+                window.hideCrisisPanel();
                 return;
             }
 
@@ -383,27 +385,24 @@
             panel.classList.add('active');
             panel.style.display = 'block';
 
-            // Actualizar textos
-            document.getElementById('crisis-type').textContent = data.type.toUpperCase();
+            document.getElementById('crisis-type').textContent = data.type ? data.type.toUpperCase() : 'DESCONOCIDO';
             document.getElementById('crisis-epicenter').textContent = data.epicenter || 'Global';
             
-            // Actualizar Fase
             const badge = document.getElementById('crisis-phase-badge');
-            badge.textContent = data.phase;
-            badge.className = `crisis-phase-badge phase-${data.phase.toLowerCase()}`;
+            const phase = data.phase ? data.phase.toLowerCase() : 'latent';
+            badge.textContent = data.phase || 'Latente';
+            badge.className = `crisis-phase-badge phase-${phase}`;
 
-            // Actualizar Barra
             const intensity = data.intensity || 0;
             document.getElementById('crisis-intensity-bar').style.width = `${intensity}%`;
 
-            // Actualizar Tratados
             const list = document.getElementById('crisis-treaty-list');
             list.innerHTML = '';
             if (data.treaties && data.treaties.length > 0) {
                 data.treaties.forEach(t => {
                     const li = document.createElement('li');
                     li.className = 'treaty-item';
-                    li.innerHTML = `<span>${t.name}</span> <span style="color:var(--accent)">Activo</span>`;
+                    li.innerHTML = `<span>${t.name || t}</span> <span style="color:var(--accent)">Activo</span>`;
                     list.appendChild(li);
                 });
             } else {
@@ -417,17 +416,46 @@
             panel.style.display = 'none';
         };
 
-        // --- Conexión WebSocket & Eventos ---
+        // Inicialización de la Aplicación
+                // Inicialización de la Aplicación
         function initApp() {
-            const canvas = document.getElementById('game-map');
-            window.mapRenderer = new MapRenderer(canvas);
+            console.log("🚀 Iniciando interfaz de usuario...");
             
+            const canvas = document.getElementById('game-map');
+            if (!canvas) {
+                console.error("❌ No se encontró el elemento canvas #game-map");
+                return;
+            }
+
+            // Ajustar tamaño inicial explícito antes de crear el renderer
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+
+            // Instanciar renderizadores
+            window.mapRenderer = new MapRenderer(canvas);
+            console.log("✅ MapRenderer instanciado.");
+            
+            // Conectar cliente WebSocket
             window.client = new SyncClient({
                 onStateUpdate: (state) => {
+                    console.log("🔄 Estado actualizado recibido", state);
                     window.gameState = state;
+                    
+                    // Actualizar UI
                     updateMetrics(state);
-                    window.mapRenderer.render(state);
-                    updateAdvisor(state.advisorMessage);
+                    
+                    // Actualizar Asesor
+                    if(state.advisorMessage) {
+                        document.getElementById('advisor-text').textContent = state.advisorMessage;
+                    }
+
+                    // CRÍTICO: Pasar el estado al renderer para que dibuje
+                    if(window.mapRenderer && typeof window.mapRenderer.update === 'function') {
+                        // Determinar ID del jugador (por defecto la primera nación si no existe playerNationId)
+                        const pId = state.playerNationId || Object.keys(state.nations || {})[0];
+                        window.mapRenderer.update(state, pId);
+                    }
                 },
                 onLog: (msg) => addLog(msg),
                 onIntelSignal: (signal) => addIntelSignal(signal),
@@ -435,83 +463,116 @@
             });
 
             // Listeners de UI
-            document.getElementById('btn-save').onclick = () => window.client.saveGame();
-            document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
+            document.getElementById('btn-save').onclick = () => {
+                if(window.client) window.client.saveGame();
+            };
+            
+            document.getElementById('btn-load').onclick = () => {
+                document.getElementById('file-input').click();
+            };
+
+            document.getElementById('btn-diplomacy').onclick = () => {
+                showNotification("🌍 Módulo de Diplomacia: Abriendo modal...", "info");
+                // Aquí iría la lógica para abrir el modal de diplomacia
+            };
+
+            document.getElementById('btn-intel-market').onclick = () => {
+                showNotification("🕵️ Mercado de Inteligencia: Próximamente", "info");
+            };
             
             // Input file oculto para carga
             const fileInput = document.createElement('input');
             fileInput.id = 'file-input';
             fileInput.type = 'file';
             fileInput.style.display = 'none';
+            fileInput.accept = '.dat,.json';
             fileInput.onchange = (e) => {
                 const file = e.target.files[0];
-                if(file) window.client.loadGame(file);
+                if(file && window.client) window.client.loadGame(file);
             };
             document.body.appendChild(fileInput);
+
+            console.log("✅ Interfaz inicializada correctamente.");
         }
 
-        // --- Manejo de Eventos Personalizados (CRISIS) ---
+        // Manejo de Eventos Personalizados (CRISIS, DIPLOMACIA, etc.)
         function handleCustomEvent(event) {
-            console.log("Evento recibido:", event);
+            console.log("📨 Evento recibido:", event);
             
+            // Estructura defensiva: los datos pueden venir en event.data o directamente en event
+            const data = event.data || event;
+
             switch(event.type) {
                 case 'crisis_started':
-                    window.showNotification(`⚠️ CRISIS INICIADA: ${event.data.type} en fase ${event.data.phase}`, 'warning');
-                    window.updateCrisisUI(event.data);
+                    window.showNotification(`⚠️ CRISIS INICIADA: ${data.type} en fase ${data.phase}`, 'warning');
+                    window.updateCrisisUI(data);
                     break;
                     
                 case 'crisis_escalated':
-                    window.showNotification(`🔥 Crisis escalada a fase ${event.data.phase}`, 'error');
-                    window.updateCrisisUI(event.data); // Actualiza badge y barra
+                    window.showNotification(`🔥 Crisis escalada a fase ${data.phase}`, 'error');
+                    window.updateCrisisUI(data);
                     break;
                     
                 case 'crisis_resolved':
-                    window.showNotification(`✅ Crisis resuelta: ${event.data.reason}`, 'success');
+                    window.showNotification(`✅ Crisis resuelta: ${data.reason}`, 'success');
                     window.hideCrisisPanel();
                     break;
                     
                 case 'treaty_signed':
-                    window.showNotification(`✅ Tratado '${event.data.treatyName}' firmado`, 'success');
-                    // Refrescar datos si tenemos estado
+                    window.showNotification(`✅ Tratado '${data.treatyName}' firmado`, 'success');
                     if(window.gameState && window.gameState.crisis) {
                         window.updateCrisisUI(window.gameState.crisis);
                     }
                     break;
 
                 case 'treaty_expired':
-                    window.showNotification(`⏳ Tratado '${event.data.treatyName}' vencido`, 'info');
+                    window.showNotification(`⏳ Tratado '${data.treatyName}' vencido`, 'info');
                     break;
 
                 case 'diplomacy_action_result':
-                    // Manejo de resultados de acciones diplomáticas
-                    if(event.data.success) {
-                        window.showNotification(`✅ ${event.data.actionName} exitosa`, 'success');
+                    // Acceder directamente a las propiedades del evento
+                    if(data.success) {
+                        window.showNotification(`✅ ${data.actionName || data.actionId} exitosa`, 'success');
                     } else {
-                        window.showNotification(`❌ ${event.data.actionName} fallida: ${event.data.reason}`, 'error');
+                        window.showNotification(`❌ ${data.actionName || data.actionId} fallida: ${data.reason || data.error}`, 'error');
+                    }
+                    break;
+                
+                case 'advisor_suggestion':
+                    if(data.suggestion) {
+                        document.getElementById('advisor-text').textContent = data.suggestion.title || "Sugerencia recibida";
                     }
                     break;
             }
         }
 
-        // --- Helpers de UI ---
+        // Helpers de UI
         function updateMetrics(state) {
             if(!state || !state.nations) return;
-            const player = state.nations.find(n => n.id === state.playerNationId) || state.nations[0];
+            
+            // Intentar encontrar la nación del jugador, o usar la primera por defecto
+            const playerNationId = state.playerNationId || Object.keys(state.nations)[0];
+            const player = state.nations[playerNationId];
+            
+            if (!player) return;
+
             const container = document.getElementById('metrics-container');
             
-            document.getElementById('tick-display').textContent = state.tick;
-            document.getElementById('day-display').textContent = Math.floor(state.tick / 24) + 1;
+            document.getElementById('tick-display').textContent = state.meta?.tick || state.tick || 0;
+            document.getElementById('day-display').textContent = Math.floor((state.meta?.tick || state.tick || 0) / 24) + 1;
+
+            // Ajustar según la estructura real de tus datos (budget vs gold, etc)
+            const budget = player.budget || player.resources?.gold || 0;
+            const stability = player.stability || player.stats?.stability || 0;
+            const reputation = player.reputation || player.stats?.influence || 0; // Mapeo aproximado
+            const influence = player.influence || player.stats?.influence || 0;
 
             container.innerHTML = `
-                <div class="metric-row"><span>💰 Presupuesto</span> <span class="metric-val">$${player.budget}M</span></div>
-                <div class="metric-row"><span>🛡️ Estabilidad</span> <span class="metric-val">${player.stability}%</span></div>
-                <div class="metric-row"><span>🌍 Reputación</span> <span class="metric-val">${player.reputation}</span></div>
-                <div class="metric-row"><span>🤝 Influencia</span> <span class="metric-val">${player.influence}</span></div>
+                <div class="metric-row"><span>💰 Presupuesto</span> <span class="metric-val">$${budget}M</span></div>
+                <div class="metric-row"><span>🛡️ Estabilidad</span> <span class="metric-val">${stability}%</span></div>
+                <div class="metric-row"><span>🌍 Reputación</span> <span class="metric-val">${reputation}</span></div>
+                <div class="metric-row"><span>🤝 Influencia</span> <span class="metric-val">${influence}</span></div>
             `;
-        }
-
-        function updateAdvisor(msg) {
-            if(msg) document.getElementById('advisor-text').textContent = msg;
         }
 
         function addLog(msg) {
@@ -526,23 +587,33 @@
 
         function addIntelSignal(signal) {
             const feed = document.getElementById('intel-feed');
+            // Limpiar mensaje de "esperando" si es el primero
+            if(feed.children.length === 1 && feed.children[0].innerText.includes('Esperando')) {
+                feed.innerHTML = '';
+            }
+
             const card = document.createElement('div');
             card.className = 'intel-card';
             card.innerHTML = `
                 <div style="font-weight:bold; color:var(--info)">${signal.type}</div>
-                <div style="font-size:0.75rem">${signal.summary}</div>
+                <div style="font-size:0.75rem">${signal.summary || 'Sin resumen'}</div>
                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Costo investigación: $100k</div>
             `;
             card.onclick = () => {
-                window.client.investigateSignal(signal.id);
+                if(window.client) window.client.investigateSignal(signal.id);
                 card.classList.add('investigated');
                 card.style.pointerEvents = 'none';
+                card.innerHTML += `<div style="font-size:0.7rem; color:var(--accent); margin-top:4px;">Investigado</div>`;
             };
             feed.prepend(card);
         }
 
-        // Iniciar
-        initApp();
+        // Esperar a que el DOM esté completamente cargado
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initApp);
+        } else {
+            initApp();
+        }
     </script>
 </body>
 </html>

@@ -7,14 +7,15 @@
  */
 
 export class MapRenderer {
-    constructor(canvasId = 'world-canvas') {
-        this.canvas = document.getElementById(canvasId);
-        if (!this.canvas) {
+    constructor(canvasElement) {
+        // ✅ CORRECTO: La validación ocurre cuando se crea la instancia con el elemento pasado
+        if (!canvasElement) {
             console.warn('[MapRenderer] Canvas no encontrado, modo headless.');
             this.ctx = null;
             return;
         }
 
+        this.canvas = canvasElement;
         this.ctx = this.canvas.getContext('2d');
 
         // Configuración

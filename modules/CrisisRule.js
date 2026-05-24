@@ -1,11 +1,8 @@
 /**
  * @file CrisisRule.js
  * @description Escalada en 4 fases, Tratados de Emergencia, penalizaciones por crisis global.
- * @version 1.0.0
+ * @version 1.0.1 (Corrección de Sintaxis)
  * @author RealPolitik Core Team
- * @dependencies EventDispatcher, StateManager, Rng
- * @changelog
- * - v1.0.0: Implementación completa - escalada 4 fases, tratados emergencia, sanciones colectivas
  */
 
 import { on, emit } from '../core/EventDispatcher.js';
@@ -142,10 +139,6 @@ function processCrisisTick(tick) {
 // TRIGGER Y ESCALADA
 // ============================================================================
 
-/**
- * Handler: Trigger de Crisis (evento legacy/alternativo)
- * Permite activar crisis desde eventos externos
- */
 function triggerCrisis(data) {
   const state = getState();
   const tick = state?.tick || 0;
@@ -161,6 +154,7 @@ function triggerCrisis(data) {
   const intensityMap = { 'low': 0.3, 'medium': 0.5, 'high': 0.7, 'critical': 0.9 };
   const intensity = intensityMap[severity] || 0.5;
 
+  // CORREGIDO: Asignación correcta de initCrisisData
   activeCrisis = {
     type: crisisType,
     phase: 0,
@@ -170,7 +164,7 @@ function triggerCrisis(data) {
     ticksInPhase: 0,
     intensity,
     treatiesActive: [],
-     initCrisisData(crisisType)
+    data: initCrisisData(crisisType)
   };
 
   emit('crisis_started', {
@@ -184,10 +178,6 @@ function triggerCrisis(data) {
   console.log(`[CrisisRule] Crisis ${crisisType} triggered en ${epicenter}`);
 }
 
-/**
- * Handler: Activación de Crisis desde IntentProcessor
- * Recibe datos de crisis_activation delta y crea la crisis
- */
 function handleCrisisActivation(delta) {
   const state = getState();
   const tick = state?.tick || 0;
@@ -199,7 +189,6 @@ function handleCrisisActivation(delta) {
     return;
   }
 
-  // Determinar epicentro (primera nación o la más vulnerable)
   let epicenter = involvedNations[0];
   let maxVuln = -1;
 
@@ -214,10 +203,10 @@ function handleCrisisActivation(delta) {
     }
   }
 
-  // Mapear severidad a intensidad
   const intensityMap = { 'low': 0.3, 'medium': 0.5, 'high': 0.7, 'critical': 0.9 };
   const intensity = intensityMap[severity] || 0.5;
 
+  // CORREGIDO: Asignación correcta de initCrisisData
   activeCrisis = {
     type: crisisType,
     phase: 0,
@@ -227,7 +216,7 @@ function handleCrisisActivation(delta) {
     ticksInPhase: 0,
     intensity,
     treatiesActive: [],
-     initCrisisData(crisisType),
+    data: initCrisisData(crisisType),
     triggeredBy
   };
 
@@ -264,10 +253,11 @@ function triggerSpontaneousCrisis(tick) {
     if (vuln > maxVuln) { maxVuln = vuln; epicenter = nid; }
   }
 
+  // CORREGIDO: Asignación correcta de initCrisisData
   activeCrisis = {
     type: crisisType, phase: 0, epicenter, affectedNations: [epicenter],
     startTick: tick, ticksInPhase: 0, intensity: 0.3, treatiesActive: [],
-     initCrisisData(crisisType)
+    data: initCrisisData(crisisType)
   };
 
   emit('crisis_started', { type: crisisType, phase: 'Latente', epicenter, tick });
@@ -530,10 +520,6 @@ export default {
   triggerCrisis, handleCrisisActivation
 };
 
-/**
- * Reinicia estado interno. SOLO para tests.
- * @package
- */
 export function ResetForTests() {
   activeCrisis = null;
   treatyCooldowns = new Map();
