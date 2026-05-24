@@ -171,12 +171,6 @@ async function main() {
         initDiplomacyEngine();
         console.log('[main] ✅ DiplomacyEngine listo.');
         
-        on('request_relations_detail', (payload) => {
-        // Este listener actúa como fallback si DiplomacyEngine no lo captura
-        console.log('[main] 🔄 Fallback: request_relations_detail recibido:', payload);
-        });
-
-
         initDiplomacyAI();
         console.log('[main] ✅ DiplomacyAI activa.');
 
@@ -243,6 +237,10 @@ async function main() {
         const wsServer = new GameWebSocketServer(httpServer, CONFIG);
         global.gameServer = wsServer;
         wsServer.start();
+
+        // Exponer métodos send y broadcast explícitamente para main.js
+        global.gameServer.send = wsServer.send.bind(wsServer);
+        global.gameServer.broadcast = wsServer.broadcast.bind(wsServer);
 
         httpServer.listen(PORT, () => {
             console.log('[main] ========================================');
@@ -341,30 +339,27 @@ async function main() {
 
         // --- RELACIONES BILATERALES DETALLADAS (Respuesta punto a punto) ---
         on('relations_detail_response', (payload) => {
-            // Este evento requiere envío directo al cliente solicitante, no broadcast
             const { wsClientId, success, error, requestId, data } = payload;
 
             if (!wsClientId) {
-                console.warn('[main] ⚠️ relations_detail_response sin wsClientId, usando broadcast');
-                if (global.gameServer?.broadcast) {
-                    global.gameServer.broadcast({ type: 'relations_detail', ...payload, timestamp: Date.now() });
-                }
+                console.warn('[main] ⚠️ relations_detail_response sin wsClientId');
                 return;
             }
 
-            // Enviar solo al cliente que lo solicitó
+            // Enviamos la estructura PLANA que el frontend espera según tus logs
             if (global.gameServer?.send) {
                 global.gameServer.send(wsClientId, {
                     type: 'relations_detail',
-                    success,
+                    success: success !== false, // Asegurar booleano
                     error: error || null,
                     requestId,
-                    data,
-                    timestamp: Date.now()
+                    // Desestructuramos 'data' para que sus propiedades suban al nivel superior
+                    // O si el frontend espera 'data.treaties', mantenemos el objeto data completo.
+                    // Según tu log: data: {nationId: 'ARG', treaties: []...}
+                    // Entonces enviamos el objeto 'data' tal cual viene del engine.
+                    data: data 
                 });
-                console.log(`[main] 📤 Respuesta de relaciones enviada a cliente ${wsClientId}`);
-            } else {
-                console.error('[main] ❌ Error: gameServer.send no está disponible');
+                console.log(`[main] 📤 Respuesta enviada a ${wsClientId}`);
             }
         });
 

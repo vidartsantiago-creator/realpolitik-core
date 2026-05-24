@@ -537,6 +537,8 @@
 
             // Estructura defensiva: los datos pueden venir en event.data o directamente en event
             const data = event.data || event;
+            // Variable global para rastrear solicitudes recientes
+            const processedRequests = new Set();    
 
             switch(event.type) {
                 case 'crisis_started':
@@ -581,13 +583,26 @@
                     break;
 
                 case 'relations_detail':
-                    // Respuesta del servidor con datos de relaciones bilaterales
-                    if (data.success && data.data) {
-                        renderRelationsModal(data.data);
+                    const reqId = data.requestId;
+                    
+                    // Si ya procesamos este ID recientemente, ignorar
+                    if (processedRequests.has(reqId)) {
+                        console.log('[UI] ⚠️ Ignorando respuesta duplicada para requestId:', reqId);
+                        return;
+                    }
+                    processedRequests.add(reqId);
+                    
+                    // Limpiar el set después de 5 segundos para no llenar memoria
+                    setTimeout(() => processedRequests.delete(reqId), 5000);
+
+                    console.log('[UI] 📊 Procesando relaciones únicas:', data);
+                    
+                    // Verificar que tenemos datos válidos
+                    if (data && (data.treaties || data.relations)) {
+                        renderRelationsModal(data);
                     } else {
-                        showNotification(`❌ Error cargando relaciones: ${data.error || 'Desconocido'}`, 'error');
-                        // Cerrar modal de carga si está abierto
-                        document.getElementById('modal-generic').style.display = 'none';
+                        console.error('[UI] ❌ Datos inválidos recibidos:', data);
+                        showNotification('Error cargando relaciones: Datos vacíos', 'error');
                     }
                     break;
             }
@@ -597,52 +612,33 @@
          * Renderiza el contenido del modal con los datos de relaciones
          * @param {Object} relationsData - Datos de relaciones del servidor
          */
-        function renderRelationsModal(relationsData) {
-            const { treaties, relations, history, nationId, totalTreaties, totalRelations } = relationsData;
-
-            let html = `<div style="font-size: 0.9rem;">`;
-
-            // Sección de Tratados Activos
-            html += `<h3 style="margin-bottom: 10px; color: var(--accent);">📜 Tratados Activos (${totalTreaties})</h3>`;
-            if (treaties && treaties.length > 0) {
-                html += `<ul style="list-style: none; padding: 0;">`;
-                treaties.forEach(t => {
-                    html += `<li style="background: rgba(76, 175, 80, 0.1); border-left: 3px solid var(--accent); padding: 8px; margin-bottom: 5px; border-radius: 3px;">`;
-                    html += `<strong>${t.name}</strong><br>`;
-                    html += `<span style="color: var(--text-muted); font-size: 0.8rem;">Tipo: ${t.type} | Firmado: Tick ${t.signedAt}</span>`;
-                    if (t.expiresAt) {
-                        html += `<span style="color: var(--warning); font-size: 0.8rem;"> | Expira: Tick ${t.expiresAt}</span>`;
-                    }
-                    html += `</li>`;
-                });
-                html += `</ul>`;
-            } else {
-                html += `<p style="color: var(--text-muted); font-style: italic;">No hay tratados activos</p>`;
+        function renderRelationsModal(data) {
+            console.log('[UI] 🎨 Renderizando modal con data:', data);
+            
+            const modal = document.getElementById('modal-generic');
+            const content = document.getElementById('modal-content');
+            
+            if (!modal || !content) {
+                console.error('[UI] ❌ Elementos del modal no encontrados');
+                return;
             }
 
-            // Sección de Relaciones Bilaterales
-            html += `<h3 style="margin: 15px 0 10px 0; color: var(--info);">🌍 Relaciones Bilaterales (${totalRelations})</h3>`;
-            if (relations && relations.length > 0) {
-                html += `<table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">`;
-                html += `<thead><tr style="border-bottom: 1px solid var(--border);"><th style="text-align: left; padding: 5px;">Nación</th><th style="text-align: center;">Valor</th><th style="text-align: center;">Tendencia</th></tr></thead>`;
-                html += `<tbody>`;
-                relations.forEach(r => {
-                    const valueColor = r.value >= 50 ? 'var(--accent)' : r.value >= 0 ? 'var(--warning)' : 'var(--danger)';
-                    const trendIcon = r.trend === 'improving' ? '📈' : r.trend === 'declining' ? '📉' : '➡️';
-                    html += `<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">`;
-                    html += `<td style="padding: 8px 5px;">${r.nationName}</td>`;
-                    html += `<td style="text-align: center; color: ${valueColor}; font-weight: bold;">${r.value}</td>`;
-                    html += `<td style="text-align: center;">${trendIcon}</td>`;
-                    html += `</tr>`;
-                });
-                html += `</tbody></table>`;
+            // Construir HTML seguro
+            let html = `<h3>Relaciones de ${data.nationId || 'Nación'}</h3>`;
+            
+            if (data.totalTreaties === 0 && data.treaties.length === 0) {
+                html += `<p class="empty-state">No hay tratados activos.</p>`;
             } else {
-                html += `<p style="color: var(--text-muted); font-style: italic;">No hay datos de relaciones</p>`;
+                html += `<div class="treaties-list">`;
+                data.treaties.forEach(t => {
+                    html += `<div class="treaty-item"><strong>${t.name}</strong> - ${t.type} con ${t.partner}</div>`;
+                });
+                html += `</div>`;
             }
 
-            html += `</div>`;
-
-            showModal('Relaciones Bilaterales - ' + (relationsData.nationName || nationId), html);
+            content.innerHTML = html;
+            modal.style.display = 'flex';
+            console.log('[UI] ✅ Modal renderizado y visible');
         }
 
         // Helpers de UI
