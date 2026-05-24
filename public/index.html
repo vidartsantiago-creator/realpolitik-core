@@ -583,27 +583,27 @@
                     break;
 
                 case 'relations_detail':
-                    const reqId = data.requestId;
+                    // 1. Blindaje contra duplicados estricto
+                    if (data.requestId && data.requestId === window._lastProcessedRelationsRequest) {
+                        console.log(`[UI] ⏭️ Ignorando duplicado de relations_detail (ID: ${data.requestId})`);
+                        return; 
+                    }
                     
-                    // Si ya procesamos este ID recientemente, ignorar
-                    if (processedRequests.has(reqId)) {
-                        console.log('[UI] ⚠️ Ignorando respuesta duplicada para requestId:', reqId);
+                    // 2. Normalización de datos (acepta estructura plana o anidada)
+                    // El servidor a veces envía { data: {...} } o directamente { treaties: [...] }
+                    const payload = (data.data && data.data.treaties !== undefined) ? data.data : data;
+
+                    if (!payload || !payload.nationId) {
+                        console.error('[UI] ❌ Datos inválidos o incompletos:', data);
+                        // No cerramos el modal aquí, solo mostramos error en consola
                         return;
                     }
-                    processedRequests.add(reqId);
-                    
-                    // Limpiar el set después de 5 segundos para no llenar memoria
-                    setTimeout(() => processedRequests.delete(reqId), 5000);
 
-                    console.log('[UI] 📊 Procesando relaciones únicas:', data);
-                    
-                    // Verificar que tenemos datos válidos
-                    if (data && (data.treaties || data.relations)) {
-                        renderRelationsModal(data);
-                    } else {
-                        console.error('[UI] ❌ Datos inválidos recibidos:', data);
-                        showNotification('Error cargando relaciones: Datos vacíos', 'error');
-                    }
+                    // 3. Marcar como procesado
+                    window._lastProcessedRelationsRequest = data.requestId;
+
+                    // 4. Renderizar
+                    renderRelationsModal(payload);
                     break;
             }
         }
@@ -613,32 +613,59 @@
          * @param {Object} relationsData - Datos de relaciones del servidor
          */
         function renderRelationsModal(data) {
-            console.log('[UI] 🎨 Renderizando modal con data:', data);
+            console.log('[UI] 🎨 Renderizando modal de relaciones...', data);
             
             const modal = document.getElementById('modal-generic');
             const content = document.getElementById('modal-content');
+            const title = document.getElementById('modal-title'); // Asumiendo que existe, si no, lo creamos
             
             if (!modal || !content) {
-                console.error('[UI] ❌ Elementos del modal no encontrados');
+                console.error('[UI] ❌ Elementos del DOM no encontrados');
                 return;
             }
 
-            // Construir HTML seguro
-            let html = `<h3>Relaciones de ${data.nationId || 'Nación'}</h3>`;
-            
-            if (data.totalTreaties === 0 && data.treaties.length === 0) {
-                html += `<p class="empty-state">No hay tratados activos.</p>`;
+            // Asegurar que el modal sea visible
+            modal.style.display = 'flex'; 
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+
+            // Construir contenido
+            let html = `<div style="padding: 20px; font-family: sans-serif;">`;
+            html += `<h2 style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+                        Relaciones Bilaterales: ${data.nationId}
+                    </h2>`;
+
+            // Sección: Tratados Activos
+            html += `<h3>📜 Tratados Activos (${data.totalTreaties || data.treaties?.length || 0})</h3>`;
+            if (!data.treaties || data.treaties.length === 0) {
+                html += `<p style="color: #666; font-style: italic;">No hay tratados activos registrados.</p>`;
             } else {
-                html += `<div class="treaties-list">`;
+                html += `<ul style="list-style: none; padding: 0;">`;
                 data.treaties.forEach(t => {
-                    html += `<div class="treaty-item"><strong>${t.name}</strong> - ${t.type} con ${t.partner}</div>`;
+                    html += `<li style="background: #f4f4f4; margin: 5px 0; padding: 10px; border-radius: 4px;">
+                                <strong>${t.name}</strong> (${t.type}) con ${t.partner}
+                            </li>`;
                 });
-                html += `</div>`;
+                html += `</ul>`;
             }
 
+            // Sección: Historial Reciente (Opcional)
+            if (data.history && data.history.length > 0) {
+                html += `<h3 style="margin-top: 20px;">🕒 Historial Reciente</h3><ul>`;
+                data.history.slice(0, 5).forEach(h => {
+                    html += `<li>${h.date || 'Reciente'}: ${h.description}</li>`;
+                });
+                html += `</ul>`;
+            }
+
+            html += `</div>`;
+
             content.innerHTML = html;
-            modal.style.display = 'flex';
-            console.log('[UI] ✅ Modal renderizado y visible');
+            
+            // Forzar reflow para asegurar visibilidad si hay transiciones CSS
+            void modal.offsetWidth; 
+            
+            console.log('[UI] ✅ Modal renderizado exitosamente.');
         }
 
         // Helpers de UI
