@@ -616,7 +616,7 @@
             console.log('[UI] 🎨 Renderizando modal de relaciones...', data);
             
             const modal = document.getElementById('modal-generic');
-            const content = document.getElementById('modal-content');
+            const content = document.getElementById('modal-body');
             const title = document.getElementById('modal-title'); // Asumiendo que existe, si no, lo creamos
             
             if (!modal || !content) {
@@ -660,7 +660,7 @@
 
             html += `</div>`;
 
-            content.innerHTML = html;
+            document.getElementById('modal-body').innerHTML = html;
             
             // Forzar reflow para asegurar visibilidad si hay transiciones CSS
             void modal.offsetWidth; 
