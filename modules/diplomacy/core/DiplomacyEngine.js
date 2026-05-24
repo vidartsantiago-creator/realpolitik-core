@@ -24,23 +24,137 @@ let activeEffects = new Map(); // Trackea efectos con duración
  */
 export function init() {
   console.log('[DiplomacyEngine] Inicializando motor diplomático...');
-  
-  // CAMBIO AQUÍ: Escuchar el evento genérico 'player_intent' 
+
+  // CAMBIO AQUÍ: Escuchar el evento genérico 'player_intent'
   // en lugar de 'ws.message.player_intent' si UIMessageHandler lo transforma.
   // O mejor, asegurarnos de capturar TODO tipo de intención.
-  
+
   on('player_intent', handleDirectIntent);
 
   // Escuchar intenciones del jugador (vía IntentProcessor o directo)
   on('player_intent', handlePlayerIntent);
-  
+
   // Escuchar decisiones de la IA
   on('ai_diplomacy_action', handleAIDecision);
-  
+
   // Escuchar ticks para procesar efectos duraderos (sanciones, inversiones)
   on('tick_completed', handleTick);
 
+  // Escuchar solicitudes de relaciones detalladas desde la UI
+  on('request_relations_detail', handleRelationsDetailRequest);
+
   console.log('[DiplomacyEngine] ✅ Listo. Registradas', Object.keys(ACTION_REGISTRY).length, 'acciones.');
+}
+
+/**
+ * Maneja solicitudes de relaciones bilaterales detalladas
+ * @param {Object} payload - { nationId, requestId, wsClientId }
+ */
+function handleRelationsDetailRequest(payload) {
+  const { nationId, requestId, wsClientId } = payload;
+
+  if (!nationId) {
+    console.warn('[DiplomacyEngine] ❌ Solicitud de relaciones sin nationId');
+    emit('relations_detail_response', {
+      success: false,
+      error: 'Nación no especificada',
+      requestId
+    });
+    return;
+  }
+
+  console.log(`[DiplomacyEngine] 📊 Procesando solicitud de relaciones para: ${nationId}`);
+
+  try {
+    const state = getState();
+    const relationsData = getActiveTreaties(nationId, state);
+
+    // Emitir respuesta con los datos
+    emit('relations_detail_response', {
+      success: true,
+      requestId,
+      wsClientId,
+      nationId,
+       relationsData,
+      timestamp: Date.now()
+    });
+
+    console.log(`[DiplomacyEngine] ✅ Relaciones enviadas: ${relationsData.treaties.length} tratados activos`);
+  } catch (error) {
+    console.error('[DiplomacyEngine] ❌ Error obteniendo relaciones:', error);
+    emit('relations_detail_response', {
+      success: false,
+      error: error.message,
+      requestId
+    });
+  }
+}
+
+/**
+ * Obtiene los tratados activos y relaciones bilaterales para una nación
+ * @param {string} nationId - ID de la nación consultante
+ * @param {Object} state - Estado global del juego
+ * @returns {Object} Datos de relaciones estructurados
+ */
+export function getActiveTreaties(nationId, state) {
+  const treaties = [];
+  const relations = [];
+
+  if (!state || !state.diplomacy || !state.nations) {
+    return { treaties, relations, history: [] };
+  }
+
+  // Obtener tratados activos desde crisis o diplomacia
+  if (state.crisis && state.crisis.treaties) {
+    state.crisis.treaties.forEach(treaty => {
+      // Verificar si la nación es parte del tratado
+      if (treaty.signatories && treaty.signatories.includes(nationId)) {
+        treaties.push({
+          id: treaty.id || `treaty_${treaty.name}`,
+          name: treaty.name,
+          type: treaty.type || 'desconocido',
+          signatories: treaty.signatories,
+          signedAt: treaty.signedAt || state.meta?.tick || 0,
+          expiresAt: treaty.expiresAt || null,
+          status: 'active',
+          effects: treaty.effects || {}
+        });
+      }
+    });
+  }
+
+  // Obtener relaciones bilaterales
+  if (state.diplomacy.relations) {
+    for (const [key, relation] of Object.entries(state.diplomacy.relations)) {
+      const [nationA, nationB] = key.split('_');
+      if (nationA === nationId || nationB === nationId) {
+        const otherNationId = nationA === nationId ? nationB : nationA;
+        const otherNation = state.nations[otherNationId];
+
+        relations.push({
+          nationId: otherNationId,
+          nationName: otherNation?.name || otherNationId,
+          value: relation.value || 0,
+          trend: relation.trend || 'stable',
+          lastUpdate: relation.lastUpdate || state.meta?.tick || 0
+        });
+      }
+    }
+  }
+
+  // Historial diplomático básico (si existe)
+  const history = state.diplomacy?.history?.filter(h =>
+    h.actor === nationId || h.target === nationId
+  ) || [];
+
+  return {
+    nationId,
+    treaties,
+    relations,
+    history,
+    totalTreaties: treaties.length,
+    totalRelations: relations.length
+  };
 }
 
 function handleDirectIntent(payload) {
@@ -49,14 +163,14 @@ function handleDirectIntent(payload) {
     // Estructura esperada: { type: 'covert_coup', playerId, nationId, payload: { targetNation } }
     const actorId = payload.nationId || payload.actorNationId;
     const target = payload.payload?.targetNation;
-    
+
     if (!actorId || !target) {
       console.warn('[DiplomacyEngine] Acción incompleta:', payload);
       return;
     }
 
     console.log(`[DiplomacyEngine] 🎯 Acción diplomática detectada: ${payload.type} de ${actorId} contra ${target}`);
-    
+
     dispatchAction(payload.type, { targetNation: target, source: 'player' }, actorId);
   }
 }
@@ -68,7 +182,7 @@ function handleDirectIntent(payload) {
 function handlePlayerIntent(message) {
   // Filtrar solo mensajes de tipo diplomático registrado
   if (!message.type || !ACTION_REGISTRY[message.type]) return;
-  
+
   // Validar que tenga payload con target
   const payload = message.payload || message;
   if (!payload.targetNation) {
@@ -124,7 +238,7 @@ console.log(`   - Actor Budget: ${actorNation.stats?.budget} (Req: ${actionDef.r
 console.log(`   - Target Stability: ${targetNation.stats?.stability} (Req Max: ${actionDef.requirements.targetStabilityMax})`);
 console.log(`   - Resultado Validación:`, validation);
 // -------------------------------
- 
+
   if (!validation.valid) {
     console.warn(`[DiplomacyEngine] ❌ VALIDACIÓN FALLIDA: ${validation.error}`);
     emitResult(actionId, false, validation.error, payload);
@@ -138,7 +252,7 @@ console.log(`   - Resultado Validación:`, validation);
   if (actionId === 'covert_coup') {
     // Lógica compleja: Probabilística, sin efectos duraderos estándar
     result = executeCoupLogic(actionDef, actorNation, targetNation, state);
-  } 
+  }
   else if (actionDef.category === 'economic' && actionDef.effects.duration > 1) {
     // Lógica económica: Registra efecto por tick + efectos inmediatos
     result = executeEconomicAction(actionDef, actorNation, targetNation, state);
@@ -153,7 +267,7 @@ console.log(`   - Resultado Validación:`, validation);
   // pero para consistencia, aplicamos costos base del registry aquí si result.success es true.
   if (result.success) {
     applyCosts(actionDef, actorNation);
-    
+
     // 4. Registrar Efectos Duraderos (Si la lógica específica no lo hizo ya)
     // executeEconomicAction ya registra, así que esto es solo fallback o para otras categorías
     if (actionId !== 'covert_coup' && actionDef.effects.duration && actionDef.effects.duration > 1) {
@@ -165,7 +279,7 @@ console.log(`   - Resultado Validación:`, validation);
 
     // 5. Emitir Resultado Exitoso
     emitResult(actionId, true, null, payload, result);
-    
+
     // 6. Aplicar Deltas al Estado Global
     if (result.deltas && result.deltas.length > 0) {
       result.deltas.forEach(delta => applyDelta(delta, 'diplomacy'));
@@ -181,7 +295,7 @@ console.log(`   - Resultado Validación:`, validation);
  */
 function validateRequirements(actionDef, actor, target, state) {
   const reqs = actionDef.requirements;
-  
+
   // Verificar Presupuesto (Gold)
   if (reqs.minBudget && (actor.stats?.budget || 0) < reqs.minBudget) {
     return { valid: false, error: 'Presupuesto insuficiente' };
@@ -221,7 +335,7 @@ function applyCosts(actionDef, actor) {
       reason: `Costo ${actionDef.label}`
     });
   }
-  
+
   if (costs.influence) {
      deltas.push({
       type: 'stat_change',
@@ -320,7 +434,7 @@ function handleTick(payload) {
         reason: `Sanción activa (${effectData.actionId})`
       });
     }
-    
+
     if (effectData.effects.actorEffect?.passiveGoldIncome) {
       const income = effectData.effects.actorEffect.passiveGoldIncome;
       deltas.push({
@@ -365,12 +479,12 @@ function emitResult(actionId, success, error, payload, logicResult = null) {
  */
 function executeCoupLogic(actionDef, actor, target, state) {
   const effects = actionDef.effects;
-  
+
   // 1. Calcular probabilidad de éxito
   // Fórmula: ChanceBase + (InfluenciaActor - EstabilidadObjetivo) * Factor
   // El factor escala la diferencia para que sea relevante (ej. 0.5% por punto de diferencia)
   const influenceDiff = (actor.stats?.influence || 0) - (target.stats?.stability || 0);
-  const successChance = Math.max(0.05, Math.min(0.95, 
+  const successChance = Math.max(0.05, Math.min(0.95,
     (effects.successChanceBase || 0.3) + (influenceDiff * 0.005)
   ));
 
@@ -384,7 +498,7 @@ function executeCoupLogic(actionDef, actor, target, state) {
   if (isSuccess) {
     // --- ESCENARIO: ÉXITO ---
     message = "Golpe de estado EXITOSO. Gobierno derrocado.";
-    
+
     // Efectos: Inestabilidad masiva, cambio de régimen, relación rota
     deltas.push({
       type: 'stat_change',
@@ -412,7 +526,7 @@ function executeCoupLogic(actionDef, actor, target, state) {
   } else {
     // --- ESCENARIO: FRACASO ---
     message = "Golpe de estado FALLIDO. Agentes capturados.";
-    
+
     // Efectos: Escándalo diplomático, relación destruida, riesgo de guerra
     deltas.push({
       type: 'diplomacy_relation_change',
@@ -443,7 +557,7 @@ function executeCoupLogic(actionDef, actor, target, state) {
   return {
     success: true, // La acción se procesó, el resultado está en los deltas
     deltas,
-    metadata: {
+    meta: {
       coupSuccessful: isSuccess,
       chance: successChance,
       roll: roll,
@@ -510,7 +624,7 @@ function executeEconomicAction(actionDef, actor, target, state) {
   return {
     success: true,
     deltas,
-    metadata: {
+    meta: {
       effectId: effectData.id,
       duration: effects.duration
     }
@@ -525,8 +639,8 @@ function executeEconomicAction(actionDef, actor, target, state) {
  * Crea un objeto de efecto duradero para ser procesado en el game loop
  * @param {Object} targetEffects - Efectos sobre el objetivo
  * @param {Object} actorEffects - Efectos sobre el actor (retornos)
- * @param {string} actorId 
- * @param {string} targetId 
+ * @param {string} actorId
+ * @param {string} targetId
  * @param {number} duration - Duración en ticks
  * @param {string} sourceName - Nombre de la acción origen
  * @returns {Object} Objeto de efecto estructurado
@@ -548,28 +662,4 @@ function registerEconomicEffect(targetEffects, actorEffects, actorId, targetId, 
       actor: actorEffects || {}
     }
   };
-}
-
-// Al final del archivo, antes de export default, agregar:
-
-/**
- * Obtiene tratados activos entre dos naciones
- * @param {string} nationA - ID de la primera nación
- * @param {string} nationB - ID de la segunda nación
- * @returns {Array} Lista de tratados activos
- */
-export function getActiveTreaties(nationA, nationB) {
-    const state = getState();
-    const treaties = state.diplomacy?.treaties || [];
-    
-    return treaties.filter(t => {
-        const participants = t.participants || [];
-        return participants.includes(nationA) && participants.includes(nationB) && 
-               t.status === 'active' && (!t.expiresTick || t.expiresTick > (state.meta?.tick || state.tick));
-    }).map(t => ({
-        name: t.name,
-        signedTick: t.signedTick,
-        expiresTick: t.expiresTick,
-        type: t.type
-    }));
 }
