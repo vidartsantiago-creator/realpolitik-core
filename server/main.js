@@ -19,7 +19,7 @@ import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.j
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
-import IntentProcessor from '../modules/IntentProcessor.js';
+import { init as IntentProcessor } from '../modules/IntentProcessor.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -197,38 +197,71 @@ async function main() {
 
         // 6. Configurar Servidor HTTP y WebSocket
         const httpServer = http.createServer((req, res) => {
-            let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
+            // Normalizar URL: eliminar query params y manejar ruta raíz
+            let urlPath = req.url.split('?')[0];
+            
+            if (urlPath === '/') {
+                urlPath = '/index.html';
+            }
 
+            let filePath = path.join(PUBLIC_DIR, urlPath);
+
+            // Seguridad: evitar directory traversal
             if (!filePath.startsWith(PUBLIC_DIR)) {
-                res.writeHead(403);
-                res.end('Forbidden');
+                res.writeHead(403, { 'Content-Type': 'text/plain' });
+                res.end('403 Forbidden');
                 return;
             }
 
             fs.readFile(filePath, (err, data) => {
                 if (err) {
                     if (err.code === 'ENOENT') {
-                        res.writeHead(404);
-                        res.end('Archivo no encontrado: ' + req.url);
+                        // Si es una ruta sin extensión, intentar servir index.html (SPA fallback)
+                        if (!path.extname(urlPath)) {
+                            fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (err2, indexData) => {
+                                if (err2) {
+                                    res.writeHead(404, { 'Content-Type': 'text/plain' });
+                                    res.end('404 Not Found');
+                                } else {
+                                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                                    res.end(indexData);
+                                }
+                            });
+                            return;
+                        }
+                        res.writeHead(404, { 'Content-Type': 'text/plain' });
+                        res.end(`404 Not Found: ${urlPath}`);
                     } else {
-                        res.writeHead(500);
-                        res.end('Error del servidor');
+                        res.writeHead(500, { 'Content-Type': 'text/plain' });
+                        res.end('500 Internal Server Error');
                     }
                     return;
                 }
 
-                const ext = path.extname(filePath);
+                // CRÍTICO: MIME types correctos para ES Modules
+                const ext = path.extname(filePath).toLowerCase();
                 const contentTypes = {
                     '.html': 'text/html',
-                    '.js': 'application/javascript',
+                    '.js': 'text/javascript',      // CAMBIO CRÍTICO: text/javascript para módulos ES6
+                    '.mjs': 'text/javascript',
                     '.css': 'text/css',
                     '.json': 'application/json',
                     '.png': 'image/png',
                     '.jpg': 'image/jpeg',
-                    '.ico': 'image/x-icon'
+                    '.jpeg': 'image/jpeg',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.ico': 'image/x-icon',
+                    '.woff': 'font/woff',
+                    '.woff2': 'font/woff2'
                 };
 
-                res.writeHead(200, { 'Content-Type': contentTypes[ext] || 'text/plain' });
+                const contentType = contentTypes[ext] || 'application/octet-stream';
+                
+                res.writeHead(200, { 
+                    'Content-Type': contentType,
+                    'Cache-Control': 'no-cache, no-store, must-revalidate' // Evitar caché en desarrollo
+                });
                 res.end(data);
             });
         });
@@ -359,6 +392,71 @@ async function main() {
                 console.log(`[main] 📤 Respuesta de relaciones enviada a cliente ${wsClientId}`);
             } else {
                 console.error('[main] ❌ Error: gameServer.send no está disponible');
+            }
+        });
+
+        // Listener para cuando el cliente SOLICITA relaciones detalladas
+        on('request_relations_detail', async (payload) => {
+            const { nationId, requestId, wsClientId } = payload;
+            
+            console.log(`[main] 📊 Procesando solicitud de relaciones para ${nationId} (requestId: ${requestId})`);
+
+            try {
+                // Importar función del DiplomacyEngine
+                const { getActiveTreaties } = await import('../modules/diplomacy/core/DiplomacyEngine.js');
+                
+                const currentState = getState();
+                
+                // Obtener tratados activos para la nación
+                const treaties = getActiveTreaties(currentState, nationId);
+                
+                // Calcular relaciones bilaterales
+                const relations = [];
+                if (currentState.diplomacy && currentState.diplomacy.relations) {
+                    for (const [otherId, relationData] of Object.entries(currentState.diplomacy.relations)) {
+                        if (otherId !== nationId) {
+                            // Extraer valor de relación (ajustar según estructura real)
+                            const value = relationData.value || relationData.score || 0;
+                            const trend = relationData.trend || 'stable';
+                            
+                            const otherNation = currentState.nations[otherId];
+                            relations.push({
+                                nationId: otherId,
+                                nationName: otherNation?.name || otherId,
+                                value,
+                                trend
+                            });
+                        }
+                    }
+                }
+
+                // Historial reciente (placeholder - implementar si existe)
+                const history = currentState.diplomacy?.history?.[nationId] || [];
+
+                // Emitir respuesta DIRECTAMENTE al cliente solicitante
+                emit('relations_detail_response', {
+                    wsClientId,
+                    success: true,
+                    requestId,
+                    data: {
+                        nationId,
+                        nationName: currentState.nations[nationId]?.name || nationId,
+                        treaties,
+                        relations,
+                        history,
+                        totalTreaties: treaties.length,
+                        totalRelations: relations.length
+                    }
+                });
+
+            } catch (error) {
+                console.error('[main] ❌ Error procesando relaciones:', error.message);
+                emit('relations_detail_response', {
+                    wsClientId,
+                    success: false,
+                    requestId,
+                    error: error.message
+                });
             }
         });
 
