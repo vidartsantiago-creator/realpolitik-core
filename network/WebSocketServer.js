@@ -133,7 +133,11 @@ export class GameWebSocketServer {
           requestId: message.requestId || Date.now(),
           wsClientId: clientId // Para poder responder directamente
         };
-        console.log(`[WS] 📊 Solicitud de relaciones detalladas para nación: ${relationsPayload.nationId}`);
+        
+        console.log(`[WS] 📊 EMITIENDO request_relations_detail con payload:`, relationsPayload);
+        const result = emit('request_relations_detail', relationsPayload);
+        console.log(`[WS] 📊 Resultado del emit:`, result);
+        
         emit('request_relations_detail', relationsPayload);
         break;
 

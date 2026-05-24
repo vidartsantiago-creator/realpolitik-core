@@ -41,6 +41,7 @@ export function init() {
   on('tick_completed', handleTick);
 
   // Escuchar solicitudes de relaciones detalladas desde la UI
+  console.log('[DiplomacyEngine] Registrando listener para request_relations_detail');
   on('request_relations_detail', handleRelationsDetailRequest);
 
   console.log('[DiplomacyEngine] ✅ Listo. Registradas', Object.keys(ACTION_REGISTRY).length, 'acciones.');
@@ -75,7 +76,7 @@ function handleRelationsDetailRequest(payload) {
       requestId,
       wsClientId,
       nationId,
-       relationsData,
+      data: relationsData,
       timestamp: Date.now()
     });
 

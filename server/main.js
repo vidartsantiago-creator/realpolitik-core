@@ -170,6 +170,12 @@ async function main() {
         // Inicializar subsistemas de diplomacia explícitamente
         initDiplomacyEngine();
         console.log('[main] ✅ DiplomacyEngine listo.');
+        
+        on('request_relations_detail', (payload) => {
+        // Este listener actúa como fallback si DiplomacyEngine no lo captura
+        console.log('[main] 🔄 Fallback: request_relations_detail recibido:', payload);
+        });
+
 
         initDiplomacyAI();
         console.log('[main] ✅ DiplomacyAI activa.');
