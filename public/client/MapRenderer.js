@@ -1,20 +1,23 @@
 /**
- * MapRenderer.js - Motor de Renderizado Geopolítico Mejorado
- * @description Convierte el estado del juego en representación visual en canvas.
+ * MapRenderer.js - Motor de Renderizado Geopolítico con Mapa SVG Real
+ * @description Convierte el estado del juego en representación visual en canvas usando mapa SVG real.
  *              Implementa capas de renderizado, conversión geo->píxeles, y detección de interacción.
- *              FASE 2: Tema visual hi-tech, efectos glow, animaciones avanzadas
- * @version 2.0.0
+ *              FASE 3: Carga de SVG real, coloreado dinámico por país, efectos glow/pulse
+ * @version 3.0.0
  * @module MapRenderer
  * @changes
- *   - Paleta de colores según tema hi-tech console
- *   - Efectos glow para naciones y elementos críticos
- *   - Animaciones de pulsing mejoradas
- *   - Renderizado de mapa mundial lineal simplificado
+ *   - Carga y parseo de SVG del mapa mundial real (/assets/maps/world-map.svg)
+ *   - Extracción de paths de cada país como Path2D objects
+ *   - Mapeo de coordenadas SVG→Canvas manteniendo proyección original
+ *   - Coloreado dinámico según estado diplomático (player, ally, hostile, neutral)
+ *   - Efectos glow/pulse sobre países activos
+ *   - Interactividad click/hover por país real
  * @preserves
  *   - Constructor(canvasElement) firma intacta
  *   - Método update(state, playerNationId) intacto
- *   - Todos los handlers de interacción
  *   - Sistema de capas toggleable
+ *   - Handlers de interacción
+ *   - Tooltips y selección
  */
 
 export class MapRenderer {
@@ -77,7 +80,8 @@ export class MapRenderer {
             selectedRadius: 20,
             animationSpeed: 0.08,
             glowIntensity: 0.6,
-            pulseAmplitude: 3
+            pulseAmplitude: 3,
+            svgPath: '/assets/maps/world-map.svg'
         };
 
         // Estado interno
@@ -92,13 +96,17 @@ export class MapRenderer {
             economy: false
         };
 
-        // Datos geográficos
-        this.nodes = new Map(); // id -> {x, y, name, nationId}
-        this.projection = null;
+        // ✅ NUEVO: Datos geográficos desde SVG
+        this.countryPaths = new Map(); // id -> Path2D
+        this.countryBounds = new Map(); // id -> {minX, minY, maxX, maxY}
+        this.svgViewBox = { x: 0, y: 0, width: 1009.67, height: 665.96 }; // Default viewBox del SVG
+        this.scaleFactor = 1;
+        this.offsetX = 0;
+        this.offsetY = 0;
 
         // Interacción
-        this.hoveredNode = null;
-        this.selectedNode = null;
+        this.hoveredCountry = null;
+        this.selectedCountry = null;
         this.tooltip = { visible: false, x: 0, y: 0, content: '' };
 
         // Animaciones
@@ -107,7 +115,7 @@ export class MapRenderer {
 
         // ✅ NUEVO: Cache de renderizado para performance
         this.renderCache = {
-            nations: new Map(),
+            countries: new Map(),
             lastUpdate: 0
         };
 
@@ -116,8 +124,170 @@ export class MapRenderer {
         this.setupInteraction();
         window.addEventListener('resize', () => this.resize());
 
+        // ✅ NUEVO: Cargar SVG al inicializar
+        this.loadSVGMap().catch(err => {
+            console.error('[MapRenderer] Error cargando SVG:', err);
+        });
+
         // Loop de animación
         this.animate();
+    }
+
+    /**
+     * Carga y parsea el SVG del mapa mundial
+     * @returns {Promise<Map>} Mapa de countryId -> Path2D
+     */
+    async loadSVGMap() {
+        try {
+            const response = await fetch(this.config.svgPath);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const svgText = await response.text();
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+
+            // Extraer viewBox del SVG
+            const svgElement = svgDoc.querySelector('svg');
+            if (svgElement) {
+                const viewBox = svgElement.getAttribute('viewBox') || svgElement.getAttribute('ns1:geoViewBox');
+                if (viewBox) {
+                    const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+                    this.svgViewBox = { x, y, width: Math.abs(width), height: Math.abs(height) };
+                }
+
+                // Extraer dimensiones del SVG
+                const width = svgElement.getAttribute('width');
+                const height = svgElement.getAttribute('height');
+                if (width && height) {
+                    this.svgViewBox.width = parseFloat(width);
+                    this.svgViewBox.height = parseFloat(height);
+                }
+            }
+
+            // Extraer todos los paths con ID
+            const pathElements = svgDoc.querySelectorAll('path[id]');
+            console.log(`[MapRenderer] SVG cargado: ${pathElements.length} países encontrados`);
+
+            pathElements.forEach(path => {
+                const id = path.getAttribute('id');
+                const d = path.getAttribute('d');
+                const title = path.getAttribute('title') || id;
+
+                if (id && d) {
+                    const path2D = new Path2D(d);
+                    this.countryPaths.set(id, path2D);
+
+                    // Calcular bounds aproximados
+                    const bounds = this.calculatePathBounds(d);
+                    if (bounds) {
+                        this.countryBounds.set(id, bounds);
+                    }
+                }
+            });
+
+            console.log(`[MapRenderer] ${this.countryPaths.size} países procesados`);
+
+            // Recalcular transformación si hay estado
+            if (this.state) {
+                this.calculateTransform();
+                this.render();
+            }
+
+            return this.countryPaths;
+        } catch (error) {
+            console.error('[MapRenderer] Error cargando SVG:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Calcula los bounds de un path SVG
+     * @param {string} d - Path data string
+     * @returns {{minX: number, minY: number, maxX: number, maxY: number}|null}
+     */
+    calculatePathBounds(d) {
+        if (!d) return null;
+
+        // Parsear comandos del path para encontrar coordenadas
+        const coords = [];
+        const regex = /([MLQCZ])([^MLQCZ]*)/gi;
+        let match;
+
+        while ((match = regex.exec(d)) !== null) {
+            const command = match[1].toUpperCase();
+            const params = match[2].trim().split(/[\s,]+/).map(Number);
+
+            if (command === 'M' || command === 'L' || command === 'Q' || command === 'C') {
+                for (let i = 0; i < params.length; i += 2) {
+                    if (!isNaN(params[i]) && !isNaN(params[i + 1])) {
+                        coords.push({ x: params[i], y: params[i + 1] });
+                    }
+                }
+            }
+        }
+
+        if (coords.length === 0) return null;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        coords.forEach(coord => {
+            minX = Math.min(minX, coord.x);
+            minY = Math.min(minY, coord.y);
+            maxX = Math.max(maxX, coord.x);
+            maxY = Math.max(maxY, coord.y);
+        });
+
+        return { minX, minY, maxX, maxY };
+    }
+
+    /**
+     * Calcula factor de escala y offset para ajustar SVG al canvas
+     */
+    calculateTransform() {
+        if (!this.canvas || this.svgViewBox.width === 0) return;
+
+        const canvasAspect = this.canvas.width / this.canvas.height;
+        const svgAspect = this.svgViewBox.width / this.svgViewBox.height;
+
+        // Ajustar manteniendo aspect ratio
+        if (canvasAspect > svgAspect) {
+            // Canvas más ancho que SVG - escalar por altura
+            this.scaleFactor = this.canvas.height / this.svgViewBox.height;
+            this.offsetX = (this.canvas.width - this.svgViewBox.width * this.scaleFactor) / 2;
+            this.offsetY = 0;
+        } else {
+            // Canvas más alto que SVG - escalar por ancho
+            this.scaleFactor = this.canvas.width / this.svgViewBox.width;
+            this.offsetX = 0;
+            this.offsetY = (this.canvas.height - this.svgViewBox.height * this.scaleFactor) / 2;
+        }
+    }
+
+    /**
+     * Transforma coordenadas SVG a coordenadas Canvas
+     * @param {number} svgX - Coordenada X en SVG
+     * @param {number} svgY - Coordenada Y en SVG
+     * @returns {{x: number, y: number}}
+     */
+    svgToCanvas(svgX, svgY) {
+        return {
+            x: this.offsetX + svgX * this.scaleFactor,
+            y: this.offsetY + svgY * this.scaleFactor
+        };
+    }
+
+    /**
+     * Transforma coordenadas Canvas a coordenadas SVG
+     * @param {number} canvasX - Coordenada X en Canvas
+     * @param {number} canvasY - Coordenada Y en Canvas
+     * @returns {{x: number, y: number}}
+     */
+    canvasToSvg(canvasX, canvasY) {
+        return {
+            x: (canvasX - this.offsetX) / this.scaleFactor,
+            y: (canvasY - this.offsetY) / this.scaleFactor
+        };
     }
 
     /**
@@ -132,50 +302,61 @@ export class MapRenderer {
     }
 
     /**
-     * Maneja evento de movimiento del mouse
+     * Maneja evento de movimiento del mouse - Detecta país bajo el cursor
      */
     handleMouseMove(e) {
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Detectar nodo bajo el cursor
-        let foundNode = null;
-        for (const [id, node] of this.nodes.entries()) {
-            const dx = mouseX - node.x;
-            const dy = mouseY - node.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+        // ✅ NUEVO: Detectar país bajo el cursor usando Path2D
+        let foundCountry = null;
 
-            if (dist <= this.config.nodeRadius + 4) {
-                foundNode = { id, ...node };
+        // Convertir coordenadas del canvas a SVG
+        const svgCoords = this.canvasToSvg(mouseX, mouseY);
+
+        for (const [id, path] of this.countryPaths.entries()) {
+            // Crear un contexto temporal para verificar si el punto está en el path
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = this.svgViewBox.width;
+            tempCanvas.height = this.svgViewBox.height;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            if (tempCtx.isPointInPath(path, svgCoords.x, svgCoords.y)) {
+                const nation = this.state?.nations?.[id];
+                foundCountry = {
+                    id,
+                    name: nation?.name || id,
+                    nationId: id
+                };
                 break;
             }
         }
 
-        if (foundNode?.id !== this.hoveredNode?.id) {
-            this.hoveredNode = foundNode;
-            this.canvas.style.cursor = foundNode ? 'pointer' : 'default';
+        if (foundCountry?.id !== this.hoveredCountry?.id) {
+            this.hoveredCountry = foundCountry;
+            this.canvas.style.cursor = foundCountry ? 'pointer' : 'default';
             this.render();
         }
 
         // Actualizar tooltip
-        if (this.hoveredNode) {
+        if (this.hoveredCountry) {
             this.tooltip.visible = true;
             this.tooltip.x = mouseX + 15;
             this.tooltip.y = mouseY - 10;
-            this.tooltip.content = this.getTooltipContent(this.hoveredNode);
+            this.tooltip.content = this.getTooltipContent(this.hoveredCountry);
         } else {
             this.tooltip.visible = false;
         }
     }
 
     /**
-     * Maneja click en el mapa
+     * Maneja click en el mapa - Selecciona país
      */
     handleClick(e) {
-        if (this.hoveredNode) {
-            this.selectedNode = this.hoveredNode.id === this.selectedNode ? null : this.hoveredNode;
-            this.onNodeSelect?.(this.selectedNode);
+        if (this.hoveredCountry) {
+            this.selectedCountry = this.hoveredCountry.id === this.selectedCountry?.id ? null : this.hoveredCountry;
+            this.onNodeSelect?.(this.selectedCountry);
             this.render();
         }
     }
@@ -184,23 +365,25 @@ export class MapRenderer {
      * Maneja salida del mouse del canvas
      */
     handleMouseLeave() {
-        this.hoveredNode = null;
+        this.hoveredCountry = null;
         this.tooltip.visible = false;
         this.render();
     }
 
     /**
-     * Obtiene contenido del tooltip para un nodo
+     * Obtiene contenido del tooltip para un país
      */
-    getTooltipContent(node) {
-        if (!this.state?.nations?.[node.nationId]) return node.name;
+    getTooltipContent(country) {
+        if (!this.state?.nations?.[country.nationId]) return country.name;
 
-        const nation = this.state.nations[node.nationId];
+        const nation = this.state.nations[country.nationId];
         const stability = nation.internal?.stability ?? 0;
         const gdp = nation.economy?.gdp ?? 0;
+        const status = this.getNationStatus(country.nationId);
 
         return `
             <strong>${nation.name}</strong><br>
+            Estado: ${status}<br>
             Estabilidad: ${stability}%<br>
             GDP: $${gdp.toLocaleString()}M
         `;
@@ -216,10 +399,8 @@ export class MapRenderer {
         this.canvas.width = parent.clientWidth;
         this.canvas.height = parent.clientHeight;
 
-        // Recalcular proyección si hay estado
-        if (this.state) {
-            this.initNodes(this.state);
-        }
+        // Recalcular transformación para el SVG
+        this.calculateTransform();
 
         this.render();
     }
@@ -238,46 +419,66 @@ export class MapRenderer {
 
     /**
      * Actualiza estado interno y renderiza
+     * @param {Object} state - Estado del juego
+     * @param {string} playerNationId - ID de la nación del jugador
      */
     update(state, playerNationId) {
         this.state = state;
         this.playerNationId = playerNationId;
-        this.initNodes(state);
+
+        // Recalcular transformación si el SVG ya cargó
+        if (this.countryPaths.size > 0) {
+            this.calculateTransform();
+        }
+
         this.render();
     }
 
     /**
-     * Inicializa nodos desde el estado del juego
+     * Obtiene el estado diplomático de una nación
+     * @param {string} nationId - ID de la nación
+     * @returns {string} 'player' | 'ally' | 'hostile' | 'neutral' | 'unknown'
      */
-    initNodes(state) {
-        if (!state?.nations || !this.canvas) return;
+    getNationStatus(nationId) {
+        if (!this.state?.nations?.[nationId]) return 'unknown';
 
-        // Si ya existen nodos, solo actualizar datos
-        if (this.nodes.size > 0) {
-            for (const [id, node] of this.nodes.entries()) {
-                if (state.nations[id]) {
-                    node.name = state.nations[id].name;
-                    node.nationId = id;
-                }
-            }
-            return;
+        if (nationId === this.playerNationId) return 'player';
+
+        // Verificar relaciones diplomáticas
+        const relations = this.state.diplomacy?.relations;
+        if (relations) {
+            const relationKey = `${this.playerNationId}-${nationId}`;
+            const reverseKey = `${nationId}-${this.playerNationId}`;
+            const relation = relations[relationKey] || relations[reverseKey];
+
+            if (relation?.value > 50) return 'ally';
+            if (relation?.value < -50) return 'hostile';
         }
 
-        // Generar disposición circular para MVP
-        const nationIds = Object.keys(state.nations);
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-        const radius = Math.min(centerX, centerY) * 0.6;
+        return 'neutral';
+    }
 
-        nationIds.forEach((id, index) => {
-            const angle = (index / nationIds.length) * Math.PI * 2 - Math.PI / 2;
-            this.nodes.set(id, {
-                x: centerX + Math.cos(angle) * radius,
-                y: centerY + Math.sin(angle) * radius,
-                name: state.nations[id].name,
-                nationId: id
-            });
-        });
+    /**
+     * Obtiene el color de una nación según su estado diplomático
+     * @param {string} nationId - ID de la nación
+     * @param {Object} nation - Datos de la nación
+     * @returns {string} Color en formato hexadecimal
+     */
+    getNationColor(nationId, nation) {
+        const status = this.getNationStatus(nationId);
+
+        switch (status) {
+            case 'player':
+                return this.themeColors.nations.player;
+            case 'ally':
+                return this.themeColors.nations.ally;
+            case 'hostile':
+                return this.themeColors.nations.hostile;
+            case 'neutral':
+                return this.themeColors.nations.neutral;
+            default:
+                return this.themeColors.nations.unknown;
+        }
     }
 
     /**
@@ -309,17 +510,17 @@ export class MapRenderer {
         // Limpiar canvas
         this.ctx.clearRect(0, 0, width, height);
 
-        // 1. Capa base (fondo)
+        // 1. Capa base (fondo con SVG real)
         this.renderBaseLayer(width, height);
 
-        // 2. Capa de fronteras (si está activa)
-        if (this.layers.borders) {
-            this.renderBorders();
+        // 2. ✅ NUEVO: Capa de países desde SVG (reemplaza nodos abstractos)
+        if (this.layers.nodes) {
+            this.renderCountries();
         }
 
-        // 3. Capa de nodos (naciones)
-        if (this.layers.nodes) {
-            this.renderNodes();
+        // 3. Capa de fronteras (si está activa) - ahora dibuja bordes entre países
+        if (this.layers.borders) {
+            this.renderBorders();
         }
 
         // 4. Capa de relaciones (diplomacia)
@@ -348,15 +549,13 @@ export class MapRenderer {
         }
 
         // 9. Indicador de selección
-        if (this.selectedNode) {
+        if (this.selectedCountry) {
             this.renderSelectionIndicator();
         }
     }
 
     /**
-     * Renderiza capa base (fondo con mapa mundial lineal simplificado)
-     * @description Dibuja un mapa mundial abstracto lineal sin referencias geográficas detalladas,
-     *              solo contornos básicos de continentes para contexto visual
+     * Renderiza capa base (fondo)
      */
     renderBaseLayer(width, height) {
         // Fondo principal
@@ -382,80 +581,178 @@ export class MapRenderer {
             this.ctx.stroke();
         }
 
-        // ✅ NUEVO: Contornos continentales simplificados (líneas abstractas)
-        this.drawSimplifiedWorldMap(width, height);
+        // ✅ NOTA: Ya no dibujamos contornos simplificados porque usamos el SVG real
     }
 
     /**
-     * Dibuja mapa mundial lineal simplificado (sin referencias detalladas)
-     * Solo líneas abstractas que sugieren continentes
+     * ✅ NUEVO: Renderiza todos los países desde el SVG con colores dinámicos
      */
-    drawSimplifiedWorldMap(width, height) {
-        this.ctx.strokeStyle = 'rgba(100, 100, 100, 0.15)';
-        this.ctx.lineWidth = 1;
-        this.ctx.setLineDash([8, 4]);
+    renderCountries() {
+        if (this.countryPaths.size === 0) return;
 
-        // Continentes abstractos como líneas simplificadas
-        const continents = [
-            // América del Norte
-            { x: width * 0.15, y: height * 0.25, w: width * 0.2, h: height * 0.25 },
-            // América del Sur
-            { x: width * 0.2, y: height * 0.55, w: width * 0.15, h: height * 0.3 },
-            // Europa
-            { x: width * 0.45, y: height * 0.2, w: width * 0.15, h: height * 0.15 },
-            // África
-            { x: width * 0.45, y: height * 0.4, w: width * 0.18, h: height * 0.35 },
-            // Asia
-            { x: width * 0.55, y: height * 0.2, w: width * 0.3, h: height * 0.3 },
-            // Oceanía
-            { x: width * 0.75, y: height * 0.6, w: width * 0.15, h: height * 0.2 }
-        ];
+        // Dibujar cada país
+        for (const [nationId, path] of this.countryPaths.entries()) {
+            const nation = this.state?.nations?.[nationId];
 
-        continents.forEach(cont => {
-            this.ctx.beginPath();
-            this.ctx.rect(cont.x, cont.y, cont.w, cont.h);
-            this.ctx.stroke();
-        });
+            // Determinar color según estado diplomático
+            let fillColor = this.themeColors.nations.neutral;
+            let strokeColor = this.themeColors.text.muted;
+            let lineWidth = 0.5;
 
-        this.ctx.setLineDash([]);
-    }
+            if (nation) {
+                fillColor = this.getNationColor(nationId, nation);
+                strokeColor = this.themeColors.text.secondary;
+                lineWidth = 1;
+            }
 
-    /**
-     * Renderiza fronteras entre naciones adyacentes
-     */
-    renderBorders() {
-        if (this.nodes.size < 2) return;
+            // Aplicar transformación y dibujar
+            this.ctx.save();
+            this.ctx.translate(this.offsetX, this.offsetY);
+            this.ctx.scale(this.scaleFactor, this.scaleFactor);
 
-        this.ctx.strokeStyle = this.config.borderColor;
-        this.ctx.lineWidth = 2;
-        this.ctx.setLineDash([5, 5]);
+            // Relleno del país
+            this.ctx.fillStyle = fillColor;
+            this.ctx.fill(path);
 
-        const nodeArray = Array.from(this.nodes.values());
+            // Borde del país
+            this.ctx.strokeStyle = strokeColor;
+            this.ctx.lineWidth = lineWidth;
+            this.ctx.stroke(path);
 
-        for (let i = 0; i < nodeArray.length; i++) {
-            const next = nodeArray[(i + 1) % nodeArray.length];
-            const curr = nodeArray[i];
-
-            this.ctx.beginPath();
-            this.ctx.moveTo(curr.x, curr.y);
-            this.ctx.lineTo(next.x, next.y);
-            this.ctx.stroke();
+            this.ctx.restore();
         }
 
-        this.ctx.setLineDash([]);
+        // ✅ Efectos especiales para países activos
+        this.renderCountryEffects();
     }
 
     /**
-     * Renderiza nodos (naciones) con tema hi-tech y efectos glow
+     * ✅ NUEVO: Efectos glow/pulse sobre países activos
+     */
+    renderCountryEffects() {
+        if (!this.playerNationId) return;
+
+        // Efecto glow para el jugador
+        const playerPath = this.countryPaths.get(this.playerNationId);
+        if (playerPath) {
+            this.drawGlowEffect(playerPath, this.themeColors.nations.player, 15);
+        }
+
+        // Efecto pulse para países en crisis
+        if (this.state?.crisis?.affected_nations) {
+            const pulseIntensity = (Math.sin(this.pulsePhase * 2) + 1) / 2;
+
+            this.state.crisis.affected_nations.forEach(nationId => {
+                const path = this.countryPaths.get(nationId);
+                if (path) {
+                    this.ctx.save();
+                    this.ctx.translate(this.offsetX, this.offsetY);
+                    this.ctx.scale(this.scaleFactor, this.scaleFactor);
+
+                    this.ctx.strokeStyle = `rgba(255, 0, 0, ${0.5 + pulseIntensity * 0.5})`;
+                    this.ctx.lineWidth = 2 + pulseIntensity * 2;
+                    this.ctx.shadowColor = '#ff0000';
+                    this.ctx.shadowBlur = 10 + pulseIntensity * 10;
+                    this.ctx.stroke(path);
+
+                    this.ctx.restore();
+                }
+            });
+        }
+
+        // Glow para país seleccionado
+        if (this.selectedCountry?.id) {
+            const selectedPath = this.countryPaths.get(this.selectedCountry.id);
+            if (selectedPath) {
+                this.drawGlowEffect(selectedPath, this.themeColors.accent.warning, 20);
+            }
+        }
+
+        // Glow para hover
+        if (this.hoveredCountry?.id) {
+            const hoveredPath = this.countryPaths.get(this.hoveredCountry.id);
+            if (hoveredPath) {
+                this.ctx.save();
+                this.ctx.translate(this.offsetX, this.offsetY);
+                this.ctx.scale(this.scaleFactor, this.scaleFactor);
+
+                this.ctx.strokeStyle = this.themeColors.accent.warning;
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([5, 3]);
+                this.ctx.stroke(hoveredPath);
+
+                this.ctx.restore();
+            }
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Dibuja efecto glow alrededor de un path
+     * @param {Path2D} path - Path del país
+     * @param {string} color - Color del glow
+     * @param {number} blur - Intensidad del blur
+     */
+    drawGlowEffect(path, color, blur = 15) {
+        this.ctx.save();
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scaleFactor, this.scaleFactor);
+
+        // Glow exterior
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 3;
+        this.ctx.shadowColor = color;
+        this.ctx.shadowBlur = blur;
+        this.ctx.globalAlpha = 0.7;
+        this.ctx.stroke(path);
+
+        // Glow interior más suave
+        this.ctx.lineWidth = 1;
+        this.ctx.shadowBlur = blur / 2;
+        this.ctx.globalAlpha = 0.4;
+        this.ctx.stroke(path);
+
+        this.ctx.restore();
+    }
+
+    /**
+     * Renderiza fronteras entre países adyacentes
+     */
+    renderBorders() {
+        // ✅ NUEVO: Dibujar bordes de todos los países
+        if (this.countryPaths.size === 0) return;
+
+        this.ctx.save();
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scaleFactor, this.scaleFactor);
+
+        this.ctx.strokeStyle = this.themeColors.text.muted;
+        this.ctx.lineWidth = 0.5;
+        this.ctx.globalAlpha = 0.5;
+
+        for (const path of this.countryPaths.values()) {
+            this.ctx.stroke(path);
+        }
+
+        this.ctx.restore();
+    }
+
+    /**
+     * ✅ NUEVO: Renderiza nodos (naciones) como fallback si no hay SVG
+     * @deprecated - Usar renderCountries() en su lugar
      */
     renderNodes() {
+        // Fallback para cuando el SVG no está disponible
+        if (this.countryPaths.size > 0) {
+            return; // Usar renderCountries() en su lugar
+        }
+
         for (const [id, node] of this.nodes.entries()) {
             const nation = this.state?.nations?.[id];
             const isPlayer = id === this.playerNationId;
-            const isHovered = this.hoveredNode?.id === id;
-            const isSelected = this.selectedNode?.id === id;
+            const isHovered = this.hoveredCountry?.id === id;
+            const isSelected = this.selectedCountry?.id === id;
 
-            // ✅ NUEVO: Determinar color según relación con jugador
+            // Determinar color según relación con jugador
             let nationColor = this.getNationColor(id, nation);
             let strokeColor = this.themeColors.text.secondary;
             let radius = this.config.nodeRadius;
@@ -480,7 +777,7 @@ export class MapRenderer {
                 glowEnabled = true;
             }
 
-            // ✅ NUEVO: Efecto glow alrededor del nodo
+            // Efecto glow alrededor del nodo
             if (glowEnabled && this.config.glowIntensity > 0) {
                 this.drawGlowEffect(node.x, node.y, radius + 8, nationColor, 0.4);
             }
@@ -503,7 +800,7 @@ export class MapRenderer {
             this.ctx.fillStyle = nationColor;
             this.ctx.fill();
 
-            // ✅ NUEVO: Indicador de crisis (anillo rojo parpadeante)
+            // Indicador de crisis (anillo rojo parpadeante)
             if (nation?.affected_by_crisis) {
                 const crisisPulse = (Math.sin(this.pulsePhase * 2) + 1) / 2;
                 this.ctx.beginPath();
@@ -836,7 +1133,7 @@ export class MapRenderer {
         const lines = this.tooltip.content.split('<br>');
 
         // Calcular ancho máximo
-        this.ctx.font = '12px Arial';
+        this.ctx.font = '12px "Courier New", monospace';
         let maxWidth = 0;
         for (const line of lines) {
             const text = line.replace(/<[^>]*>/g, '');
@@ -858,16 +1155,16 @@ export class MapRenderer {
             y = this.canvas.height - height - 10;
         }
 
-        // Fondo
-        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.95)';
-        this.ctx.strokeStyle = '#e94560';
+        // Fondo con tema hi-tech
+        this.ctx.fillStyle = 'rgba(26, 26, 26, 0.95)';
+        this.ctx.strokeStyle = this.themeColors.accent.primary;
         this.ctx.lineWidth = 2;
         this.ctx.fillRect(x, y, width, height);
         this.ctx.strokeRect(x, y, width, height);
 
         // Texto
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = '12px Arial';
+        this.ctx.fillStyle = this.themeColors.text.primary;
+        this.ctx.font = '12px "Courier New", monospace';
         this.ctx.textAlign = 'left';
 
         let textY = y + padding + 14;
@@ -876,9 +1173,9 @@ export class MapRenderer {
             const isBold = line.includes('<strong>');
 
             if (isBold) {
-                this.ctx.font = 'bold 12px Arial';
+                this.ctx.font = 'bold 12px "Courier New", monospace';
             } else {
-                this.ctx.font = '12px Arial';
+                this.ctx.font = '12px "Courier New", monospace';
             }
 
             this.ctx.fillText(text, x + padding, textY);
@@ -887,31 +1184,32 @@ export class MapRenderer {
     }
 
     /**
-     * Renderiza indicador de nodo seleccionado
+     * ✅ NUEVO: Renderiza indicador de país seleccionado
      */
     renderSelectionIndicator() {
-        const node = this.nodes.get(this.selectedNode);
-        if (!node) return;
+        if (!this.selectedCountry?.id) return;
 
-        const outerRadius = this.config.hoverRadius + 8;
-        const innerRadius = this.config.hoverRadius + 4;
+        const path = this.countryPaths.get(this.selectedCountry.id);
+        if (!path) return;
 
-        // Anillo giratorio
+        // Anillo giratorio alrededor del país
         const rotation = this.pulsePhase;
 
-        this.ctx.strokeStyle = '#ef4444';
+        this.ctx.save();
+        this.ctx.translate(this.offsetX, this.offsetY);
+        this.ctx.scale(this.scaleFactor, this.scaleFactor);
+
+        this.ctx.strokeStyle = this.themeColors.accent.warning;
         this.ctx.lineWidth = 3;
         this.ctx.setLineDash([10, 5]);
+        this.ctx.shadowColor = this.themeColors.accent.warning;
+        this.ctx.shadowBlur = 10;
 
-        this.ctx.beginPath();
-        this.ctx.arc(node.x, node.y, outerRadius, rotation, rotation + Math.PI);
-        this.ctx.stroke();
+        // Dibujar contorno animado
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.stroke(path);
 
-        this.ctx.beginPath();
-        this.ctx.arc(node.x, node.y, outerRadius, rotation + Math.PI, rotation + Math.PI * 2);
-        this.ctx.strokeStyle = '#fbbf24';
-        this.ctx.stroke();
-
+        this.ctx.restore();
         this.ctx.setLineDash([]);
     }
 
