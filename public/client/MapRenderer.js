@@ -630,58 +630,97 @@ export class MapRenderer {
      * ✅ NUEVO: Efectos glow/pulse sobre países activos
      */
     renderCountryEffects() {
-        if (!this.playerNationId) return;
-
-        // Efecto glow para el jugador
-        const playerPath = this.countryPaths.get(this.playerNationId);
-        if (playerPath) {
-            this.drawGlowEffect(playerPath, this.themeColors.nations.player, 15);
+        // 1. Efecto glow para nación del jugador
+        if (this.playerNationId && this.countryPaths.has(this.playerNationId)) {
+            const path = this.countryPaths.get(this.playerNationId);
+            const bounds = this.countryBounds.get(this.playerNationId);
+            
+            // ✅ VALIDACIÓN: Verificar que bounds existe y es válido
+            if (bounds && 
+                isFinite(bounds.minX) && isFinite(bounds.minY) && 
+                isFinite(bounds.maxX) && isFinite(bounds.maxY)) {
+                
+                // Calcular centro del país
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
+                const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+                
+                // Solo dibujar si todos los valores son finitos
+                if (isFinite(centerX) && isFinite(centerY) && isFinite(radius) && radius > 0) {
+                    this.drawGlowEffect(path, '#00ff00', centerX, centerY, radius, 1.0);
+                }
+            }
         }
-
-        // Efecto pulse para países en crisis
-        if (this.state?.crisis?.affected_nations) {
-            const pulseIntensity = (Math.sin(this.pulsePhase * 2) + 1) / 2;
-
-            this.state.crisis.affected_nations.forEach(nationId => {
-                const path = this.countryPaths.get(nationId);
-                if (path) {
-                    this.ctx.save();
-                    this.ctx.translate(this.offsetX, this.offsetY);
-                    this.ctx.scale(this.scaleFactor, this.scaleFactor);
-
-                    this.ctx.strokeStyle = `rgba(255, 0, 0, ${0.5 + pulseIntensity * 0.5})`;
-                    this.ctx.lineWidth = 2 + pulseIntensity * 2;
-                    this.ctx.shadowColor = '#ff0000';
-                    this.ctx.shadowBlur = 10 + pulseIntensity * 10;
-                    this.ctx.stroke(path);
-
-                    this.ctx.restore();
+        
+        // 2. Efecto pulse para países en crisis
+        if (this.state && this.state.crisis && this.state.crisis.active) {
+            const affectedCountries = this.state.crisis.affected_nations || [];
+            
+            affectedCountries.forEach(countryId => {
+                const path = this.countryPaths.get(countryId);
+                const bounds = this.countryBounds.get(countryId);
+                
+                // ✅ VALIDACIÓN: Verificar que bounds existe y es válido
+                if (path && bounds && 
+                    isFinite(bounds.minX) && isFinite(bounds.minY) && 
+                    isFinite(bounds.maxX) && isFinite(bounds.maxY)) {
+                    
+                    const centerX = (bounds.minX + bounds.maxX) / 2;
+                    const centerY = (bounds.minY + bounds.maxY) / 2;
+                    const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+                    
+                    if (isFinite(centerX) && isFinite(centerY) && isFinite(radius) && radius > 0) {
+                        // Animación de pulso usando tiempo
+                        const pulseIntensity = (Math.sin(Date.now() * 0.003) + 1) / 2; // 0 a 1
+                        this.drawGlowEffect(path, '#ff0000', centerX, centerY, radius, pulseIntensity);
+                    }
                 }
             });
         }
-
-        // Glow para país seleccionado
-        if (this.selectedCountry?.id) {
-            const selectedPath = this.countryPaths.get(this.selectedCountry.id);
-            if (selectedPath) {
-                this.drawGlowEffect(selectedPath, this.themeColors.accent.warning, 20);
+        
+        // 3. Efecto glow para país seleccionado
+        if (this.selectedCountryId && this.countryPaths.has(this.selectedCountryId)) {
+            const path = this.countryPaths.get(this.selectedCountryId);
+            const bounds = this.countryBounds.get(this.selectedCountryId);
+            
+            // ✅ VALIDACIÓN: Verificar que bounds existe y es válido
+            if (bounds && 
+                isFinite(bounds.minX) && isFinite(bounds.minY) && 
+                isFinite(bounds.maxX) && isFinite(bounds.maxY)) {
+                
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
+                const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+                
+                if (isFinite(centerX) && isFinite(centerY) && isFinite(radius) && radius > 0) {
+                    this.drawGlowEffect(path, '#ff9900', centerX, centerY, radius, 0.8);
+                }
             }
         }
-
-        // Glow para hover
-        if (this.hoveredCountry?.id) {
-            const hoveredPath = this.countryPaths.get(this.hoveredCountry.id);
-            if (hoveredPath) {
-                this.ctx.save();
-                this.ctx.translate(this.offsetX, this.offsetY);
-                this.ctx.scale(this.scaleFactor, this.scaleFactor);
-
-                this.ctx.strokeStyle = this.themeColors.accent.warning;
-                this.ctx.lineWidth = 2;
-                this.ctx.setLineDash([5, 3]);
-                this.ctx.stroke(hoveredPath);
-
-                this.ctx.restore();
+        
+        // 4. Efecto hover para país bajo cursor
+        if (this.hoveredCountryId && this.countryPaths.has(this.hoveredCountryId)) {
+            const path = this.countryPaths.get(this.hoveredCountryId);
+            const bounds = this.countryBounds.get(this.hoveredCountryId);
+            
+            // ✅ VALIDACIÓN: Verificar que bounds existe y es válido
+            if (bounds && 
+                isFinite(bounds.minX) && isFinite(bounds.minY) && 
+                isFinite(bounds.maxX) && isFinite(bounds.maxY)) {
+                
+                const centerX = (bounds.minX + bounds.maxX) / 2;
+                const centerY = (bounds.minY + bounds.maxY) / 2;
+                const radius = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) / 2;
+                
+                if (isFinite(centerX) && isFinite(centerY) && isFinite(radius) && radius > 0) {
+                    // Dibujar borde discontinuo para hover
+                    this.ctx.save();
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.stroke(path);
+                    this.ctx.restore();
+                }
             }
         }
     }
@@ -859,6 +898,13 @@ export class MapRenderer {
      * @param {number} intensity - Intensidad (0-1)
      */
     drawGlowEffect(x, y, radius, color, intensity = 0.5) {
+        // Validar que todos los valores sean finitos
+        if (!isFinite(x) || !isFinite(y) || !isFinite(radius) || radius <= 0) {
+            return;
+        }
+        
+        // Clamp intensity entre 0 y 1
+        intensity = Math.max(0, Math.min(1, intensity));
         const gradient = this.ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
         gradient.addColorStop(0, `${color}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
         gradient.addColorStop(1, 'transparent');
