@@ -1,9 +1,20 @@
 /**
- * MapRenderer.js - Motor de Renderizado Geopolítico
+ * MapRenderer.js - Motor de Renderizado Geopolítico Mejorado
  * @description Convierte el estado del juego en representación visual en canvas.
  *              Implementa capas de renderizado, conversión geo->píxeles, y detección de interacción.
- * @version 1.0.0
+ *              FASE 2: Tema visual hi-tech, efectos glow, animaciones avanzadas
+ * @version 2.0.0
  * @module MapRenderer
+ * @changes
+ *   - Paleta de colores según tema hi-tech console
+ *   - Efectos glow para naciones y elementos críticos
+ *   - Animaciones de pulsing mejoradas
+ *   - Renderizado de mapa mundial lineal simplificado
+ * @preserves
+ *   - Constructor(canvasElement) firma intacta
+ *   - Método update(state, playerNationId) intacto
+ *   - Todos los handlers de interacción
+ *   - Sistema de capas toggleable
  */
 
 export class MapRenderer {
@@ -18,15 +29,55 @@ export class MapRenderer {
         this.canvas = canvasElement;
         this.ctx = this.canvas.getContext('2d');
 
-        // Configuración
+        // ✅ NUEVO: Paleta de colores tema hi-tech console
+        this.themeColors = {
+            // Fondos
+            background: {
+                primary: '#0a0a0a',
+                secondary: '#1a1a1a',
+                tertiary: '#252525'
+            },
+            // Texto
+            text: {
+                primary: '#d0d0d0',
+                secondary: '#a0a0a0',
+                muted: '#707070'
+            },
+            // Estados Nacionales
+            nations: {
+                player: '#00ff00',      // Verde neon
+                ally: '#00aaff',        // Azul cian
+                neutral: '#888888',     // Gris
+                hostile: '#ff3333',     // Rojo
+                unknown: '#ff9900'      // Naranja
+            },
+            // Eventos & Alertas
+            events: {
+                crisis: '#ff0000',
+                warning: '#ffaa00',
+                success: '#00ff00',
+                info: '#00aaff'
+            },
+            // Acentos
+            accent: {
+                primary: '#00ff00',
+                secondary: '#00aaff',
+                warning: '#ff6600'
+            }
+        };
+
+        // Configuración mejorada
         this.config = {
-            baseColor: '#1a1a2e',
-            landColor: '#16213e',
-            borderColor: '#0f3460',
-            textColor: '#e94560',
-            nodeRadius: 12,
-            hoverRadius: 16,
-            animationSpeed: 0.1
+            baseColor: this.themeColors.background.primary,
+            gridColor: 'rgba(100, 100, 100, 0.1)',
+            borderColor: this.themeColors.text.muted,
+            textColor: this.themeColors.text.primary,
+            nodeRadius: 14,
+            hoverRadius: 18,
+            selectedRadius: 20,
+            animationSpeed: 0.08,
+            glowIntensity: 0.6,
+            pulseAmplitude: 3
         };
 
         // Estado interno
@@ -53,6 +104,12 @@ export class MapRenderer {
         // Animaciones
         this.pulsePhase = 0;
         this.dirtyRects = [];
+
+        // ✅ NUEVO: Cache de renderizado para performance
+        this.renderCache = {
+            nations: new Map(),
+            lastUpdate: 0
+        };
 
         // Inicialización
         this.resize();
@@ -297,16 +354,19 @@ export class MapRenderer {
     }
 
     /**
-     * Renderiza capa base (fondo oceánico)
+     * Renderiza capa base (fondo con mapa mundial lineal simplificado)
+     * @description Dibuja un mapa mundial abstracto lineal sin referencias geográficas detalladas,
+     *              solo contornos básicos de continentes para contexto visual
      */
     renderBaseLayer(width, height) {
-        this.ctx.fillStyle = this.config.baseColor;
+        // Fondo principal
+        this.ctx.fillStyle = this.themeColors.background.primary;
         this.ctx.fillRect(0, 0, width, height);
 
-        // Patrón decorativo sutil
-        this.ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        // ✅ NUEVO: Grid técnico sutil (efecto consola)
+        this.ctx.strokeStyle = this.config.gridColor;
         this.ctx.lineWidth = 1;
-        const gridSize = 50;
+        const gridSize = 60;
 
         for (let x = 0; x < width; x += gridSize) {
             this.ctx.beginPath();
@@ -321,6 +381,43 @@ export class MapRenderer {
             this.ctx.lineTo(width, y);
             this.ctx.stroke();
         }
+
+        // ✅ NUEVO: Contornos continentales simplificados (líneas abstractas)
+        this.drawSimplifiedWorldMap(width, height);
+    }
+
+    /**
+     * Dibuja mapa mundial lineal simplificado (sin referencias detalladas)
+     * Solo líneas abstractas que sugieren continentes
+     */
+    drawSimplifiedWorldMap(width, height) {
+        this.ctx.strokeStyle = 'rgba(100, 100, 100, 0.15)';
+        this.ctx.lineWidth = 1;
+        this.ctx.setLineDash([8, 4]);
+
+        // Continentes abstractos como líneas simplificadas
+        const continents = [
+            // América del Norte
+            { x: width * 0.15, y: height * 0.25, w: width * 0.2, h: height * 0.25 },
+            // América del Sur
+            { x: width * 0.2, y: height * 0.55, w: width * 0.15, h: height * 0.3 },
+            // Europa
+            { x: width * 0.45, y: height * 0.2, w: width * 0.15, h: height * 0.15 },
+            // África
+            { x: width * 0.45, y: height * 0.4, w: width * 0.18, h: height * 0.35 },
+            // Asia
+            { x: width * 0.55, y: height * 0.2, w: width * 0.3, h: height * 0.3 },
+            // Oceanía
+            { x: width * 0.75, y: height * 0.6, w: width * 0.15, h: height * 0.2 }
+        ];
+
+        continents.forEach(cont => {
+            this.ctx.beginPath();
+            this.ctx.rect(cont.x, cont.y, cont.w, cont.h);
+            this.ctx.stroke();
+        });
+
+        this.ctx.setLineDash([]);
     }
 
     /**
@@ -349,70 +446,144 @@ export class MapRenderer {
     }
 
     /**
-     * Renderiza nodos (naciones)
+     * Renderiza nodos (naciones) con tema hi-tech y efectos glow
      */
     renderNodes() {
         for (const [id, node] of this.nodes.entries()) {
+            const nation = this.state?.nations?.[id];
             const isPlayer = id === this.playerNationId;
             const isHovered = this.hoveredNode?.id === id;
             const isSelected = this.selectedNode?.id === id;
 
-            // Determinar color según estado
-            let fillColor = isPlayer ? '#3b82f6' : '#64748b';
-            let strokeColor = '#ffffff';
+            // ✅ NUEVO: Determinar color según relación con jugador
+            let nationColor = this.getNationColor(id, nation);
+            let strokeColor = this.themeColors.text.secondary;
             let radius = this.config.nodeRadius;
+            let glowEnabled = false;
 
             if (isHovered) {
                 radius = this.config.hoverRadius;
-                strokeColor = '#fbbf24';
+                strokeColor = this.themeColors.accent.warning;
+                glowEnabled = true;
             }
 
             if (isSelected) {
-                strokeColor = '#ef4444';
+                radius = this.config.selectedRadius;
+                strokeColor = this.themeColors.events.crisis;
+                glowEnabled = true;
             }
 
-            // Efecto de pulso para jugador
-            if (isPlayer) {
-                const pulse = Math.sin(this.pulsePhase) * 2;
-                radius += pulse;
+            // Efecto de pulso mejorado para jugador y naciones en crisis
+            if (isPlayer || nation?.affected_by_crisis) {
+                const pulse = Math.sin(this.pulsePhase) * this.config.pulseAmplitude;
+                radius += Math.abs(pulse);
+                glowEnabled = true;
             }
 
-            // Dibujar círculo exterior (borde)
+            // ✅ NUEVO: Efecto glow alrededor del nodo
+            if (glowEnabled && this.config.glowIntensity > 0) {
+                this.drawGlowEffect(node.x, node.y, radius + 8, nationColor, 0.4);
+            }
+
+            // Dibujar círculo exterior (borde con glow si está activo)
             this.ctx.beginPath();
             this.ctx.arc(node.x, node.y, radius + 2, 0, Math.PI * 2);
             this.ctx.strokeStyle = strokeColor;
-            this.ctx.lineWidth = 2;
+            this.ctx.lineWidth = glowEnabled ? 3 : 2;
+            if (glowEnabled) {
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowColor = strokeColor;
+            }
             this.ctx.stroke();
+            this.ctx.shadowBlur = 0;
 
             // Dibujar círculo interior (relleno)
             this.ctx.beginPath();
             this.ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-            this.ctx.fillStyle = fillColor;
+            this.ctx.fillStyle = nationColor;
             this.ctx.fill();
 
-            // Label
-            this.ctx.fillStyle = this.config.textColor;
-            this.ctx.font = 'bold 12px Arial';
+            // ✅ NUEVO: Indicador de crisis (anillo rojo parpadeante)
+            if (nation?.affected_by_crisis) {
+                const crisisPulse = (Math.sin(this.pulsePhase * 2) + 1) / 2;
+                this.ctx.beginPath();
+                this.ctx.arc(node.x, node.y, radius + 5, 0, Math.PI * 2);
+                this.ctx.strokeStyle = `rgba(255, 0, 0, ${0.3 + crisisPulse * 0.5})`;
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+            }
+
+            // Label con tipografía monospace
+            this.ctx.fillStyle = this.themeColors.text.primary;
+            this.ctx.font = 'bold 11px "Courier New", monospace';
             this.ctx.textAlign = 'center';
-            this.ctx.fillText(node.name, node.x, node.y - radius - 8);
+            this.ctx.shadowBlur = 4;
+            this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillText(node.name, node.x, node.y - radius - 10);
+            this.ctx.shadowBlur = 0;
         }
     }
 
     /**
-     * Renderiza relaciones diplomáticas
+     * Obtiene color de nación según estado diplomático
+     * @param {string} nationId - ID de la nación
+     * @param {Object} nation - Datos de la nación
+     * @returns {string} Color hexadecimal
+     */
+    getNationColor(nationId, nation) {
+        if (!nation) return this.themeColors.nations.unknown;
+
+        if (nationId === this.playerNationId) {
+            return this.themeColors.nations.player;
+        }
+
+        // Verificar relaciones diplomáticas
+        const relations = this.state?.diplomacy?.relations || {};
+
+        for (const [key, data] of Object.entries(relations)) {
+            const [n1, n2] = key.split('_');
+            if ((n1 === this.playerNationId && n2 === nationId) ||
+                (n2 === this.playerNationId && n1 === nationId)) {
+                const value = data.value ?? 0;
+                if (value >= 60) return this.themeColors.nations.ally;
+                if (value <= -60) return this.themeColors.nations.hostile;
+            }
+        }
+
+        return this.themeColors.nations.neutral;
+    }
+
+    /**
+     * Dibuja efecto glow alrededor de un elemento
+     * @param {number} x - Centro X
+     * @param {number} y - Centro Y
+     * @param {number} radius - Radio del glow
+     * @param {string} color - Color del glow
+     * @param {number} intensity - Intensidad (0-1)
+     */
+    drawGlowEffect(x, y, radius, color, intensity = 0.5) {
+        const gradient = this.ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
+        gradient.addColorStop(0, `${color}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(1, 'transparent');
+
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+        this.ctx.fillStyle = gradient;
+        this.ctx.fill();
+    }
+
+    /**
+     * Renderiza relaciones diplomáticas con animación de flujo
      */
     renderRelations() {
         const relations = this.state.diplomacy?.relations || {};
 
         // Renderizar TODAS las relaciones, no solo las del jugador
-        // Usamos un Set para evitar duplicados (cada relación se almacena una vez con clave ordenada)
         const renderedPairs = new Set();
 
         for (const [relationKey, data] of Object.entries(relations)) {
-            // La clave es "NATION1_NATION2" ordenada alfabéticamente
             const [nation1, nation2] = relationKey.split('_');
 
-            // Evitar procesar la misma relación dos veces
             if (renderedPairs.has(relationKey)) continue;
             renderedPairs.add(relationKey);
 
@@ -427,49 +598,138 @@ export class MapRenderer {
             let statusLabel;
 
             if (relationValue >= 60) {
-                color = '#10b981'; // Verde (aliado)
+                color = this.themeColors.nations.ally;
                 statusLabel = 'Alianza';
             } else if (relationValue >= 20) {
-                color = '#3b82f6'; // Azul (amistoso)
+                color = this.themeColors.accent.secondary;
                 statusLabel = 'Amistoso';
             } else if (relationValue >= -20) {
-                color = '#fbbf24'; // Amarillo (neutral)
+                color = this.themeColors.nations.neutral;
                 statusLabel = 'Neutral';
             } else if (relationValue >= -60) {
-                color = '#f97316'; // Naranja (tenso)
+                color = this.themeColors.accent.warning;
                 statusLabel = 'Tenso';
             } else {
-                color = '#ef4444'; // Rojo (hostil/guerra)
+                color = this.themeColors.nations.hostile;
                 statusLabel = 'Hostil';
             }
 
-            // Grosor según intensidad de relación (más fuerte = más grueso)
+            // Grosor según intensidad de relación
             const lineWidth = 2 + Math.abs(relationValue) / 25;
 
-            // Dibujar arco
-            this.drawCurvedLine(start, end, color, lineWidth);
+            // ✅ NUEVO: Dibujar línea curva con efecto glow para relaciones fuertes
+            this.drawAnimatedRelationLine(start, end, color, lineWidth, relationValue);
 
             // Label de estado en el punto medio
             const midX = (start.x + end.x) / 2;
             const midY = (start.y + end.y) / 2 - 25;
 
             // Fondo semi-transparente para el label
-            const labelWidth = this.ctx.measureText(statusLabel).width + 8;
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            this.ctx.fillRect(midX - labelWidth / 2, midY - 12, labelWidth, 16);
+            this.ctx.fillStyle = 'rgba(10, 10, 10, 0.85)';
+            const labelWidth = this.ctx.measureText(statusLabel).width + 10;
+            this.ctx.fillRect(midX - labelWidth / 2, midY - 12, labelWidth, 18);
+
+            // Borde del label
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(midX - labelWidth / 2, midY - 12, labelWidth, 18);
 
             // Texto de estado
             this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 10px Arial';
+            this.ctx.font = 'bold 10px "Courier New", monospace';
             this.ctx.textAlign = 'center';
             this.ctx.fillText(statusLabel, midX, midY);
 
             // Valor numérico debajo
-            const valueY = midY + 12;
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = '9px Arial';
+            const valueY = midY + 14;
+            this.ctx.fillStyle = this.themeColors.text.secondary;
+            this.ctx.font = '9px "Courier New", monospace';
             this.ctx.fillText(`${Math.round(relationValue)}`, midX, valueY);
         }
+    }
+
+    /**
+     * Dibuja línea de relación con animación de flujo
+     * @param {Object} start - Nodo inicial
+     * @param {Object} end - Nodo final
+     * @param {string} color - Color de la línea
+     * @param {number} lineWidth - Grosor de línea
+     * @param {number} relationValue - Valor de relación para dirección de flechas
+     */
+    drawAnimatedRelationLine(start, end, color, lineWidth, relationValue) {
+        // Línea base
+        this.drawCurvedLine(start, end, color, lineWidth);
+
+        // ✅ NUEVO: Animación de partículas fluyendo
+        const time = Date.now() / 1000;
+        const flowSpeed = 0.5;
+        const particleCount = 3;
+
+        for (let i = 0; i < particleCount; i++) {
+            const progress = ((time * flowSpeed + i / particleCount) % 1);
+            const t = progress;
+
+            // Calcular posición en la curva Bezier
+            const cpX = (start.x + end.x) / 2;
+            const cpY = (start.y + end.y) / 2 - 40;
+
+            // Interpolación cuadrática de Bezier
+            const x = (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * cpX + t * t * end.x;
+            const y = (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * cpY + t * t * end.y;
+
+            // Dibujar partícula
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+            this.ctx.fillStyle = color;
+            this.ctx.shadowBlur = 8;
+            this.ctx.shadowColor = color;
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+        }
+
+        // ✅ NUEVO: Flechas direccionales según signo de relación
+        const arrowCount = Math.floor(Math.abs(relationValue) / 20);
+        if (arrowCount > 0) {
+            const direction = relationValue > 0 ? 1 : -1;
+            for (let i = 0; i < Math.min(arrowCount, 5); i++) {
+                const arrowProgress = 0.3 + (i / 5) * 0.4;
+                this.drawArrowOnCurve(start, end, arrowProgress, color, direction);
+            }
+        }
+    }
+
+    /**
+     * Dibuja flecha en un punto de la curva
+     */
+    drawArrowOnCurve(start, end, progress, color, direction) {
+        const cpX = (start.x + end.x) / 2;
+        const cpY = (start.y + end.y) / 2 - 40;
+        const t = progress;
+
+        // Posición en la curva
+        const x = (1 - t) * (1 - t) * start.x + 2 * (1 - t) * t * cpX + t * t * end.x;
+        const y = (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * cpY + t * t * end.y;
+
+        // Tangente para rotación
+        const tx = 2 * (1 - t) * (cpX - start.x) + 2 * t * (end.x - cpX);
+        const ty = 2 * (1 - t) * (cpY - start.y) + 2 * t * (end.y - cpY);
+        const angle = Math.atan2(ty, tx) * direction;
+
+        // Dibujar flecha
+        const arrowSize = 6;
+        this.ctx.save();
+        this.ctx.translate(x, y);
+        this.ctx.rotate(angle);
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(arrowSize, 0);
+        this.ctx.lineTo(-arrowSize / 2, arrowSize / 2);
+        this.ctx.lineTo(-arrowSize / 2, -arrowSize / 2);
+        this.ctx.closePath();
+        this.ctx.fillStyle = color;
+        this.ctx.fill();
+
+        this.ctx.restore();
     }
 
     /**

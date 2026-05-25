@@ -5,179 +5,542 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RealPolitik Core - Strategic Simulator</title>
     <style>
+        /* ============================================
+           TEMA VISUAL HI-TECH CONSOLE
+           Paleta completa según especificación V1
+           ============================================ */
         :root {
-            --bg-dark: #121212;
-            --bg-panel: #1e1e1e;
-            --text-main: #e0e0e0;
-            --text-muted: #a0a0a0;
-            --accent: #4caf50;
-            --accent-hover: #45a049;
-            --danger: #f44336;
-            --warning: #ff9800;
-            --info: #2196f3;
-            --border: #333;
+            /* Fondos */
+            --bg-primary: #0a0a0a;      /* Negro puro - fondos principales */
+            --bg-secondary: #1a1a1a;    /* Gris muy oscuro - paneles */
+            --bg-tertiary: #252525;     /* Gris oscuro - componentes */
+
+            /* Texto */
+            --text-primary: #d0d0d0;    /* Gris claro - texto principal */
+            --text-secondary: #a0a0a0;  /* Gris medio - texto secundario */
+            --text-muted: #707070;      /* Gris oscuro - texto deshabilitado */
+
+            /* Estados Nacionales */
+            --nation-player: #00ff00;   /* Verde neon - tu nación */
+            --nation-ally: #00aaff;     /* Azul cian - aliados */
+            --nation-neutral: #888888;  /* Gris - neutral */
+            --nation-hostile: #ff3333;  /* Rojo - hostiles */
+            --nation-unknown: #ff9900;  /* Naranja - desconocido */
+
+            /* Eventos & Alertas */
+            --event-crisis: #ff0000;    /* Rojo brillante - crisis */
+            --event-warning: #ffaa00;   /* Naranja - advertencia */
+            --event-success: #00ff00;   /* Verde - éxito */
+            --event-info: #00aaff;      /* Cian - información */
+
+            /* Acentos */
+            --accent-primary: #00ff00;  /* Verde neon */
+            --accent-secondary: #00aaff;/* Azul cian */
+            --accent-warning: #ff6600;  /* Naranja */
+
+            /* Bordes */
+            --border-subtle: #333333;
+            --border-highlight: #444444;
+
+            /* Tipografía */
+            --font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
+            --font-ui: 'Segoe UI', 'Roboto', sans-serif;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-mono);
+        }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
             height: 100vh;
             display: flex;
             overflow: hidden;
+            font-size: 12px;
+            line-height: 1.5;
         }
 
-        /* Layout Principal */
+        /* ============================================
+           LAYOUT PRINCIPAL (3 Columnas)
+           ============================================ */
         #app-container {
             display: grid;
             grid-template-columns: 300px 1fr 350px;
             width: 100%;
             height: 100%;
+            gap: 1px;
+            background-color: var(--border-subtle);
         }
 
-        /* Paneles Laterales */
+        /* ============================================
+           PANELES LATERALES
+           ============================================ */
         .sidebar {
-            background-color: var(--bg-panel);
-            border-right: 1px solid var(--border);
-            border-left: 1px solid var(--border);
+            background-color: var(--bg-secondary);
             display: flex;
             flex-direction: column;
-            padding: 10px;
+            padding: 12px;
             overflow-y: auto;
+            border-right: 1px solid var(--border-subtle);
+            border-left: 1px solid var(--border-subtle);
         }
 
+        .sidebar:first-child {
+            border-right: 2px solid var(--border-highlight);
+        }
+
+        .sidebar:last-child {
+            border-left: 2px solid var(--border-highlight);
+        }
+
+        /* Scrollbar personalizado */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border-highlight);
+            border-radius: 3px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Secciones de panel */
         .panel-section {
-            margin-bottom: 20px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 4px;
-            padding: 10px;
-            border: 1px solid var(--border);
+            margin-bottom: 16px;
+            background: var(--bg-tertiary);
+            border-radius: 2px;
+            padding: 12px;
+            border: 1px solid var(--border-subtle);
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
         }
 
-        h2, h3 { color: var(--text-main); margin-bottom: 10px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
-        h3 { font-size: 0.85rem; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .panel-section:hover {
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.05);
+            border-color: var(--border-highlight);
+        }
 
-        /* Métricas */
+        /* ============================================
+           TIPOGRAFÍA & TÍTULOS
+           ============================================ */
+        h2 {
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+        }
+
+        h3 {
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 400;
+        }
+
+        /* ============================================
+           BOTONES CON EFECTO GLOW
+           ============================================ */
+        button {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--accent-primary);
+            padding: 10px 14px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+            transition: left 0.3s ease;
+        }
+
+        button:hover {
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+            border-color: var(--accent-primary);
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.danger {
+            border-color: var(--event-crisis);
+        }
+
+        button.danger:hover {
+            background: rgba(255, 0, 0, 0.1);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.4);
+        }
+
+        button.secondary {
+            border-color: var(--text-muted);
+        }
+
+        button.secondary:hover {
+            background: rgba(150, 150, 150, 0.1);
+            box-shadow: 0 0 15px rgba(150, 150, 150, 0.3);
+        }
+
+        /* ============================================
+           MÉTRICAS & BARRAS
+           ============================================ */
         .metric-row {
             display: flex;
             justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            font-size: 0.9rem;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 11px;
         }
-        .metric-val { font-weight: bold; color: var(--accent); }
-        .metric-val.negative { color: var(--danger); }
 
-        /* Canvas */
-        #map-container {
-            position: relative;
-            background: #0a0a0a;
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+        }
+
+        .metric-val {
+            font-weight: 700;
+            color: var(--accent-primary);
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+
+        .metric-val.negative {
+            color: var(--event-crisis);
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+        }
+
+        .metric-val.warning {
+            color: var(--accent-warning);
+            text-shadow: 0 0 5px rgba(255, 102, 0, 0.5);
+        }
+
+        .metric-val.info {
+            color: var(--accent-secondary);
+            text-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
+        }
+
+        /* Barras de progreso */
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            margin-top: 4px;
             overflow: hidden;
         }
-        canvas { display: block; width: 100%; height: 100%; }
 
-        /* Logs & Feed */
-        #log-feed, #intel-feed {
-            height: 200px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 0.8rem;
-            background: rgba(0,0,0,0.2);
-            padding: 5px;
-            border: 1px solid var(--border);
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), var(--nation-ally));
+            transition: width 0.3s ease;
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
         }
-        .log-entry { margin-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
-        .log-time { color: var(--text-muted); font-size: 0.7rem; margin-right: 5px; }
 
+        .progress-bar.critical {
+            background: linear-gradient(90deg, var(--event-crisis), var(--accent-warning));
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+        }
+
+        .progress-bar.warning {
+            background: linear-gradient(90deg, var(--accent-warning), var(--nation-unknown));
+            box-shadow: 0 0 5px rgba(255, 102, 0, 0.5);
+        }
+
+        /* ============================================
+           CANVAS & MAPA
+           ============================================ */
+        #map-container {
+            position: relative;
+            background: var(--bg-primary);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Controles de capas */
+        .layer-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(10, 10, 10, 0.9);
+            padding: 8px 12px;
+            border-radius: 2px;
+            font-size: 10px;
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .layer-controls label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .layer-controls label:hover {
+            color: var(--accent-primary);
+        }
+
+        .layer-controls input[type="checkbox"] {
+            accent-color: var(--accent-primary);
+            cursor: pointer;
+        }
+
+        /* ============================================
+           LOGS & FEED DE INTELIGENCIA
+           ============================================ */
+        #log-feed, #intel-feed {
+            height: 180px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            background: var(--bg-primary);
+            padding: 8px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 2px;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            line-height: 1.4;
+        }
+
+        .log-time {
+            color: var(--text-muted);
+            font-size: 9px;
+            margin-right: 6px;
+        }
+
+        .log-message {
+            color: var(--text-primary);
+        }
+
+        .log-message.crisis {
+            color: var(--event-crisis);
+        }
+
+        .log-message.success {
+            color: var(--event-success);
+        }
+
+        .log-message.warning {
+            color: var(--event-warning);
+        }
+
+        .log-message.info {
+            color: var(--event-info);
+        }
+
+        /* Cards de inteligencia */
         .intel-card {
-            background: rgba(33, 150, 243, 0.1);
-            border-left: 3px solid var(--info);
+            background: rgba(0, 170, 255, 0.08);
+            border-left: 2px solid var(--accent-secondary);
             padding: 8px;
             margin-bottom: 8px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s ease;
+            border-radius: 2px;
         }
-        .intel-card:hover { background: rgba(33, 150, 243, 0.2); }
-        .intel-card.investigated { opacity: 0.6; border-left-color: var(--text-muted); }
 
-        /* Botones Generales */
-        button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: background 0.2s;
-            width: 100%;
-            margin-top: 5px;
+        .intel-card:hover {
+            background: rgba(0, 170, 255, 0.15);
+            border-left-color: var(--text-primary);
+            box-shadow: 0 0 10px rgba(0, 170, 255, 0.3);
         }
-        button:hover { background: var(--accent-hover); }
-        button.danger { background: var(--danger); }
-        button.danger:hover { background: #d32f2f; }
-        button.secondary { background: #555; }
-        button.secondary:hover { background: #666; }
 
-        /* --- Panel de Crisis --- */
+        .intel-card.investigated {
+            opacity: 0.5;
+            border-left-color: var(--text-muted);
+        }
+
+        .intel-card-title {
+            font-size: 10px;
+            color: var(--accent-secondary);
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .intel-card-summary {
+            font-size: 9px;
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+
+        /* ============================================
+           PANEL DE CRISIS
+           ============================================ */
         #crisis-panel {
-            border: 1px solid var(--danger);
-            background: rgba(244, 67, 54, 0.05);
+            border: 1px solid var(--event-crisis);
+            background: rgba(255, 0, 0, 0.05);
             display: none;
         }
-        #crisis-panel.active { display: block; animation: pulseBorder 2s infinite; }
+
+        #crisis-panel.active {
+            display: block;
+            animation: pulseBorder 2s infinite;
+        }
+
+        @keyframes pulseBorder {
+            0%, 100% {
+                box-shadow: 0 0 5px rgba(255, 0, 0, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+            }
+        }
 
         .crisis-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
-            color: var(--danger);
-            font-weight: bold;
+            margin-bottom: 12px;
+            color: var(--event-crisis);
+            font-weight: 700;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .crisis-phase-badge {
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 2px;
+            font-size: 9px;
             text-transform: uppercase;
-            background: #333;
+            letter-spacing: 1px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-subtle);
         }
-        .phase-latent { background: #fbc02d; color: #000; }
-        .phase-emergent { background: #ff9800; color: #000; }
-        .phase-acute { background: #f44336; color: #fff; }
-        .phase-systemic { background: #b71c1c; color: #fff; }
 
+        .phase-latent {
+            background: #fbc02d;
+            color: #000;
+        }
+
+        .phase-emergent {
+            background: #ff9800;
+            color: #000;
+        }
+
+        .phase-acute {
+            background: var(--event-crisis);
+            color: #fff;
+            animation: blinkBadge 1s infinite;
+        }
+
+        .phase-systemic {
+            background: #b71c1c;
+            color: #fff;
+            animation: blinkBadge 0.5s infinite;
+        }
+
+        @keyframes blinkBadge {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .crisis-detail {
+            font-size: 10px;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+
+        .crisis-detail strong {
+            color: var(--text-primary);
+        }
+
+        /* Barra de intensidad de crisis */
         .intensity-bar-container {
             width: 100%;
             height: 6px;
-            background: #333;
-            border-radius: 3px;
-            margin: 8px 0;
+            background: var(--bg-primary);
+            border-radius: 2px;
+            margin: 10px 0;
             overflow: hidden;
+            border: 1px solid var(--border-subtle);
         }
+
         .intensity-bar {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, #fbc02d, #f44336);
+            background: linear-gradient(90deg, #fbc02d, #ff9800, var(--event-crisis));
             transition: width 0.5s ease;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
+        /* Lista de tratados */
         .treaty-list {
             list-style: none;
-            font-size: 0.8rem;
+            font-size: 10px;
             max-height: 100px;
             overflow-y: auto;
         }
+
         .treaty-item {
-            padding: 4px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 6px 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
-        /* --- Notificaciones Toast --- */
+        .treaty-status {
+            font-size: 8px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            background: rgba(0, 255, 0, 0.2);
+            color: var(--accent-primary);
+        }
+
+        /* ============================================
+           NOTIFICACIONES TOAST
+           ============================================ */
         #toast-container {
             position: fixed;
             top: 20px;
@@ -186,51 +549,165 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            pointer-events: none;
         }
+
         .toast {
-            min-width: 250px;
-            padding: 12px 16px;
-            border-radius: 4px;
-            color: white;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            min-width: 280px;
+            padding: 14px 18px;
+            border-radius: 2px;
+            color: #fff;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
             animation: slideIn 0.3s ease-out forwards;
             display: flex;
             align-items: center;
-            gap: 10px;
-            backdrop-filter: blur(5px);
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            pointer-events: auto;
         }
-        .toast.info { background: rgba(33, 150, 243, 0.9); border-left: 4px solid var(--info); }
-        .toast.warning { background: rgba(255, 152, 0, 0.9); border-left: 4px solid var(--warning); }
-        .toast.error { background: rgba(244, 67, 54, 0.9); border-left: 4px solid var(--danger); }
-        .toast.success { background: rgba(76, 175, 80, 0.9); border-left: 4px solid var(--accent); }
+
+        .toast.info {
+            background: rgba(0, 170, 255, 0.9);
+            border-left: 3px solid var(--accent-secondary);
+        }
+
+        .toast.warning {
+            background: rgba(255, 170, 0, 0.9);
+            border-left: 3px solid var(--event-warning);
+        }
+
+        .toast.error {
+            background: rgba(255, 0, 0, 0.9);
+            border-left: 3px solid var(--event-crisis);
+        }
+
+        .toast.success {
+            background: rgba(0, 255, 0, 0.9);
+            border-left: 3px solid var(--accent-primary);
+        }
 
         @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeOut {
-            to { opacity: 0; transform: translateY(-10px); }
-        }
-        @keyframes pulseBorder {
-            0% { box-shadow: 0 0 5px rgba(244, 67, 54, 0.2); }
-            50% { box-shadow: 0 0 15px rgba(244, 67, 54, 0.5); }
-            100% { box-shadow: 0 0 5px rgba(244, 67, 54, 0.2); }
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
-        /* Modal Genérico */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8);
-            display: none; justify-content: center; align-items: center; z-index: 1000;
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
         }
+
+        /* ============================================
+           MODAL GENÉRICO
+           ============================================ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+
         .modal-content {
-            background: var(--bg-panel);
-            padding: 20px;
-            border-radius: 5px;
-            width: 400px;
+            background: var(--bg-secondary);
+            padding: 24px;
+            border-radius: 2px;
+            width: 450px;
             max-width: 90%;
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-highlight);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            margin-bottom: 16px;
+        }
+
+        .modal-body {
+            margin: 16px 0;
+            max-height: 350px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+        }
+
+        /* ============================================
+           ASESOR IA
+           ============================================ */
+        #advisor-text {
+            font-size: 11px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            min-height: 60px;
+        }
+
+        #advisor-actions {
+            margin-top: 12px;
+        }
+
+        /* ============================================
+           UTILIDADES
+           ============================================ */
+        .text-glow-green {
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+
+        .text-glow-red {
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+        }
+
+        .text-glow-blue {
+            text-shadow: 0 0 5px rgba(0, 170, 255, 0.5);
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border-subtle);
+            margin: 12px 0;
+        }
+
+        /* Badge genérico */
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            font-size: 9px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .badge-success {
+            background: rgba(0, 255, 0, 0.2);
+            color: var(--accent-primary);
+        }
+
+        .badge-danger {
+            background: rgba(255, 0, 0, 0.2);
+            color: var(--event-crisis);
+        }
+
+        .badge-warning {
+            background: rgba(255, 170, 0, 0.2);
+            color: var(--accent-warning);
+        }
+
+        .badge-info {
+            background: rgba(0, 170, 255, 0.2);
+            color: var(--accent-secondary);
         }
     </style>
 </head>
@@ -274,11 +751,11 @@
         <!-- Centro: Mapa -->
         <main id="map-container">
             <canvas id="game-map"></canvas>
-            <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 3px; font-size: 0.8rem; color: white;">
-                Capas:
-                <input type="checkbox" id="layer-borders" checked> Fronteras
-                <input type="checkbox" id="layer-relations" checked> Relaciones
-                <input type="checkbox" id="layer-crisis" checked> Crisis
+            <div class="layer-controls">
+                <span>Capas:</span>
+                <label><input type="checkbox" id="layer-borders" checked> Fronteras</label>
+                <label><input type="checkbox" id="layer-relations" checked> Relaciones</label>
+                <label><input type="checkbox" id="layer-crisis" checked> Crisis</label>
             </div>
         </main>
 
@@ -291,38 +768,44 @@
                 </div>
             </div>
 
-            <!-- Panel de Crisis -->
-            <div id="crisis-panel" class="panel-section">
+            <!-- ✅ NUEVO: Panel de Crisis Mejorado (FASE 2) - Contenedor para CrisisPanel.js -->
+            <div id="crisis-panel-container" class="panel-section">
+                <!-- El contenido se genera dinámicamente por CrisisPanel.js -->
+                <div style="color: var(--text-muted); font-style: italic; font-size: 0.8rem;">Monitoreando crisis...</div>
+            </div>
+
+            <!-- Panel de Crisis Legacy (oculto, mantener para compatibilidad) -->
+            <div id="crisis-panel" class="panel-section" style="display: none;">
                 <div class="crisis-header">
                     <span>⚠️ CRISIS ACTIVA</span>
                     <span id="crisis-phase-badge" class="crisis-phase-badge phase-latent">Latente</span>
                 </div>
-                <div style="font-size: 0.9rem; margin-bottom: 5px;">
+                <div class="crisis-detail">
                     Tipo: <strong id="crisis-type">Desconocido</strong>
                 </div>
-                <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">
+                <div class="crisis-detail">
                     Epicentro: <span id="crisis-epicenter">-</span>
                 </div>
 
-                <div style="font-size: 0.75rem; margin-top: 8px;">Intensidad</div>
+                <div style="font-size: 10px; margin-top: 10px;">Intensidad</div>
                 <div class="intensity-bar-container">
                     <div id="crisis-intensity-bar" class="intensity-bar"></div>
                 </div>
 
-                <div style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 5px;">
+                <div style="margin-top: 12px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
                     <h3>Tratados Activos</h3>
                     <ul id="crisis-treaty-list" class="treaty-list">
-                        <li style="color: var(--text-muted); font-size: 0.75rem;">Ninguno</li>
+                        <li style="color: var(--text-muted); font-size: 10px;">Ninguno</li>
                     </ul>
                 </div>
             </div>
 
             <div class="panel-section">
                 <h3>Asesor IA</h3>
-                <div id="advisor-text" style="font-size: 0.85rem; line-height: 1.4; color: var(--text-muted);">
+                <div id="advisor-text">
                     Analizando situación global...
                 </div>
-                <div id="advisor-actions" style="margin-top: 10px;"></div>
+                <div id="advisor-actions"></div>
             </div>
         </aside>
     </div>
@@ -331,7 +814,7 @@
     <div id="modal-generic" class="modal-overlay">
         <div class="modal-content">
             <h2 id="modal-title">Título</h2>
-            <div id="modal-body" style="margin: 15px 0; max-height: 300px; overflow-y: auto;"></div>
+            <div id="modal-body" class="modal-body"></div>
             <button onclick="document.getElementById('modal-generic').style.display='none'">Cerrar</button>
         </div>
     </div>
@@ -354,7 +837,9 @@
         window.mapRenderer = null;
         window.client = null;
 
-        // Sistema de Notificaciones Toast
+        // ============================================
+        // SISTEMA DE NOTIFICACIONES TOAST MEJORADO
+        // ============================================
         window.showNotification = (message, type = 'info') => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -374,7 +859,9 @@
             }, 4000);
         };
 
-        // Lógica de Crisis UI
+        // ============================================
+        // LÓGICA DE CRISIS UI MEJORADA
+        // ============================================
         window.updateCrisisUI = (data) => {
             if (!data || !data.active) {
                 window.hideCrisisPanel();
@@ -402,11 +889,16 @@
                 data.treaties.forEach(t => {
                     const li = document.createElement('li');
                     li.className = 'treaty-item';
-                    li.innerHTML = `<span>${t.name || t}</span> <span style="color:var(--accent)">Activo</span>`;
+                    li.innerHTML = `<span>${t.name || t}</span> <span class="treaty-status">Activo</span>`;
                     list.appendChild(li);
                 });
             } else {
-                list.innerHTML = '<li style="color: var(--text-muted); font-size: 0.75rem;">Ninguno</li>';
+                list.innerHTML = '<li style="color: var(--text-muted); font-size: 10px;">Ninguno</li>';
+            }
+
+            // Notificación toast si es crisis aguda o sistémica
+            if (phase === 'acute' || phase === 'systemic') {
+                window.showNotification(`⚠️ CRISIS EN FASE ${data.phase?.toUpperCase()}`, 'error');
             }
         };
 
@@ -416,8 +908,98 @@
             panel.style.display = 'none';
         };
 
-        // Inicialización de la Aplicación
-                // Inicialización de la Aplicación
+        // ============================================
+        // ACTUALIZACIÓN DE MÉTRICAS NACIONALES
+        // ============================================
+        window.updateMetricsUI = (state, playerId) => {
+            const metricsContainer = document.getElementById('metrics-container');
+            if (!state || !state.nations) {
+                metricsContainer.innerHTML = '<div class="metric-row"><span>Esperando datos...</span></div>';
+                return;
+            }
+
+            // Buscar nación del jugador
+            let playerNation = null;
+            for (const [nationId, nation] of Object.entries(state.nations)) {
+                if (nation.isPlayer || nationId === playerId) {
+                    playerNation = nation;
+                    break;
+                }
+            }
+
+            // Si no hay nación del jugador, usar la primera disponible
+            if (!playerNation) {
+                const firstNationId = Object.keys(state.nations)[0];
+                playerNation = state.nations[firstNationId];
+            }
+
+            if (!playerNation) {
+                metricsContainer.innerHTML = '<div class="metric-row"><span>Sin datos disponibles</span></div>';
+                return;
+            }
+
+            const stats = playerNation.stats || {};
+            const stability = stats.stability ?? 0;
+            const budget = stats.budget ?? 0;
+            const gdp = stats.gdp ?? 0;
+            const military = stats.military ?? 0;
+
+            // Determinar clases según valores
+            const stabilityClass = stability < 30 ? 'negative' : stability > 70 ? 'info' : '';
+            const budgetClass = budget < 0 ? 'negative' : budget > 500 ? 'info' : '';
+
+            metricsContainer.innerHTML = `
+                <div class="metric-row">
+                    <span class="metric-label">💰 Presupuesto</span>
+                    <span class="metric-val ${budgetClass}">$${budget.toLocaleString()}M</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">📊 GDP</span>
+                    <span class="metric-val">$${gdp.toLocaleString()}M</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">🛡️ Estabilidad</span>
+                    <span class="metric-val ${stabilityClass}">${stability}%</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">⚔️ Militar</span>
+                    <span class="metric-val">${military}</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar ${stability < 30 ? 'critical' : stability < 50 ? 'warning' : ''}" style="width: ${Math.max(0, Math.min(100, stability))}%"></div>
+                </div>
+            `;
+        };
+
+        // ============================================
+        // LOG DE EVENTOS MEJORADO
+        // ============================================
+        window.addLogEntry = (message, type = 'info') => {
+            const logFeed = document.getElementById('log-feed');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const now = new Date();
+            const timeStr = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+
+            const messageClass = type === 'crisis' ? 'crisis' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+
+            entry.innerHTML = `
+                <span class="log-time">${timeStr}</span>
+                <span class="log-message ${messageClass}">${message}</span>
+            `;
+
+            logFeed.insertBefore(entry, logFeed.firstChild);
+
+            // Mantener máximo 50 eventos
+            while (logFeed.children.length > 50) {
+                logFeed.removeChild(logFeed.lastChild);
+            }
+        };
+
+        // ============================================
+        // INICIALIZACIÓN DE LA APLICACIÓN
+        // ============================================
         function initApp() {
             console.log("🚀 Iniciando interfaz de usuario...");
 
@@ -538,7 +1120,7 @@
             // Estructura defensiva: los datos pueden venir en event.data o directamente en event
             const data = event.data || event;
             // Variable global para rastrear solicitudes recientes
-            const processedRequests = new Set();    
+            const processedRequests = new Set();
 
             switch(event.type) {
                 case 'crisis_started':
@@ -586,9 +1168,9 @@
                     // 1. Blindaje contra duplicados estricto
                     if (data.requestId && data.requestId === window._lastProcessedRelationsRequest) {
                         console.log(`[UI] ⏭️ Ignorando duplicado de relations_detail (ID: ${data.requestId})`);
-                        return; 
+                        return;
                     }
-                    
+
                     // 2. Normalización de datos (acepta estructura plana o anidada)
                     // El servidor a veces envía { data: {...} } o directamente { treaties: [...] }
                     const payload = (data.data && data.data.treaties !== undefined) ? data.data : data;
@@ -614,18 +1196,18 @@
          */
         function renderRelationsModal(data) {
             console.log('[UI] 🎨 Renderizando modal de relaciones...', data);
-            
+
             const modal = document.getElementById('modal-generic');
             const content = document.getElementById('modal-body');
             const title = document.getElementById('modal-title'); // Asumiendo que existe, si no, lo creamos
-            
+
             if (!modal || !content) {
                 console.error('[UI] ❌ Elementos del DOM no encontrados');
                 return;
             }
 
             // Asegurar que el modal sea visible
-            modal.style.display = 'flex'; 
+            modal.style.display = 'flex';
             modal.style.visibility = 'visible';
             modal.style.opacity = '1';
 
@@ -661,14 +1243,14 @@
             html += `</div>`;
 
             document.getElementById('modal-body').innerHTML = html;
-            
+
             // Forzar reflow para asegurar visibilidad si hay transiciones CSS
-            void modal.offsetWidth; 
-            
+            void modal.offsetWidth;
+
             console.log('[UI] ✅ Modal renderizado exitosamente.');
         }
 
-        // Helpers de UI
+        // Helpers de UI - ACTUALIZADOS CON NUEVO TEMA VISUAL
         function updateMetrics(state) {
             if(!state || !state.nations) return;
 
@@ -686,23 +1268,47 @@
             // Ajustar según la estructura real de tus datos (budget vs gold, etc)
             const budget = player.budget || player.resources?.gold || 0;
             const stability = player.stability || player.stats?.stability || 0;
-            const reputation = player.reputation || player.stats?.influence || 0; // Mapeo aproximado
+            const reputation = player.reputation || player.stats?.influence || 0;
             const influence = player.influence || player.stats?.influence || 0;
 
+            // Determinar clases según valores
+            const stabilityClass = stability < 30 ? 'negative' : stability > 70 ? 'info' : '';
+            const budgetClass = budget < 0 ? 'negative' : budget > 500 ? 'info' : '';
+
             container.innerHTML = `
-                <div class="metric-row"><span>💰 Presupuesto</span> <span class="metric-val">$${budget}M</span></div>
-                <div class="metric-row"><span>🛡️ Estabilidad</span> <span class="metric-val">${stability}%</span></div>
-                <div class="metric-row"><span>🌍 Reputación</span> <span class="metric-val">${reputation}</span></div>
-                <div class="metric-row"><span>🤝 Influencia</span> <span class="metric-val">${influence}</span></div>
+                <div class="metric-row">
+                    <span class="metric-label">💰 Presupuesto</span>
+                    <span class="metric-val ${budgetClass}">$${budget}M</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">🛡️ Estabilidad</span>
+                    <span class="metric-val ${stabilityClass}">${stability}%</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">🌍 Reputación</span>
+                    <span class="metric-val info">${reputation}</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">🤝 Influencia</span>
+                    <span class="metric-val">${influence}</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar ${stability < 30 ? 'critical' : stability < 50 ? 'warning' : ''}" style="width: ${Math.max(0, Math.min(100, stability))}%"></div>
+                </div>
             `;
         }
 
-        function addLog(msg) {
+        function addLog(msg, type = 'info') {
             const feed = document.getElementById('log-feed');
             const div = document.createElement('div');
             div.className = 'log-entry';
             const time = new Date().toLocaleTimeString();
-            div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
+
+            const msgClass = msg.toLowerCase().includes('crisis') ? 'crisis' :
+                            msg.toLowerCase().includes('éxito') || msg.toLowerCase().includes('exitoso') ? 'success' :
+                            msg.toLowerCase().includes('advertencia') ? 'warning' : 'info';
+
+            div.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-message ${msgClass}">${msg}</span>`;
             feed.prepend(div);
             if(feed.children.length > 50) feed.lastChild.remove();
         }
@@ -717,15 +1323,15 @@
             const card = document.createElement('div');
             card.className = 'intel-card';
             card.innerHTML = `
-                <div style="font-weight:bold; color:var(--info)">${signal.type}</div>
-                <div style="font-size:0.75rem">${signal.summary || 'Sin resumen'}</div>
-                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">Costo investigación: $100k</div>
+                <div class="intel-card-title">${signal.type}</div>
+                <div class="intel-card-summary">${signal.summary || 'Sin resumen'}</div>
+                <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">Costo investigación: $100k</div>
             `;
             card.onclick = () => {
                 if(window.client) window.client.investigateSignal(signal.id);
                 card.classList.add('investigated');
                 card.style.pointerEvents = 'none';
-                card.innerHTML += `<div style="font-size:0.7rem; color:var(--accent); margin-top:4px;">Investigado</div>`;
+                card.innerHTML += `<div style="font-size:8px; color:var(--accent-primary); margin-top:6px;">✅ Investigado</div>`;
             };
             feed.prepend(card);
         }

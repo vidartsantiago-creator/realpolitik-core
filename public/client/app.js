@@ -7,6 +7,7 @@
 import { MapRenderer } from './MapRenderer.js';
 import { IntelFeed } from '../../client/components/IntelFeed.js';
 import { DiplomaticModal } from '../../client/components/DiplomaticModal.js';
+import { CrisisPanel } from '../../client/components/CrisisPanel.js';
 import { StateMapper } from '../../client/utils/StateMapper.js';
 
 // Configuración
@@ -17,10 +18,11 @@ const PLAYER_NATION_ID = 'nation_001'; // Debería venir de auth/login en futuro
 let currentTick = 0;
 let gameState = {};
 
-// Inicialización de Componentes
+// ✅ NUEVO: Inicialización de Componentes (FASE 2)
 const mapRenderer = new MapRenderer('world-canvas');
 const intelFeed = new IntelFeed('intel-feed');
 const diplomaticModal = new DiplomaticModal('modal-overlay');
+const crisisPanel = new CrisisPanel('crisis-panel-container'); // Nuevo componente
 
 // Callbacks de acción hacia el servidor
 intelFeed.setActionCallback((type, payload) => sendWS(type, payload));
@@ -58,7 +60,7 @@ function sendWS(type, payload) {
 
 /**
  * Router de Mensajes entrantes
- * @param {Object} message 
+ * @param {Object} message
  */
 function routeMessage(message) {
     switch (message.type) {
@@ -88,6 +90,15 @@ function routeMessage(message) {
             updateAdvisor(message.payload);
             break;
 
+        // ✅ NUEVO: Manejo de eventos de crisis (FASE 2)
+        case 'crisis_start':
+        case 'crisis_update':
+        case 'crisis_end':
+            // Actualizar panel de crisis con datos del estado
+            const crisisData = gameState.crisis || { active: false };
+            crisisPanel.update(crisisData);
+            break;
+
         default:
             console.log('Evento no manejado:', message.type);
     }
@@ -106,6 +117,10 @@ function updateUI() {
 
     // Mapa
     mapRenderer.update(gameState, PLAYER_NATION_ID);
+
+    // ✅ NUEVO: Actualizar panel de crisis (FASE 2)
+    const crisisData = gameState.crisis || { active: false };
+    crisisPanel.update(crisisData);
 }
 
 function updateAdvisor(payload) {
