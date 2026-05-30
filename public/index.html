@@ -47,6 +47,66 @@
             --font-ui: 'Segoe UI', 'Roboto', sans-serif;
         }
 
+        /* Country Action Panel Styles */
+        #country-action-panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-left: 3px solid #00ff00;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            color: #d0d0d0;
+            display: none; /* Oculto por defecto */
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .cap-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .cap-header h3 { margin: 0; color: #00ff00; font-size: 14px; }
+        .cap-close { cursor: pointer; color: #707070; font-size: 18px; }
+        .cap-close:hover { color: #ff3333; }
+
+        .cap-stats { margin-bottom: 15px; font-size: 11px; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .stat-row .label { color: #a0a0a0; }
+        .stat-row .value { font-weight: bold; }
+        .crisis-active { color: #ff0000; animation: blink 1s infinite; }
+
+        .cap-actions { display: flex; flex-direction: column; gap: 8px; }
+
+        .cap-btn {
+            background: #252525;
+            border: 1px solid #444;
+            color: #00ff00;
+            padding: 8px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            transition: all 0.2s;
+            text-align: left;
+        }
+
+        .cap-btn:hover {
+            background: #333;
+            border-color: #00ff00;
+            box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
+        }
+
+        .cap-footer { margin-top: 10px; font-size: 9px; color: #707070; text-align: right; }
+        .panel-empty { text-align: center; color: #707070; font-style: italic; padding: 20px 0; }
+
         #diplomatic-status-panel {
             background: #1a1a1a;
             border: 1px solid #333;
@@ -59,6 +119,7 @@
             max-height: 200px;
             overflow-y: auto;
         }
+        
 
         .panel-header {
             font-weight: bold;
@@ -888,6 +949,7 @@
         // Importación correcta de módulos
         import { SyncClient } from './client/SyncClient.js';
         import { MapRenderer } from './client/MapRenderer.js';
+        import { CountryActionPanel } from './client/components/CountryActionPanel.js';
         // Si existe NetworkOverlay, descomentar la siguiente línea
         // import { NetworkOverlay } from './client/NetworkOverlay.js';
 
@@ -1140,6 +1202,39 @@
         // ============================================
         function initApp() {
             console.log("🚀 Iniciando interfaz de usuario...");
+            const wsUrl = `ws://${window.location.host}`;
+            const syncClient = new SyncClient(wsUrl);
+            syncClient.onStateUpdate = (newState) => {
+                // 1. Guardar estado global para acceso externo
+                window.gameState = newState;
+                if (app) app.gameState = newState;
+
+                // 2. Actualizar el mapa si existe el renderizador
+                if (window.mapRenderer && app.currentPlayerNation) {
+                    window.mapRenderer.update(newState, app.currentPlayerNation);
+                }
+
+                // 3. Gestionar el Panel de Acciones (Country Action Panel)
+                // Si hay un país seleccionado, actualizar sus datos en tiempo real
+                if (app.actionPanel && app.selectedCountryId) {
+                    const countryData = newState.nations ? newState.nations[app.selectedCountryId] : null;
+                    
+                    if (countryData) {
+                        // El panel ya está visible, solo actualizamos los datos internos
+                        app.actionPanel.update(app.selectedCountryId, countryData);
+                    } else {
+                        // Si el país ya no existe en el estado (ej: fue eliminado), ocultar panel
+                        app.actionPanel.hide();
+                        app.selectedCountryId = null;
+                    }
+                }
+
+                // 4. Actualizar otros paneles existentes (si los hubiera)
+                // Ejemplo: Panel de Crisis, Log de Eventos, etc.
+                // if (app.crisisPanel) app.crisisPanel.update(newState.crisis);
+                
+                console.log('[UI] Estado sincronizado:', newState.tick);
+            };
 
             const canvas = document.getElementById('game-map');
             if (!canvas) {
@@ -1155,6 +1250,59 @@
             // Instanciar renderizadores
             window.mapRenderer = new MapRenderer(canvas);
             console.log("✅ MapRenderer instanciado.");
+
+            // Inicializar Panel de Acciones
+            const countryActionPanel = new CountryActionPanel('country-action-panel-container');
+
+            // Exponer handler global para los botones del panel
+            window.handleCountryAction = (actionType) => {
+                if (!countryActionPanel.currentNationId) return;
+                
+                console.log(`[Acción] ${actionType} sobre ${countryActionPanel.currentNationId}`);
+                
+                // Enviar intención al servidor
+                if (app.client && app.client.sendIntent) {
+                    app.client.sendIntent(actionType, { target_nation: countryActionPanel.currentNationId });
+                }
+                
+                // Feedback visual simple
+                alert(`Orden enviada: ${actionType} a ${countryActionPanel.currentNationId}`);
+            };
+
+            // Guardar referencia en window.app
+            window.app = {
+                mapRenderer,
+                syncClient,
+                currentPlayerNation: 'ARG', // O la que corresponda
+                countryActionPanel,
+                
+                // Nueva función para enviar intenciones
+                sendIntent: (type, targetId) => {
+                    console.log(`[App] Enviando intención: ${type} a ${targetId}`);
+                    
+                    // Construir objeto Intent según schema
+                    const intent = {
+                        type: type,
+                        actor: window.app.currentPlayerNation,
+                        target: targetId,
+                        timestamp: Date.now(),
+                        parameters: {} 
+                    };
+
+                    // Enviar vía WebSocket
+                    if (window.app.syncClient && window.app.syncClient.ws && window.app.syncClient.ws.readyState === WebSocket.OPEN) {
+                        window.app.syncClient.ws.send(JSON.stringify({
+                            type: 'intent',
+                            payload: intent
+                        }));
+                        
+                        // Feedback visual inmediato (opcional)
+                        alert(`Acción enviada: ${type} a ${targetId}`); 
+                    } else {
+                        console.error('WebSocket no conectado');
+                    }
+                }
+            };
 
             // Conectar cliente WebSocket
             window.client = new SyncClient({
@@ -1198,6 +1346,8 @@
                 onCustomEvent: (event) => handleCustomEvent(event)
             });
 
+            
+
             // Listeners de UI
             document.getElementById('btn-save').onclick = () => {
                 if(window.client) window.client.saveGame();
@@ -1214,6 +1364,16 @@
             };
 
             window.mapRenderer = new MapRenderer(canvas);
+            app.actionPanel = new CountryActionPanel();
+            window.mapRenderer.onCountrySelect = (countryId) => {
+                const currentState = app.gameState || {};
+                const countryData = currentState.nations?.[countryId] || {};
+                app.selectedCountryId = countryId; // Guardar selección
+                app.actionPanel.show(countryId, countryData); // Mostrar panel
+                if (countryId && app.actionPanel) {
+                    app.actionPanel.show(countryId, countryData);
+                }
+            };
             app.currentPlayerNation = 'ARG'; // O el valor por defecto
 
             /**
@@ -1500,5 +1660,6 @@
             initApp();
         }
     </script>
+    <div id="country-action-panel-container"></div>
 </body>
 </html>

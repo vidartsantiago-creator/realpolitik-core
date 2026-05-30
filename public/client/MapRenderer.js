@@ -401,6 +401,9 @@ export class MapRenderer {
             this.onNodeSelect?.(this.selectedCountry);
             this.render();
         }
+        if (this.onCountrySelect && this.selectedCountry) {
+            this.onCountrySelect(this.selectedCountry);
+        }
     }
 
     /**
