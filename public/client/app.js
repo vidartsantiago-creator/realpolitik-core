@@ -128,6 +128,44 @@ function updateAdvisor(payload) {
     container.innerHTML = `<p><strong>Sugerencia:</strong> ${payload.text}</p>`;
 }
 
+function updateDiplomaticStatus(state, playerNationId) {
+    const listEl = document.getElementById('diplomatic-list');
+    if (!listEl || !state || !state.nations) return;
+
+    let html = '';
+    
+    // Iterar sobre las naciones conocidas
+    Object.keys(state.nations).forEach(nationId => {
+        if (nationId === playerNationId) return; // Saltar al jugador
+
+        const nation = state.nations[nationId];
+        let statusColor = '#888888'; // Neutral por defecto
+        let statusText = 'Neutral';
+
+        // Determinar estado (ajusta según tu estructura de datos real)
+        if (nation.isPlayer) {
+            statusColor = '#00ff00';
+            statusText = 'JUGADOR';
+        } else if (nation.relation > 50) { // Ejemplo de lógica
+            statusColor = '#00aaff';
+            statusText = 'Aliado';
+        } else if (nation.relation < -50) {
+            statusColor = '#ff3333';
+            statusText = 'Hostil';
+        }
+
+        html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px;">
+                <span style="color: ${statusColor}; font-weight: bold;">${nationId}</span>
+                <span style="color: #a0a0a0;">${statusText}</span>
+            </div>
+            <div style="height: 2px; background: #333; margin-bottom: 5px;"></div>
+        `;
+    });
+
+    listEl.innerHTML = html || '<div style="color: #707070;">Sin datos</div>';
+}
+
 // Control de Capas del Mapa
 document.querySelectorAll('#layer-controls button').forEach(btn => {
     btn.addEventListener('click', (e) => {

@@ -31,18 +31,8 @@ export class MapRenderer {
 
         this.canvas = canvasElement;
         this.ctx = this.canvas.getContext('2d');
-        
-        // Inicializar propiedades
-        this.countryPaths = new Map();
-        this.countryBounds = new Map();
-        this.svgViewBox = { x: 0, y: 0, width: 0, height: 0 };
-        this.transform = { scale: 1, offsetX: 0, offsetY: 0 };
-        
-        // Cargar SVG UNA SOLA VEZ
-        this.mapLoaded = false;
-        this.loadSVGMap();  // ← Solo aquí, NO en update()
 
-        // ✅ NUEVO: Paleta de colores tema hi-tech console
+        // ✅ NUEVO: Paleta de colores tema hi-tech console (definido ANTES de loadSVGMap)
         this.themeColors = {
             // Fondos
             background: {
@@ -79,7 +69,7 @@ export class MapRenderer {
             }
         };
 
-        // Configuración mejorada
+        // Configuración mejorada (definida ANTES de loadSVGMap)
         this.config = {
             baseColor: this.themeColors.background.primary,
             gridColor: 'rgba(100, 100, 100, 0.1)',
@@ -93,6 +83,16 @@ export class MapRenderer {
             pulseAmplitude: 3,
             svgPath: '/assets/maps/world-map.svg'
         };
+
+        // Inicializar propiedades
+        this.countryPaths = new Map();
+        this.countryBounds = new Map();
+        this.svgViewBox = { x: 0, y: 0, width: 0, height: 0 };
+        this.transform = { scale: 1, offsetX: 0, offsetY: 0 };
+
+        // Cargar SVG UNA SOLA VEZ
+        this.mapLoaded = false;
+        this.loadSVGMap();  // ← Solo aquí, NO en update()
 
         // Estado interno
         this.state = null;
@@ -153,29 +153,64 @@ export class MapRenderer {
             const parser = new DOMParser();
             const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
 
-            // Extraer viewBox del SVG
+            // Extraer viewBox del SVG (soportar namespaces como ns1:geoViewBox)
             const svgElement = svgDoc.querySelector('svg');
             if (svgElement) {
-                const viewBox = svgElement.getAttribute('viewBox') || svgElement.getAttribute('ns1:geoViewBox');
-                if (viewBox) {
-                    const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
-                    this.svgViewBox = { x, y, width: Math.abs(width), height: Math.abs(height) };
+                // Intentar obtener viewBox de diferentes atributos
+                let viewBox = svgElement.getAttribute('viewBox');
+
+                // Si no hay viewBox estándar, usar ns1:geoViewBox y convertirlo
+                if (!viewBox) {
+                    const geoViewBox = svgElement.getAttribute('ns1:geoViewBox');
+                    if (geoViewBox) {
+                        // geoViewBox formato: "minLon minLat maxLon maxLat"
+                        const [minLon, minLat, maxLon, maxLat] = geoViewBox.split(/\s+/).map(Number);
+                        // Convertir coordenadas geográficas a coordenadas SVG usando width/height
+                        const svgWidth = svgElement.getAttribute('width') || 1009.67;
+                        const svgHeight = svgElement.getAttribute('height') || 665.96;
+
+                        // Calcular viewBox en coordenadas SVG
+                        const x = minLon;
+                        const y = maxLat; // Invertir porque latitud va de norte a sur
+                        const width = maxLon - minLon;
+                        const height = minLat - maxLat; // Invertir
+
+                        viewBox = `${x} ${y} ${width} ${height}`;
+                        console.log(`[MapRenderer] geoViewBox convertido: ${viewBox}`);
+                    }
                 }
 
-                // Extraer dimensiones del SVG
-                const width = svgElement.getAttribute('width');
-                const height = svgElement.getAttribute('height');
-                if (width && height) {
-                    this.svgViewBox.width = parseFloat(width);
-                    this.svgViewBox.height = parseFloat(height);
+                if (viewBox) {
+                    const [x, y, w, h] = viewBox.split(/\s+/).map(Number);
+                    this.svgViewBox = {
+                        x: x || 0,
+                        y: y || 0,
+                        width: Math.abs(w) || 1009.67,
+                        height: Math.abs(h) || 665.96
+                    };
+                    console.log(`[MapRenderer] viewBox establecido: ${JSON.stringify(this.svgViewBox)}`);
+                }
+
+                // Extraer dimensiones del SVG si están disponibles
+                const attrWidth = svgElement.getAttribute('width');
+                const attrHeight = svgElement.getAttribute('height');
+                if (attrWidth && attrHeight) {
+                    // Usar las dimensiones del SVG como referencia
+                    this.svgViewBox.width = parseFloat(attrWidth);
+                    this.svgViewBox.height = parseFloat(attrHeight);
                 }
             }
 
-            // Extraer todos los paths con ID
-            const pathElements = svgDoc.querySelectorAll('path[id]');
-            console.log(`[MapRenderer] SVG cargado: ${pathElements.length} países encontrados`);
+            // Extraer todos los paths con ID (soportar namespaces como ns0:path)
+            const pathElements = svgDoc.querySelectorAll('[id]');
+            const countryPaths = Array.from(pathElements).filter(el =>
+                el.tagName.toLowerCase().includes('path') ||
+                el.tagName.toLowerCase().includes('polygon')
+            );
 
-            pathElements.forEach(path => {
+            console.log(`[MapRenderer] SVG cargado: ${countryPaths.length} países encontrados`);
+
+            countryPaths.forEach(path => {
                 const id = path.getAttribute('id');
                 const d = path.getAttribute('d');
                 const title = path.getAttribute('title') || id;
@@ -199,6 +234,9 @@ export class MapRenderer {
                 this.calculateTransform();
                 this.render();
             }
+
+            this.mapLoaded = true;
+            console.log('[MapRenderer] Mapa cargado exitosamente');
 
             return this.countryPaths;
         } catch (error) {
@@ -253,17 +291,17 @@ export class MapRenderer {
         if (this.svgViewBox.width === 0 || this.canvas.width === 0) {
             return;
         }
-        
+
         const scaleX = this.canvas.width / this.svgViewBox.width;
         const scaleY = this.canvas.height / this.svgViewBox.height;
-        
+
         // Mantener aspect ratio
         this.transform.scale = Math.min(scaleX, scaleY);
-        
+
         // Centrar el mapa
         const scaledWidth = this.svgViewBox.width * this.transform.scale;
         const scaledHeight = this.svgViewBox.height * this.transform.scale;
-        
+
         this.transform.offsetX = (this.canvas.width - scaledWidth) / 2;
         this.transform.offsetY = (this.canvas.height - scaledHeight) / 2;
     }
@@ -426,15 +464,21 @@ export class MapRenderer {
      * @param {Object} state - Estado del juego
      * @param {string} playerNationId - ID de la nación del jugador
      */
-        update(state, playerNationId) {
+    update(state, playerNationId) {
+        // Solo actualizar si el mapa está cargado
+        if (!this.mapLoaded || !this.ctx || !this.canvas) {
+            return;
+        }
+        
         this.state = state;
         this.playerNationId = playerNationId;
         
-        this.clear();
-        this.renderCountries(state, playerNationId);
-        this.renderLayers(state);
-        this.renderCountryEffects(state, playerNationId);
-        this.renderTooltip();
+        // Limpiar canvas SOLO si hay contexto válido
+        if (this.ctx && this.canvas.width > 0 && this.canvas.height > 0) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
+        this.render();
     }
 
     /**
@@ -648,108 +692,39 @@ export class MapRenderer {
      * @private
      */
     renderCountryEffects() {
+        if (!this.ctx || !this.state) return;
+        
         const currentTime = Date.now();
         
-        // 1. Efecto glow para la nación del jugador
-        if (this.playerNationId && this.countryPaths.has(this.playerNationId)) {
-            const bounds = this.countryBounds.get(this.playerNationId);
-            if (bounds && this.isFiniteBounds(bounds)) {
-                const centerX = (bounds.minX + bounds.maxX) / 2;
-                const centerY = (bounds.minY + bounds.maxY) / 2;
-                const radius = Math.max(
-                    bounds.maxX - bounds.minX,
-                    bounds.maxY - bounds.minY
-                ) / 2;
-                
-                // Pulse animation
-                const pulse = Math.sin(currentTime * 0.003) * 0.3 + 0.7;
-                this.drawGlowEffect(
-                    centerX,
-                    centerY,
-                    radius * 1.5,
-                    this.themeColors.nations.player,
-                    pulse * 0.8
-                );
-            }
-        }
+        
         
         // 2. Efecto pulse para naciones en crisis
-        if (this.state && this.state.crisis && this.state.crisis.active) {
-            const affectedNations = this.state.crisis.affected_nations || [];
-            affectedNations.forEach(nationId => {
-                if (this.countryPaths.has(nationId)) {
-                    const bounds = this.countryBounds.get(nationId);
-                    if (bounds && this.isFiniteBounds(bounds)) {
-                        const centerX = (bounds.minX + bounds.maxX) / 2;
-                        const centerY = (bounds.minY + bounds.maxY) / 2;
-                        const radius = Math.max(
-                            bounds.maxX - bounds.minX,
-                            bounds.maxY - bounds.minY
-                        ) / 2;
-                        
-                        // Crisis pulse (más rápido, rojo)
-                        const crisisPulse = Math.sin(currentTime * 0.008) * 0.5 + 0.5;
-                        this.drawGlowEffect(
-                            centerX,
-                            centerY,
-                            radius * 1.3,
-                            this.themeColors.events.crisis,
-                            crisisPulse * 0.9
-                        );
-                    }
+        if (this.state.crisis && this.state.crisis.active && this.state.crisis.affected_nations) {
+            this.state.crisis.affected_nations.forEach(nationId => {
+                const bounds = this.countryBounds.get(nationId);
+                if (bounds && this.isFiniteBounds(bounds)) {
+                    const centerX = (bounds.minX + bounds.maxX) / 2;
+                    const centerY = (bounds.minY + bounds.maxY) / 2;
+                    const radius = Math.max(
+                        bounds.maxX - bounds.minX,
+                        bounds.maxY - bounds.minY
+                    ) / 2;
+                    
+                    const pulse = Math.sin(currentTime * 0.005) * 0.4 + 0.6;
+                    this.drawGlowEffect(
+                        centerX,
+                        centerY,
+                        radius * 1.8,
+                        this.themeColors.events.crisis,
+                        pulse
+                    );
                 }
             });
         }
         
-        // 3. Efecto glow para país seleccionado
-        if (this.selectedCountry && this.selectedCountry.id) {
-            const bounds = this.countryBounds.get(this.selectedCountry.id);
-            if (bounds && this.isFiniteBounds(bounds)) {
-                const centerX = (bounds.minX + bounds.maxX) / 2;
-                const centerY = (bounds.minY + bounds.maxY) / 2;
-                const radius = Math.max(
-                    bounds.maxX - bounds.minX,
-                    bounds.maxY - bounds.minY
-                ) / 2;
-                
-                this.drawGlowEffect(
-                    centerX,
-                    centerY,
-                    radius * 1.4,
-                    this.themeColors.accent.warning,
-                    0.6
-                );
-                
-                // Borde de selección animado
-                const path = this.countryPaths.get(this.selectedCountry.id);
-                if (path) {
-                    const borderPulse = Math.sin(currentTime * 0.005) * 0.5 + 1.5;
-                    this.ctx.save();
-                    this.ctx.strokeStyle = this.themeColors.accent.warning;
-                    this.ctx.lineWidth = borderPulse;
-                    this.ctx.setLineDash([5, 3]);
-                    this.ctx.stroke(path);
-                    this.ctx.restore();
-                }
-            }
-        }
         
-        // 4. Efecto hover para país bajo el cursor
-        if (this.hoveredCountry && this.hoveredCountry.id) {
-            const bounds = this.countryBounds.get(this.hoveredCountry.id);
-            if (bounds && this.isFiniteBounds(bounds)) {
-                const path = this.countryPaths.get(this.hoveredCountry.id);
-                if (path) {
-                    this.ctx.save();
-                    this.ctx.strokeStyle = this.themeColors.text.primary;
-                    this.ctx.lineWidth = 2;
-                    this.ctx.setLineDash([4, 2]);
-                    this.ctx.globalAlpha = 0.8;
-                    this.ctx.stroke(path);
-                    this.ctx.restore();
-                }
-            }
-        }
+        
+        
     }
 
     /**
@@ -929,7 +904,7 @@ export class MapRenderer {
         if (!isFinite(x) || !isFinite(y) || !isFinite(radius) || radius <= 0) {
             return;
         }
-        
+
         // Clamp intensity entre 0 y 1
         intensity = Math.max(0, Math.min(1, intensity));
         const gradient = this.ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);

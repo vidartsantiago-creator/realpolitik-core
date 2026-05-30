@@ -47,6 +47,51 @@
             --font-ui: 'Segoe UI', 'Roboto', sans-serif;
         }
 
+        #diplomatic-status-panel {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-top: 2px solid #00ff00;
+            padding: 10px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #d0d0d0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .panel-header {
+            font-weight: bold;
+            color: #00ff00;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 6px;
+            margin-bottom: 4px;
+            background: #252525;
+            border-radius: 2px;
+        }
+
+        .status-row .flag { font-weight: bold; width: 40px; }
+        .status-row .name { flex-grow: 1; text-align: left; padding-left: 8px; color: #a0a0a0; }
+        .status-row .badge { 
+            font-size: 9px; 
+            padding: 2px 6px; 
+            border-radius: 2px; 
+            font-weight: bold; 
+            text-transform: uppercase;
+        }
+
+        .muted { color: #707070; font-style: italic; text-align: center; }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -709,6 +754,9 @@
             background: rgba(0, 170, 255, 0.2);
             color: var(--accent-secondary);
         }
+
+        
+
     </style>
 </head>
 <body>
@@ -806,6 +854,22 @@
                     Analizando situación global...
                 </div>
                 <div id="advisor-actions"></div>
+
+                <div id="diplomatic-status-panel" style="
+                    background: #1a1a1a; 
+                    border: 1px solid #333; 
+                    margin-top: 10px; 
+                    padding: 10px;
+                    font-family: 'Courier New', monospace;
+                    color: #d0d0d0;
+                ">
+                    <h4 style="margin: 0 0 10px 0; color: #00aaff;">ESTADO DIPLOMÁTICO</h4>
+                    <div id="diplomatic-list" style="display: flex; flex-direction: column; gap: 5px;">
+                        <!-- Se llenará dinámicamente -->
+                        <div style="color: #707070; font-size: 11px;">Esperando datos...</div>
+                    </div>
+                </div>
+
             </div>
         </aside>
     </div>
@@ -997,11 +1061,78 @@
             }
         };
 
+        /**
+         * Actualiza el panel visual de estado diplomático debajo del Asesor IA
+         * @param {Object} state - El estado completo del juego
+         * @param {String} playerNationId - El ID de la nación del jugador (ej: "ARG")
+         */
+        function updateDiplomaticStatus(state, playerNationId) {
+            const panel = document.getElementById('diplomatic-status-panel');
+            if (!panel) return; // Si el panel no existe en el HTML, salir
+
+            // Limpiar contenido previo
+            panel.innerHTML = '<div class="panel-header">ESTADO DIPLOMÁTICO</div>';
+            
+            if (!state || !state.nations || !playerNationId) {
+                panel.innerHTML += '<div class="status-item muted">Esperando datos...</div>';
+                return;
+            }
+
+            const nations = state.nations;
+            const playerNation = nations[playerNationId];
+            
+            // Obtener listas de relaciones (ajusta según tu estructura real de state.diplomacy)
+            // Asumiendo una estructura común, si no, adaptar a tu schema real
+            let allies = [];
+            let hostiles = [];
+            
+            // Lógica de ejemplo para extraer relaciones (AJUSTAR SEGÚN TU STATE REAL)
+            if (state.diplomacy && state.diplomacy.relations) {
+                Object.entries(state.diplomacy.relations).forEach(([key, relation]) => {
+                    if (key.includes(playerNationId)) {
+                        const targetId = key.replace(`${playerNationId}-`, '').replace(`-${playerNationId}`, '');
+                        if (relation.value > 50) allies.push(targetId);
+                        if (relation.value < -50) hostiles.push(targetId);
+                    }
+                });
+            }
+
+            // Renderizar lista
+            const createItem = (id, type, color) => {
+                const nation = nations[id];
+                const name = nation ? nation.name : id;
+                return `<div class="status-row" style="border-left: 3px solid ${color}">
+                            <span class="flag">${id}</span>
+                            <span class="name">${name}</span>
+                            <span class="badge" style="background:${color}20; color:${color}">${type}</span>
+                        </div>`;
+            };
+
+            // Tu nación
+            panel.innerHTML += createItem(playerNationId, 'TÚ NACIÓN', '#00ff00');
+            
+            // Aliados (máximo 5 para no saturar)
+            allies.slice(0, 5).forEach(id => {
+                panel.innerHTML += createItem(id, 'ALIADO', '#00aaff');
+            });
+            
+            // Hostiles (máximo 5)
+            hostiles.slice(0, 5).forEach(id => {
+                panel.innerHTML += createItem(id, 'HOSTIL', '#ff3333');
+            });
+
+            if (allies.length === 0 && hostiles.length === 0) {
+                panel.innerHTML += '<div class="status-item muted">Sin relaciones activas</div>';
+            }
+        }
+
         // ============================================
         // INICIALIZACIÓN DE LA APLICACIÓN
         // ============================================
         function initApp() {
             console.log("🚀 Iniciando interfaz de usuario...");
+
+            let app = {}; // Declaración global
 
             const canvas = document.getElementById('game-map');
             if (!canvas) {
@@ -1030,12 +1161,21 @@
                     // Actualizar Asesor
                     if(state.advisorMessage) {
                         const advisorEl = document.getElementById('advisor-message');
-                        if (state.advisor && state.advisor.message) {
-                            advisorEl.textContent = state.advisor.message;
-                        } else {
-                            advisorEl.textContent = 'Esperando datos...';
+                        if (advisorEl && state.advisor && state.advisor.advisorMessage) {
+                            advisorEl.textContent = state.advisor.advisorMessage;
+                        } else if (advisorEl) {
+                            // Opcional: Limpiar si no hay datos
+                            advisorEl.textContent = "Esperando datos...";
                         }
                     }
+                    
+                        // Actualizar mapa
+                        if (app.mapRenderer) {
+                            app.mapRenderer.update(newState, app.currentPlayerNation);
+                        }
+
+                        // >>> AGREGA ESTA LÍNEA <<<
+                        updateDiplomaticStatus(newState, app.currentPlayerNation);
 
                     // CRÍTICO: Pasar el estado al renderer para que dibuje
                     if(window.mapRenderer && typeof window.mapRenderer.update === 'function') {
@@ -1043,6 +1183,10 @@
                         const pId = state.playerNationId || Object.keys(state.nations || {})[0];
                         window.mapRenderer.update(state, pId);
                     }
+
+                    // 2. ACTUALIZAR EL PANEL DIPLOMÁTICO (AGREGAR ESTO AQUÍ)
+                    // Asegúrate de que app.currentPlayerNation tenga el valor correcto (ej: "ARG")
+                    updateDiplomaticStatus(newState, app.currentPlayerNation);
                 },
                 onLog: (msg) => addLog(msg),
                 onIntelSignal: (signal) => addIntelSignal(signal),
@@ -1063,6 +1207,9 @@
                 // Solicitar relaciones detalladas al servidor
                 loadRelationsDetail();
             };
+
+            app.mapRenderer = new MapRenderer(canvas);
+            app.currentPlayerNation = 'ARG'; // O el valor por defecto
 
             /**
              * Solicita relaciones bilaterales detalladas al servidor
