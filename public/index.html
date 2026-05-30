@@ -1029,7 +1029,12 @@
 
                     // Actualizar Asesor
                     if(state.advisorMessage) {
-                        document.getElementById('advisor-text').textContent = state.advisorMessage;
+                        const advisorEl = document.getElementById('advisor-message');
+                        if (state.advisor && state.advisor.message) {
+                            advisorEl.textContent = state.advisor.message;
+                        } else {
+                            advisorEl.textContent = 'Esperando datos...';
+                        }
                     }
 
                     // CRÍTICO: Pasar el estado al renderer para que dibuje
