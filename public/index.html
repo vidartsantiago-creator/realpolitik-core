@@ -1127,12 +1127,19 @@
         }
 
         // ============================================
+        // VARIABLES GLOBALES
+        // ============================================
+        window.app = {
+            mapRenderer: null,
+            client: null,
+            currentPlayerNation: null
+        };
+
+        // ============================================
         // INICIALIZACIÓN DE LA APLICACIÓN
         // ============================================
         function initApp() {
             console.log("🚀 Iniciando interfaz de usuario...");
-
-            let app = {}; // Declaración global
 
             const canvas = document.getElementById('game-map');
             if (!canvas) {
@@ -1155,38 +1162,36 @@
                     console.log("🔄 Estado actualizado recibido", state);
                     window.gameState = state;
 
+                    // Actualizar nación del jugador si cambia
+                    if (state.playerNationId) {
+                        window.app.currentPlayerNation = state.playerNationId;
+                    }
+
                     // Actualizar UI
                     updateMetrics(state);
 
                     // Actualizar Asesor
-                    if(state.advisorMessage) {
-                        const advisorEl = document.getElementById('advisor-message');
-                        if (advisorEl && state.advisor && state.advisor.advisorMessage) {
+                    const advisorEl = document.getElementById('advisor-message');
+                    if (advisorEl) {
+                        if (state.advisor && state.advisor.advisorMessage) {
                             advisorEl.textContent = state.advisor.advisorMessage;
-                        } else if (advisorEl) {
-                            // Opcional: Limpiar si no hay datos
+                        } else if (state.advisorMessage) {
+                            advisorEl.textContent = state.advisorMessage;
+                        } else {
                             advisorEl.textContent = "Esperando datos...";
                         }
                     }
-                    
-                        // Actualizar mapa
-                        if (app.mapRenderer) {
-                            app.mapRenderer.update(newState, app.currentPlayerNation);
-                        }
 
-                        // >>> AGREGA ESTA LÍNEA <<<
-                        updateDiplomaticStatus(newState, app.currentPlayerNation);
-
-                    // CRÍTICO: Pasar el estado al renderer para que dibuje
-                    if(window.mapRenderer && typeof window.mapRenderer.update === 'function') {
-                        // Determinar ID del jugador (por defecto la primera nación si no existe playerNationId)
+                    // Actualizar mapa
+                    if (window.mapRenderer && typeof window.mapRenderer.update === 'function') {
                         const pId = state.playerNationId || Object.keys(state.nations || {})[0];
                         window.mapRenderer.update(state, pId);
                     }
 
-                    // 2. ACTUALIZAR EL PANEL DIPLOMÁTICO (AGREGAR ESTO AQUÍ)
-                    // Asegúrate de que app.currentPlayerNation tenga el valor correcto (ej: "ARG")
-                    updateDiplomaticStatus(newState, app.currentPlayerNation);
+                    // Actualizar panel diplomático
+                    if (typeof updateDiplomaticStatus === 'function') {
+                        updateDiplomaticStatus(state, window.app.currentPlayerNation);
+                    }
                 },
                 onLog: (msg) => addLog(msg),
                 onIntelSignal: (signal) => addIntelSignal(signal),
@@ -1208,7 +1213,7 @@
                 loadRelationsDetail();
             };
 
-            app.mapRenderer = new MapRenderer(canvas);
+            window.mapRenderer = new MapRenderer(canvas);
             app.currentPlayerNation = 'ARG'; // O el valor por defecto
 
             /**
