@@ -1197,6 +1197,29 @@
             currentPlayerNation: null
         };
 
+        /**
+         * Envía una intención de jugador al servidor
+         * @param {string} type - Tipo de acción (ej: 'improve_relations')
+         * @param {object} payload - Datos de la acción (ej: { target_id: 'USA' })
+         */
+        window.sendIntent = (type, payload = {}) => {
+            if (app && app.syncClient && app.syncClient.ws && app.syncClient.ws.readyState === WebSocket.OPEN) {
+                const intent = {
+                    type: type,
+                    payload: payload,
+                    nation_id: app.currentPlayerNation || 'ARG',
+                    timestamp: Date.now()
+                };
+                
+                console.log('[Intent] Enviando:', intent);
+                app.syncClient.ws.send(JSON.stringify(intent));
+                return true;
+            } else {
+                console.error('[Intent] Error: No hay conexión WebSocket');
+                return false;
+            }
+        };
+
         // ============================================
         // INICIALIZACIÓN DE LA APLICACIÓN
         // ============================================
