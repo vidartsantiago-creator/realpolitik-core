@@ -465,18 +465,17 @@ export class MapRenderer {
      * @param {string} playerNationId - ID de la nación del jugador
      */
     update(state, playerNationId) {
-        // Solo actualizar si el mapa está cargado
-        if (!this.mapLoaded || !this.ctx || !this.canvas) {
-            return;
-        }
-        
         this.state = state;
         this.playerNationId = playerNationId;
-        
-        // Limpiar canvas SOLO si hay contexto válido
-        if (this.ctx && this.canvas.width > 0 && this.canvas.height > 0) {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // CRÍTICO: Si el mapa no cargó, NO limpiar ni dibujar nada.
+        // Esto evita el flash blanco mientras carga el SVG.
+        if (!this.mapLoaded || !this.countryPaths.size) {
+            return;
         }
+
+        // Solo limpiar y dibujar si estamos seguros de tener los datos
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         this.render();
     }
