@@ -71,7 +71,7 @@ export class MapRenderer {
 
         // Configuración mejorada (definida ANTES de loadSVGMap)
         this.config = {
-            baseColor: this.themeColors.background.primary,
+            baseColor: '#1a1a2e',
             gridColor: 'rgba(100, 100, 100, 0.1)',
             borderColor: this.themeColors.text.muted,
             textColor: this.themeColors.text.primary,
@@ -89,6 +89,13 @@ export class MapRenderer {
         this.countryBounds = new Map();
         this.svgViewBox = { x: 0, y: 0, width: 0, height: 0 };
         this.transform = { scale: 1, offsetX: 0, offsetY: 0 };
+        this.selectedCountry = null;
+        this.hoveredCountry = null;
+        this.particles = [];         
+        this.dirty = true; 
+        this.frameId = null;        
+        this.setupAnimationLoop();      
+        this.bindEvents();
 
         // Cargar SVG UNA SOLA VEZ
         this.mapLoaded = false;
@@ -136,6 +143,197 @@ export class MapRenderer {
 
         // Loop de animación
         this.animate();
+    }
+
+    /**
+     * Loop de animación usando RequestAnimationFrame.
+     * Se llama a sí mismo recursivamente mientras la página esté abierta.
+     */
+    setupAnimationLoop() {
+        const render = () => {
+            this.frameId = requestAnimationFrame(render);
+            
+            // Solo dibujamos si:
+            // 1. Algo cambió en el estado (this.dirty = true)
+            // 2. O todavía hay partículas vivas que animar
+            if (this.dirty || this.particles.length > 0) {
+                this.redraw();
+                // Solo quitamos la bandera 'dirty' si no hay partículas,
+                // porque las partículas requieren redraw continuo hasta morir.
+                if (this.particles.length === 0) {
+                    this.dirty = false;
+                }
+            }
+        };
+        // Arrancar el loop
+        this.frameId = requestAnimationFrame(render);
+    }
+
+    /**
+     * MÉTODO PRINCIPAL DE RENDERIZADO
+     * Limpia, dibuja mapa, UI overlay y partículas.
+     */
+    redraw() {
+        // 1. LIMPIEZA TOTAL DEL CANVAS
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Fondo base (Color del océano/tierra base)
+        this.ctx.fillStyle = this.config.baseColor;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 2. DIBUJAR PAÍSES (Iteración sobre tus datos existentes)
+        // Asumimos que this.countryPaths contiene los datos de ruta (Path2D o coordenadas)
+        for (const [id, pathData] of this.countryPaths.entries()) {
+            this.drawCountryPath(id, pathData);
+        }
+
+        // 3. DIBUJAR CAPA DE INTERACCIÓN (Hover y Selección)
+        // Esto da feedback visual de qué país estás tocando
+        if (this.hoveredCountry && this.hoveredCountry !== this.selectedCountry) {
+            this.drawCountryHighlight(this.hoveredCountry, 'rgba(0, 212, 255, 0.3)'); // Azul tenue hover
+        }
+        
+        if (this.selectedCountry) {
+            this.drawCountryHighlight(this.selectedCountry, 'rgba(0, 212, 255, 0.6)'); // Azul fuerte selección
+            // Opcional: Dibujar borde brillante alrededor del seleccionado
+            this.drawCountryBorder(this.selectedCountry, '#00d4ff', 2);
+        }
+
+        // 4. ✅ SISTEMA DE PARTÍCULAS (El paso que faltaba)
+        // Se dibuja AL FINAL para que las explosiones aparezcan ENCIMA del mapa
+        this.updateAndDrawParticles();
+    }
+
+    /**
+     * Genera una explosión de partículas en X, Y
+     * @param {number} x - Coordenada X en el canvas
+     * @param {number} y - Coordenada Y en el canvas
+     * @param {'war'|'alliance'|'success'|'error'} type - Tipo define el color
+     */
+    spawnFeedback(x, y, type) {
+        const colors = {
+            war: '#ff3333',       // Rojo intenso
+            alliance: '#00aaff',  // Azul cielo
+            success: '#00ff00',   // Verde neón
+            error: '#ff9900'      // Naranja alerta
+        };
+        const color = colors[type] || '#ffffff';
+
+        // Crear 20 partículas
+        for (let i = 0; i < 20; i++) {
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 10, // Velocidad aleatoria X
+                vy: (Math.random() - 0.5) * 10, // Velocidad aleatoria Y
+                life: 1.0,                      // Vida (opacidad) inicial 100%
+                decay: 0.02 + Math.random() * 0.03, // Velocidad de desvanecimiento
+                color: color,
+                size: 2 + Math.random() * 3     // Tamaño aleatorio
+            });
+        }
+        
+        // Forzar un redraw inmediato para que se vea al instante
+        this.dirty = true;
+    }
+
+    /**
+     * Helper: Dibuja un país individual basado en sus datos
+     * Adapta esto a cómo tengas guardados tus paths (Path2D o Array de puntos)
+     */
+    drawCountryPath(id, pathData) {
+        this.ctx.save();
+        
+        // Color base del país (puedes hacerlo dinámico según dueño/relación si quieres)
+        this.ctx.fillStyle = '#2a2a4e'; 
+        this.ctx.strokeStyle = this.config.borderColor;
+        this.ctx.lineWidth = 1;
+
+        if (pathData instanceof Path2D) {
+            // Si ya tienes objetos Path2D optimizados
+            this.ctx.fill(pathData);
+            this.ctx.stroke(pathData);
+        } else if (typeof pathData === 'string') {
+            // Si tienes strings de ruta SVG ("M10 10 L20 20...")
+            const p = new Path2D(pathData);
+            this.ctx.fill(p);
+            this.ctx.stroke(p);
+        } else if (Array.isArray(pathData)) {
+            // Si tienes array de coordenadas [[x,y], [x,y]...]
+            this.ctx.beginPath();
+            if (pathData.length > 0) {
+                this.ctx.moveTo(pathData[0][0], pathData[0][1]);
+                for (let i = 1; i < pathData.length; i++) {
+                    this.ctx.lineTo(pathData[i][0], pathData[i][1]);
+                }
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+            this.ctx.stroke();
+        }
+
+        this.ctx.restore();
+    }
+
+    /**
+     * Helper: Pinta un país existente con un color de resaltado (alpha)
+     */
+    drawCountryHighlight(id, colorFill) {
+        const pathData = this.countryPaths.get(id);
+        if (!pathData) return;
+
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.6; // Transparencia para el highlight
+        this.ctx.fillStyle = colorFill;
+        
+        // Reutilizamos la lógica de dibujo pero solo fill, sin stroke
+        if (pathData instanceof Path2D) {
+            this.ctx.fill(pathData);
+        } else if (typeof pathData === 'string') {
+            this.ctx.fill(new Path2D(pathData));
+        } else if (Array.isArray(pathData)) {
+            this.ctx.beginPath();
+            if (pathData.length > 0) {
+                this.ctx.moveTo(pathData[0][0], pathData[0][1]);
+                for (let i = 1; i < pathData.length; i++) {
+                    this.ctx.lineTo(pathData[i][0], pathData[i][1]);
+                }
+            }
+            this.ctx.closePath();
+            this.ctx.fill();
+        }
+        
+        this.ctx.restore();
+    }
+
+    /**
+     * Helper: Dibuja solo el borde brillante (para selección activa)
+     */
+    drawCountryBorder(id, colorStroke, width) {
+        const pathData = this.countryPaths.get(id);
+        if (!pathData) return;
+
+        this.ctx.save();
+        this.ctx.strokeStyle = colorStroke;
+        this.ctx.lineWidth = width;
+        this.ctx.lineJoin = 'round';
+        
+        if (pathData instanceof Path2D) {
+            this.ctx.stroke(pathData);
+        } else if (typeof pathData === 'string') {
+            this.ctx.stroke(new Path2D(pathData));
+        } else if (Array.isArray(pathData)) {
+            this.ctx.beginPath();
+            if (pathData.length > 0) {
+                this.ctx.moveTo(pathData[0][0], pathData[0][1]);
+                for (let i = 1; i < pathData.length; i++) {
+                    this.ctx.lineTo(pathData[i][0], pathData[i][1]);
+                }
+            }
+            this.ctx.closePath();
+            this.ctx.stroke();
+        }
+        this.ctx.restore();
     }
 
     /**
