@@ -1,5 +1,5 @@
 import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocketServer as WS, WebSocket } from 'ws';
 import { on, off, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta, setInitialState } from '../core/StateManager.js';
 import { getCurrentTick } from '../core/TimeEngine.js';
@@ -16,21 +16,38 @@ import { processIntent } from '../modules/IntentProcessor.js';
  */
 
 class WebSocketServer {
-    constructor(port, stateManager, intentProcessor, timeEngine) {
-        this.port = port;
-        this.stateManager = stateManager;
+    constructor(httpServer, config, getState, intentProcessor, timeEngine) {
+        if (!httpServer) {
+            throw new Error('[WS Server] Se requiere un servidor HTTP válido.');
+        }
+
+        this.httpServer = httpServer;
+        this.config = config || {};
+        
+        // Inyección de dependencias críticas
+        this.getState = getState; 
         this.intentProcessor = intentProcessor;
         this.timeEngine = timeEngine;
-        
-        this.wss = null;
-        this.clients = new Map(); // clientId -> { ws, playerId, nationId }
 
-        // Inicializar validador explícitamente
-        validator.init();
+        this.wss = null;
+        this.clients = new Map();
+
+        // Inicializar validador de esquemas inmediatamente
+        if (schemaValidator && typeof schemaValidator.init === 'function') {
+            schemaValidator.init();
+        }
     }
 
     start() {
-        this.wss = new WebSocketServer({ port: this.port });
+
+        if (!this.httpServer) {
+            throw new Error('[WS] No se proporcionó servidor HTTP');
+        }
+
+        this.wss = new WS({ 
+            server: this.httpServer,
+            port: this.port
+        });
         console.log(`[WS Server] Escuchando en puerto ${this.port}`);
 
         this.wss.on('connection', (ws, req) => {

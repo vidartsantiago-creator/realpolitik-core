@@ -6,20 +6,22 @@
  */
 
 import http from 'http';
+import { createServer } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
-import { initTimeEngine, start as startTimeEngine, onTickStart, onTickEnd, executeTick, getCurrentTick } from '../core/TimeEngine.js';
-import { GameWebSocketServer } from '../network/WebSocketServer.js';
+import { getState } from '../core/StateManager.js';
+import * as TimeEngine from '../core/TimeEngine.js';
+import GameWebSocketServer from '../network/WebSocketServer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
-import IntentProcessor from '../modules/IntentProcessor.js';
+import { processIntent} from '../modules/IntentProcessor.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -168,34 +170,36 @@ async function main() {
         await registerModules();
 
         // Inicializar subsistemas de diplomacia explícitamente
-        initDiplomacyEngine();
-        console.log('[main] ✅ DiplomacyEngine listo.');
+        if (typeof initDiplomacyEngine === 'function') {
+            initDiplomacyEngine();
+            console.log('[main] ✅ DiplomacyEngine listo.');
+        }
         
-        initDiplomacyAI();
-        console.log('[main] ✅ DiplomacyAI activa.');
+        if (typeof initDiplomacyAI === 'function') {
+            initDiplomacyAI();
+            console.log('[main] ✅ DiplomacyAI activa.');
+        }
 
         // 4. Inicializar PersistenceManager
         try {
-            const persistenceResult = await initPersistenceManager({
-                saveDir: path.join(ROOT_DIR, 'saves'),
-                autoSaveInterval: 50,
-                enableAutoSave: true
-            });
+            if (typeof initPersistenceManager === 'function') {
+                const persistenceResult = await initPersistenceManager({
+                    saveDir: path.join(ROOT_DIR, 'saves'),
+                    autoSaveInterval: 50,
+                    enableAutoSave: true
+                });
 
-            if (persistenceResult.success) {
-                console.log('[main] ✅ PersistenceManager inicializado correctamente.');
-            } else {
-                console.warn('[main] ⚠️ PersistenceManager no se pudo inicializar:', persistenceResult.error);
+                if (persistenceResult.success) {
+                    console.log('[main] ✅ PersistenceManager inicializado correctamente.');
+                } else {
+                    console.warn('[main] ⚠️ PersistenceManager no se pudo inicializar:', persistenceResult.error);
+                }
             }
         } catch (e) {
             console.error('[main] ❌ ERROR inicializando PersistenceManager:', e.message);
         }
 
-        // 5. Inicializar TimeEngine
-        console.log('[main] Inicializando TimeEngine...');
-        initTimeEngine({ tickRate: CONFIG.tickRate, mode: 'continuous' });
-
-        // 6. Configurar Servidor HTTP y WebSocket
+        // 5. Configurar Servidor HTTP
         const httpServer = http.createServer((req, res) => {
             let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url);
 
@@ -233,9 +237,21 @@ async function main() {
             });
         });
 
+        // 6. Inicializar WebSocketServer ADJUNTO al HTTP
         console.log('[main] Iniciando WebSocketServer adjunto a HTTP...');
-        const wsServer = new GameWebSocketServer(httpServer, CONFIG);
+        
+        // CORRECCIÓN CRÍTICA: Pasar httpServer como primer argumento
+        // La clase debe esperar (server, config) o similar
+        const wsServer = new GameWebSocketServer(
+            httpServer, 
+            CONFIG, 
+            getState,           // Función para leer el estado
+            { process: processIntent }, // Wrapper simple si processIntent es una función suelta
+            TimeEngine          // Módulo completo de tiempo
+        );
         global.gameServer = wsServer;
+        
+        // Iniciar el WebSocket (esto adjuntará el listener 'upgrade' al httpServer)
         wsServer.start();
 
         // Exponer métodos send y broadcast explícitamente para main.js
@@ -249,8 +265,9 @@ async function main() {
             console.log('[main] ========================================');
         });
 
-        // 7. Suscribirse al bucle de ticks
-        onTickStart((tick) => {
+        // 7. Suscribirse al bucle de ticks (TimeEngine)
+        // Usamos la función onTickStart exportada desde TimeEngine.js
+        TimeEngine.onTickStart((tick) => {
             gameLoop(tick);
             const currentState = getState();
 
@@ -267,14 +284,19 @@ async function main() {
         });
 
         // Arrancar el motor de tiempo
-        startTimeEngine();
+        TimeEngine.start();
+        console.log('[main] ⏱️ TimeEngine iniciado.');
 
         // Inicializar parser de intenciones (Asesor IA) y Generador de Intel
-        initIntentParser({ engine: null, world: null, modules: null });
-        console.log('[main] 🤖 IntentParser inicializado');
+        if (typeof initIntentParser === 'function') {
+            initIntentParser({ engine: null, world: null, modules: null });
+            console.log('[main] 🤖 IntentParser inicializado');
+        }
 
-        initIntelGenerator({ engine: null, world: null, modules: null });
-        console.log('[main] 📡 IntelGenerator inicializado');
+        if (typeof initIntelGenerator === 'function') {
+            initIntelGenerator({ engine: null, world: null, modules: null });
+            console.log('[main] 📡 IntelGenerator inicializado');
+        }
 
         // ============================================
         // Puente de Eventos → WebSocket
@@ -302,7 +324,7 @@ async function main() {
             }
         });
 
-        // Crisis (Conexión con el módulo CrisisRule en /modules)
+        // Crisis
         on('crisis_started', (payload) => {
             if (global.gameServer?.broadcast) {
                 global.gameServer.broadcast({ type: 'crisis_started', ...payload, timestamp: Date.now() });
@@ -337,7 +359,7 @@ async function main() {
             }
         });
 
-        // --- RELACIONES BILATERALES DETALLADAS (Respuesta punto a punto) ---
+        // Relaciones Bilaterales Detalladas
         on('relations_detail_response', (payload) => {
             const { wsClientId, success, error, requestId, data } = payload;
 
@@ -346,17 +368,12 @@ async function main() {
                 return;
             }
 
-            // Enviamos la estructura PLANA que el frontend espera según tus logs
             if (global.gameServer?.send) {
                 global.gameServer.send(wsClientId, {
                     type: 'relations_detail',
-                    success: success !== false, // Asegurar booleano
+                    success: success !== false,
                     error: error || null,
                     requestId,
-                    // Desestructuramos 'data' para que sus propiedades suban al nivel superior
-                    // O si el frontend espera 'data.treaties', mantenemos el objeto data completo.
-                    // Según tu log: data: {nationId: 'ARG', treaties: []...}
-                    // Entonces enviamos el objeto 'data' tal cual viene del engine.
                     data: data 
                 });
                 console.log(`[main] 📤 Respuesta enviada a ${wsClientId}`);

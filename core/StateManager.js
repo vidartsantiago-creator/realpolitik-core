@@ -10,7 +10,7 @@
  * - v1.0.1: Corrección crítica: Agregada aplicación de 'units' en applyDelta y limpieza de validate.
  */
 
-import { emit } from './EventDispatcher.js';
+import { on, emit, off } from './EventDispatcher.js';
 
 /**
  * Estado global inicial vacío
