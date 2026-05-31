@@ -6,11 +6,14 @@ import { getCurrentTick } from '../core/TimeEngine.js';
 import { validator } from './SchemaValidator.js';
 import { processIntent } from '../modules/IntentProcessor.js';
 
-const WebSocket = require('ws');
-const schemaValidator = require('../core/SchemaValidator');
-// Asegúrate de importar tus otras dependencias (StateManager, IntentProcessor, etc.)
-// const StateManager = require('../core/StateManager'); 
-// const IntentProcessor = require('../modules/IntentProcessor');
+/**
+ * @file WebSocketServer.js
+ * @description Servidor WebSocket para comunicación en tiempo real con clientes.
+ *              Gestiona conexiones, validación de intenciones y sincronización de estado.
+ * @version 1.0.1
+ * @changelog
+ * - v1.0.1: Corrección: eliminar require() de 'ws', usar import ESM consistentemente
+ */
 
 class WebSocketServer {
     constructor(port, stateManager, intentProcessor, timeEngine) {
@@ -23,11 +26,11 @@ class WebSocketServer {
         this.clients = new Map(); // clientId -> { ws, playerId, nationId }
 
         // Inicializar validador explícitamente
-        schemaValidator.init();
+        validator.init();
     }
 
     start() {
-        this.wss = new WebSocket.Server({ port: this.port });
+        this.wss = new WebSocketServer({ port: this.port });
         console.log(`[WS Server] Escuchando en puerto ${this.port}`);
 
         this.wss.on('connection', (ws, req) => {
@@ -119,7 +122,7 @@ class WebSocketServer {
 
         // 2. VALIDACIÓN ESTRICTA CONTRA SCHEMA
         // El schema debe esperar la estructura normalizada
-        const validation = schemaValidator.validateIntent(normalizedIntent);
+        const validation = validator.validateIntent(normalizedIntent);
         
         if (!validation.valid) {
             console.warn(`[WS] Intent inválido de ${clientId}:`, validation.errors);
@@ -134,16 +137,19 @@ class WebSocketServer {
         // 3. PROCESAMIENTO
         try {
             const currentState = this.stateManager.getState();
-            const result = this.intentProcessor.process(normalizedIntent, currentState);
+            const result = processIntent(normalizedIntent, currentState);
 
             if (result.success) {
                 // Aplicar cambios al estado si los hay
-                if (result.stateDelta) {
-                    this.stateManager.applyDelta(result.stateDelta);
+                if (result.deltas && result.deltas.length > 0) {
+                    result.deltas.forEach(delta => {
+                        this.stateManager.applyDelta(delta);
+                    });
+                    
                     // Broadcast del delta a todos los clientes
                     this.broadcast({
                         type: 'state_update',
-                        delta: result.stateDelta,
+                        deltas: result.deltas,
                         tick: this.timeEngine.getCurrentTick()
                     });
                 }
@@ -208,3 +214,5 @@ class WebSocketServer {
         return `client_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     }
 }
+
+export default WebSocketServer;

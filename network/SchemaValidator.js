@@ -60,7 +60,27 @@ class SchemaValidator {
       };
     }
   }
+
+  validateDelta(data) {
+    if (!this.initialized) {
+      return { valid: true, errors: [] };
+    }
+
+    const valid = this.schemas.delta(data);
+    
+    if (valid) {
+      return { valid: true, errors: [] };
+    } else {
+      return { 
+        valid: false, 
+        errors: this.schemas.delta.errors.map(err => ({
+          field: err.instancePath || 'root',
+          message: err.message
+        }))
+      };
+    }
+  }
 }
 
-// Singleton exportado
+// Singleton exportado - instancia única
 export const validator = new SchemaValidator();

@@ -43,8 +43,8 @@ export function on(event, handler, priority = 0) {
   // Ordenar por prioridad descendente (mayor prioridad primero)
   handlers.sort((a, b) => b.priority - a.priority);
 
-    // RETORNAR explícitamente la función de cleanup
-  return () => off(event, callback);
+  // RETORNAR explícitamente la función de cleanup
+  return () => off(event, handler);
 }
 
 /**
