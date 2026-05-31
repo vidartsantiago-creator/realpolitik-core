@@ -6,6 +6,9 @@ import { emit } from '../core/EventDispatcher.js';
  * @description Orquestador central de lógica de negocio.
  *              Recibe una intención validada (schema OK) y ejecuta la lógica específica.
  *              Genera Deltas atómicos o retorna Errores de Negocio.
+ * @version 1.0.1
+ * @changelog
+ * - v1.0.1: Corrección: consistencia en parámetros de handlers, exportación de processIntent
  */
 
 // Registro de Handlers
@@ -20,7 +23,7 @@ export function init() {
     // Registrar handlers explícitamente
     handlers.set('diplomacy', handleDiplomacy);
     handlers.set('build_unit', handleBuildUnit);
-    handlers.set('move_unit', handleMoveUnit); // Placeholder básico
+    handlers.set('move_unit', handleMoveUnit);
 
     handlers.set('nation_select', handleNationSelect);
     handlers.set('policy_propose', handlePolicyPropose);
@@ -33,27 +36,27 @@ export function init() {
 /**
  * Procesa una intención ya validada por SchemaValidator.
  * @param {Object} intent - La intención completa (con playerId, nationId, etc.)
+ * @param {Object} state - El estado global actual
  * @returns {Object} Resultado: { success: boolean, deltas: Array, error: String|null }
  */
 export function processIntent(intent, state) {
-    const handler = handlers.get(intent.type);
+    const handler = handlers.get(intent.actionType || intent.type);
     
     if (!handler) {
         return {
             success: false,
             deltas: [],
-            error: `No hay lógica de negocio implementada para la acción: ${intent.type}`
+            error: `No hay lógica de negocio implementada para la acción: ${intent.actionType || intent.type}`
         };
     }
 
     try {
-        const currentState = getState();
-        // Ejecutar el handler específico pasando estado e intención
+        const currentState = state || getState();
+        // Ejecutar el handler específico pasando intención y estado (orden consistente)
         const result = handler(intent, currentState);
         
-        if (result.success && result.deltas.length > 0) {
+        if (result.success && result.deltas && result.deltas.length > 0) {
             // Emitir evento para que StateManager aplique los deltas
-            // O aplicar directamente aquí si se prefiere centralizado
             result.deltas.forEach(delta => {
                 // Opcional: Aplicar inmediatamente o delegar al EventDispatcher
                 // Aquí delegamos la aplicación al flujo estándar
@@ -63,7 +66,7 @@ export function processIntent(intent, state) {
         
         return result;
     } catch (err) {
-        console.error(`[IntentProcessor] Error crítico en ${intent.type}:`, err);
+        console.error(`[IntentProcessor] Error crítico en ${intent.actionType || intent.type}:`, err);
         return {
             success: false,
             deltas: [],
@@ -89,7 +92,7 @@ function handleDiplomacy(intent, state) {
     const { target, action } = actionData;
 
     if (!target || !action) {
-        return { success: false, error: 'Datos de diplomacia incompletos (falta target o action).' };
+        return { success: false, deltas: [], error: 'Datos de diplomacia incompletos (falta target o action).' };
     }
 
     // 1. Validaciones de existencia
@@ -154,23 +157,24 @@ function handleDiplomacy(intent, state) {
  * Handler: Construcción de Unidades
  * Verifica recursos y genera deltas de resta de oro y creación de unidad.
  */
-    function handleBuildUnit(intent, state) {
-        console.log('[DEBUG] Intent recibido:', JSON.stringify(intent, null, 2));
-        console.log('[DEBUG] Nación USA en estado:', state.nations['USA']);
+function handleBuildUnit(intent, state) {
+    console.log('[DEBUG] Intent recibido:', JSON.stringify(intent, null, 2));
+    console.log('[DEBUG] Nación USA en estado:', state.nations['USA']);
+    
     // CORRECCIÓN: Acceder al payload interno correctamente
-        const { playerId, nationId, payload } = intent;
+    const { playerId, nationId, payload } = intent;
     const actionData = intent.payload && typeof intent.payload === 'object' ? intent.payload : intent;
     const { unitType } = actionData;
     const finalUnitType = unitType || (intent.payload?.payload?.unitType);
     
 
     if (!finalUnitType) {
-        return { success: false, error: 'Tipo de unidad no especificado.' };
+        return { success: false, deltas: [], error: 'Tipo de unidad no especificado.' };
     }
 
-    // Verificar existencia de la naciónindex.html
+    // Verificar existencia de la nación
     if (!state.nations[nationId]) {
-        return { success: false, error: `Nación ${nationId} no existe.` };
+        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
     }
 
     const nation = state.nations[nationId];
@@ -184,7 +188,7 @@ function handleDiplomacy(intent, state) {
 
     const cost = UNIT_COSTS[finalUnitType];
     if (!cost) {
-        return { success: false, error: `Tipo de unidad desconocido: ${finalUnitType}` };
+        return { success: false, deltas: [], error: `Tipo de unidad desconocido: ${finalUnitType}` };
     }
 
     // Verificar recursos
@@ -193,18 +197,18 @@ function handleDiplomacy(intent, state) {
 
     if (currentGold < cost.gold || currentFood < cost.food) {
         return { 
-        success: false, 
-        error: `Fondos insuficientes. Costo: ${cost.gold} oro, ${cost.food} comida. Disponible: ${currentGold} oro, ${currentFood} comida.` 
+            success: false, 
+            deltas: [],
+            error: `Fondos insuficientes. Costo: ${cost.gold} oro, ${cost.food} comida. Disponible: ${currentGold} oro, ${currentFood} comida.` 
         };
     }
 
-    // Generar deltas atómicos
-    // Generar deltas atómicos
-const newUnit = { 
-    type: finalUnitType, 
-    createdAt: Date.now(),
-    id: `${nationId}_${finalUnitType}_${Date.now()}` // ID único opcional
-};
+    // Generar nueva unidad
+    const newUnit = { 
+        type: finalUnitType, 
+        createdAt: Date.now(),
+        id: `${nationId}_${finalUnitType}_${Date.now()}` // ID único
+    };
 
     const deltas = [
         {
@@ -229,14 +233,16 @@ const newUnit = {
             reason: `Unidad ${finalUnitType} creada`
         }
     ];
-    console.log(`[IntentProcessor] Deltas generados para build_unit:`, JSON.stringify(deltas, null, 2)); // <--- LOG CLAVE
+    
+    console.log(`[IntentProcessor] Deltas generados para build_unit:`, JSON.stringify(deltas, null, 2));
     return { success: true, deltas };
-    }
+}
 
 /**
  * Handler: Movimiento de Unidades (Placeholder básico)
+ * ✅ CORRECCIÓN: Parámetros en orden consistente (intent, state)
  */
-function handleMoveUnit(state, intent) {
+function handleMoveUnit(intent, state) {
     const { nationId, payload } = intent;
     const { from, to } = payload;
 
@@ -259,6 +265,7 @@ function handleMoveUnit(state, intent) {
 
     return { success: true, deltas: deltas };
 }
+
 /**
  * Handler: Selección de Nación
  * Asigna un jugador a una nación y actualiza el estado
@@ -445,7 +452,7 @@ function handleIntelInvestigate(intent, state) {
             type: 'resource_update',
             nationId: nationId,
             changes: { 
-            budget: -0.1  // $100k = 0.1M
+                budget: -0.1  // $100k = 0.1M
             },
             reason: 'investigacion_inteligencia'
         },
@@ -460,7 +467,6 @@ function handleIntelInvestigate(intent, state) {
     ];
 
     console.log(`[IntentProcessor] ✅ Señal ${signalId} investigada. Costo: $${investigationCost}M`);
-
     console.log(`[IntentProcessor] Presupuesto antes: ${currentBudget}M`);
     console.log(`[IntentProcessor] Costo investigación: 0.1M ($100k)`);
     console.log(`[IntentProcessor] Deltas a emitir:`, JSON.stringify(deltas, null, 2));
@@ -500,6 +506,3 @@ function generateDetailedIntel(signalId, state) {
         ]
     };
 }
-
-// Exportar default para compatibilidad con imports anteriores si los hubiera
-export default { init, process };

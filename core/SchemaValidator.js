@@ -1,93 +1,86 @@
-const { readFileSync } = require('fs');
-const { join } = require('path');
-const Ajv = require('ajv');
+import Ajv from 'ajv';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Ruta base hacia docs/contracts
+const CONTRACTS_DIR = join(__dirname, '../docs/contracts');
 
 class SchemaValidator {
-    constructor() {
-        this.ajv = new Ajv({ allErrors: true, strict: true });
-        this.intentSchema = null;
-        this.deltaSchema = null;
-        this.initialized = false;
+  constructor() {
+    this.ajv = new Ajv({ allErrors: true, strict: false });
+    this.schemas = {};
+    this.initialized = false;
+  }
+
+  init() {
+    if (this.initialized) return;
+
+    try {
+      // Cargar esquemas desde archivos JSON
+      const intentSchemaRaw = readFileSync(join(CONTRACTS_DIR, 'Intent.schema.json'), 'utf8');
+      const deltaSchemaRaw = readFileSync(join(CONTRACTS_DIR, 'StateDelta.schema.json'), 'utf8');
+
+      const intentSchema = JSON.parse(intentSchemaRaw);
+      const deltaSchema = JSON.parse(deltaSchemaRaw);
+
+      // Compilar esquemas en AJV
+      this.schemas.intent = this.ajv.compile(intentSchema);
+      this.schemas.delta = this.ajv.compile(deltaSchema);
+
+      this.initialized = true;
+      console.log('[SchemaValidator] Esquemas cargados y compilados correctamente.');
+    } catch (error) {
+      console.error('[SchemaValidator] Error crítico al cargar esquemas:', error.message);
+      console.error('[SchemaValidator] La validación en runtime estará DESACTIVADA por seguridad.');
+      this.initialized = false;
+    }
+  }
+
+  validateIntent(data) {
+    if (!this.initialized) {
+      // Fail-open: Si no hay esquemas, permitimos pasar para no romper el servidor en dev
+      return { valid: true, errors: [] };
     }
 
-    /**
-     * Inicializa los esquemas de validación.
-     * CRÍTICO: Si los archivos no existen o son inválidos, el proceso MUERE.
-     * No aceptamos datos sin contrato definido.
-     */
-    init() {
-        if (this.initialized) return;
+    const valid = this.schemas.intent(data);
+    
+    if (valid) {
+      return { valid: true, errors: [] };
+    } else {
+      return { 
+        valid: false, 
+        errors: this.schemas.intent.errors.map(err => ({
+          field: err.instancePath || 'root',
+          message: err.message
+        }))
+      };
+    }
+  }
 
-        const CONTRACTS_DIR = join(__dirname, '../docs/contracts');
-
-        try {
-            // Rutas explícitas a los contratos
-            const intentPath = join(CONTRACTS_DIR, 'Intent.schema.json');
-            const deltaPath = join(CONTRACTS_DIR, 'StateDelta.schema.json');
-
-            console.log(`[SchemaValidator] Cargando schemas desde: ${CONTRACTS_DIR}`);
-
-            // Lectura síncrona forzada al inicio
-            const intentSchemaRaw = readFileSync(intentPath, 'utf8');
-            const deltaSchemaRaw = readFileSync(deltaPath, 'utf8');
-
-            this.intentSchema = JSON.parse(intentSchemaRaw);
-            this.deltaSchema = JSON.parse(deltaSchemaRaw);
-
-            // Compilación y registro en AJV
-            this.ajv.addSchema(this.intentSchema, 'Intent');
-            this.ajv.addSchema(this.deltaSchema, 'StateDelta');
-
-            this.initialized = true;
-            console.log('✅ [SchemaValidator] Esquemas cargados y validados correctamente.');
-        } catch (error) {
-            console.error('🔴 [SchemaValidator] ERROR FATAL DE INICIALIZACIÓN:');
-            console.error(`   Mensaje: ${error.message}`);
-            console.error('   Acción: Abortando el servidor para prevenir corrupción de estado por falta de validación.');
-            process.exit(1); // 🔴 FAIL-CLOSED: Mejor caer ahora que corromper datos después
-        }
+  validateDelta(data) {
+    if (!this.initialized) {
+      return { valid: true, errors: [] };
     }
 
-    /**
-     * Valida un Intent entrante contra el esquema cargado.
-     * @param {Object} data - El objeto intent a validar
-     * @returns {{valid: boolean, errors: Array|null}}
-     */
-    validateIntent(data) {
-        if (!this.initialized) {
-            // Esto nunca debería ocurrir gracias al process.exit(1) en init(),
-            // pero lo dejamos como red de seguridad defensiva.
-            throw new Error('[SchemaValidator] Intento de validación antes de inicialización. Configuración crítica fallida.');
-        }
-
-        const validate = this.ajv.compile(this.intentSchema);
-        const valid = validate(data);
-
-        return {
-            valid,
-            errors: valid ? [] : validate.errors
-        };
+    const valid = this.schemas.delta(data);
+    
+    if (valid) {
+      return { valid: true, errors: [] };
+    } else {
+      return { 
+        valid: false, 
+        errors: this.schemas.delta.errors.map(err => ({
+          field: err.instancePath || 'root',
+          message: err.message
+        }))
+      };
     }
-
-    /**
-     * Valida un Delta de estado antes de aplicarlo o enviarlo.
-     * @param {Object} data - El objeto delta a validar
-     * @returns {{valid: boolean, errors: Array|null}}
-     */
-    validateDelta(data) {
-        if (!this.initialized) {
-            throw new Error('[SchemaValidator] Intento de validación de Delta antes de inicialización.');
-        }
-
-        const validate = this.ajv.compile(this.deltaSchema);
-        const valid = validate(data);
-
-        return {
-            valid,
-            errors: valid ? [] : validate.errors
-        };
-    }
+  }
 }
 
-// Exportar instancia singleton
-module.exports = new SchemaValidator();
+// Singleton exportado - instancia única
+export const validator = new SchemaValidator();

@@ -2,11 +2,12 @@
  * @file TimeEngine.js
  * @description Motor de bucle de ticks determinista con soporte para modos continuous y batch.
  *              Gestiona pausa, aceleración y sincronización con el sistema de eventos.
- * @version 1.0.0
+ * @version 1.0.1
  * @author Realpolitik Core Team
  * @dependencies EventDispatcher, Rng
  * @changelog
  * - v1.0.0: Creación inicial. Implementa bucle de ticks con modos continuous/batch.
+ * - v1.0.1: Corrección ESM: eliminar module.exports, consolidar exportaciones, arreglar executeTick
  */
 
 import { emit, on } from './EventDispatcher.js';
@@ -45,145 +46,6 @@ const _tickListeners = [];
 const _tickEndListeners = [];
 
 /**
- * Inicializa el motor de tiempo con configuración desde engine.json.
- * @param {{ tickRate?: number, mode?: 'continuous'|'batch', batchWindow?: number }} config - Configuración opcional
- */
-class TimeEngine {
-    constructor(config) {
-        this.tickDuration = config.tickDuration || 1000; // ms por tick
-        this.currentTick = 0;
-        this.isRunning = false;
-        this.timerId = null;
-        
-        // Callbacks inyectados desde fuera
-        this.onTickCallback = null;
-        
-        console.log(`[TimeEngine] Inicializado con duración de tick: ${this.tickDuration}ms`);
-    }
-
-    /**
-     * Establece la función que se ejecutará en cada tick.
-     * @param {Function} callback - Función(tickNumber)
-     */
-    onTick(callback) {
-        if (typeof callback !== 'function') {
-            throw new Error('[TimeEngine] El callback de onTick debe ser una función.');
-        }
-        this.onTickCallback = callback;
-    }
-
-    /**
-     * Inicia el loop de tiempo.
-     */
-    start() {
-        if (this.isRunning) {
-            console.warn('[TimeEngine] Ya está en ejecución.');
-            return;
-        }
-
-        if (!this.onTickCallback) {
-            throw new Error('[TimeEngine] No se ha registrado ningún callback con onTick().');
-        }
-
-        this.isRunning = true;
-        console.log(`[TimeEngine] ▶️ Iniciado en tick ${this.currentTick}`);
-        
-        this._runLoop();
-    }
-
-    /**
-     * Detiene el loop de tiempo.
-     */
-    stop() {
-        this.isRunning = false;
-        if (this.timerId) {
-            clearTimeout(this.timerId);
-            this.timerId = null;
-        }
-        console.log(`[TimeEngine] ⏹️ Detenido en tick ${this.currentTick}`);
-    }
-
-    /**
-     * Reinicia el contador de ticks a 0.
-     * ¡Cuidado! Esto resetea el estado temporal del motor.
-     */
-    reset() {
-        this.stop();
-        this.currentTick = 0;
-        console.log('[TimeEngine] 🔄 Resetear a tick 0');
-    }
-
-    /**
-     * Obtiene el tick actual.
-     * @returns {number}
-     */
-    getCurrentTick() {
-        return this.currentTick;
-    }
-
-    /**
-     * Ejecuta un único tick lógico.
-     * Este método es llamado internamente por el loop o manualmente para pruebas.
-     * 
-     * ✅ CORRECCIÓN CRÍTICA: Retorna { tick, success } simple.
-     * Anteriormente retornaba métodos internos causando colapsos.
-     * 
-     * @returns {{tick: number, success: boolean}}
-     */
-    executeTick() {
-        if (!this.isRunning && this.currentTick === 0) {
-            // Permitir ejecución manual incluso si no está "corriendo" el timer para tests
-        }
-
-        try {
-            if (this.onTickCallback) {
-                this.onTickCallback(this.currentTick);
-            }
-            
-            const resultTick = this.currentTick;
-            this.currentTick++;
-            
-            return {
-                tick: resultTick,
-                success: true
-            };
-        } catch (error) {
-            console.error(`[TimeEngine] Error crítico en tick ${this.currentTick}:`, error);
-            // No incrementamos el tick si hubo error fatal para mantener consistencia
-            return {
-                tick: this.currentTick,
-                success: false,
-                error: error.message
-            };
-        }
-    }
-
-    /**
-     * Loop interno recursivo con setTimeout para mantener el ritmo.
-     * Usamos setTimeout en lugar de setInterval para permitir asíncronía controlada
-     * y evitar acumulación de retrasos (drift).
-     */
-    _runLoop() {
-        if (!this.isRunning) return;
-
-        const startTime = Date.now();
-        
-        // Ejecutar lógica del tick
-        this.executeTick();
-
-        // Calcular cuánto tiempo falta para el siguiente tick
-        const elapsed = Date.now() - startTime;
-        const delay = Math.max(0, this.tickDuration - elapsed);
-
-        this.timerId = setTimeout(() => {
-            this._runLoop();
-        }, delay);
-    }
-}
-
-module.exports = TimeEngine;
-
-/**
  * Registra un listener para el evento tick_start.
  * @param {Function} callback - Función que recibe el número de tick
  */
@@ -208,6 +70,7 @@ export function onTickEnd(callback) {
 /**
  * Ejecuta un tick completo del motor.
  * Emite tick_start, ejecuta listeners, emite tick_end.
+ * ✅ CORRECCIÓN: Retorna { tick, success } simple, no métodos internos
  * @returns {{ tick: number, success: boolean }}
  */
 export function executeTick() {
@@ -240,10 +103,7 @@ export function executeTick() {
       listener(tick);
     }
 
-    return { start,
-        onTickStart,
-        onTickEnd,
-        executeTick};
+    return { tick, success: true };
   } catch (error) {
     console.error(`[TimeEngine] Error en tick ${tick}:`, error);
     emit('tick_error', { tick, error: error.message });
