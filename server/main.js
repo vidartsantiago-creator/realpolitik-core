@@ -13,7 +13,6 @@ import { fileURLToPath } from 'url';
 import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
-import { getState } from '../core/StateManager.js';
 import * as TimeEngine from '../core/TimeEngine.js';
 import GameWebSocketServer from '../network/WebSocketServer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';

@@ -31,10 +31,11 @@ class WebSocketServer {
 
         this.wss = null;
         this.clients = new Map();
+        this.validator = validator;
 
         // Inicializar validador de esquemas inmediatamente
-        if (schemaValidator && typeof schemaValidator.init === 'function') {
-            schemaValidator.init();
+        if (validator && typeof validator.init === 'function') {
+            validator.init();
         }
     }
 
