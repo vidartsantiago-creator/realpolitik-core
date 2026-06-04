@@ -141,30 +141,46 @@ export class MapRenderer {
     /**
      * MÉTODO PRINCIPAL DE RENDERIZADO
      */
-    redraw() {
-        if (!this.ctx) return;
+ redraw() {
+        // Protección crítica: Si el contexto no existe, salir silenciosamente
+        if (!this.ctx || !this.canvas) return;
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = this.config.baseColor;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        try {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = this.config.baseColor;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Dibujar países
-        for (const [id, pathData] of this.countryPaths.entries()) {
-            this.drawCountryPath(id, pathData);
+            // Dibujar países con validación
+            if (this.countryPaths) {
+                for (const [id, pathData] of this.countryPaths.entries()) {
+                    // Validar que pathData exista antes de dibujar
+                    if (pathData) {
+                        this.drawCountryPath(id, pathData);
+                    }
+                }
+            }
+
+            // Resaltados seguros (usando optional chaining y validaciones)
+            const hoveredId = this.hoveredCountry?.id || this.hoveredCountry;
+            const selectedId = this.selectedCountry?.id || this.selectedCountry;
+
+            if (hoveredId && hoveredId !== selectedId) {
+                this.drawCountryHighlight(hoveredId, 'rgba(0, 212, 255, 0.3)');
+            }
+            
+            if (selectedId) {
+                this.drawCountryHighlight(selectedId, 'rgba(0, 212, 255, 0.6)');
+                this.drawCountryBorder(selectedId, '#00d4ff', 2);
+            }
+
+            // Partículas
+            this.updateAndDrawParticles();
+            
+        } catch (error) {
+            // Registrar error sin romper el loop de animación
+            console.warn('[MapRenderer] Error en redraw (recuperado):', error);
+            // No lanzamos el error para no detener el requestAnimationFrame
         }
-
-        // Resaltados de interacción
-        if (this.hoveredCountry && this.hoveredCountry.id !== this.selectedCountry?.id) {
-            this.drawCountryHighlight(this.hoveredCountry.id, 'rgba(0, 212, 255, 0.3)');
-        }
-        
-        if (this.selectedCountry) {
-            this.drawCountryHighlight(this.selectedCountry, 'rgba(0, 212, 255, 0.6)');
-            this.drawCountryBorder(this.selectedCountry, '#00d4ff', 2);
-        }
-
-        // Partículas
-        this.updateAndDrawParticles();
     }
 
     /**
