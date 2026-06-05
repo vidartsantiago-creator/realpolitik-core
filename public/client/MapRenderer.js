@@ -187,7 +187,24 @@ export class MapRenderer {
             // No lanzamos el error para no detener el requestAnimationFrame
         }
     }
+
+    markDirty() {
+        this.dirty = true;
+    }   
     
+    cleanup() {
+        if (this.frameId) {
+            cancelAnimationFrame(this.frameId);
+            this.frameId = null;
+        }
+        this.ctx = null;
+        this.canvas = null;
+        this.countryPaths.clear();
+        this.countryBounds.clear();
+        this.particles = [];
+        console.log('[MapRenderer] Recursos limpiados');
+    }
+
     /**
      * Genera una explosión de partículas
      */
@@ -211,10 +228,8 @@ export class MapRenderer {
                 color: color,
                 size: 2 + Math.random() * 3
             });
-        }
-        markDirty() 
-        {
-            this.dirty = true;
+        
+            this.markDirty();
         }
     }
 
