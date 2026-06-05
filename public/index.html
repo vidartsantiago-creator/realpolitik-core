@@ -1224,235 +1224,266 @@
         // INICIALIZACIÓN DE LA APLICACIÓN
         // ============================================
         function initApp() {
-            console.log("🚀 Iniciando interfaz de usuario...");
+            console.log("🚀 Iniciando interfaz de usuario unificada...");
+
+            // 1. CONFIGURACIÓN INICIAL Y REFERENCIAS GLOBALES
             const wsUrl = `ws://${window.location.host}`;
-            const syncClient = new SyncClient(wsUrl);
-            syncClient.onStateUpdate = (newState) => {
-                // 1. Guardar estado global para acceso externo
-                window.gameState = newState;
-                if (app) app.gameState = newState;
-
-                // 2. Actualizar el mapa si existe el renderizador
-                if (window.mapRenderer && app.currentPlayerNation) {
-                    window.mapRenderer.update(newState, app.currentPlayerNation);
-                }
-
-                // 3. Gestionar el Panel de Acciones (Country Action Panel)
-                // Si hay un país seleccionado, actualizar sus datos en tiempo real
-                if (app.actionPanel && app.selectedCountryId) {
-                    const countryData = newState.nations ? newState.nations[app.selectedCountryId] : null;
-                    
-                    if (countryData) {
-                        // El panel ya está visible, solo actualizamos los datos internos
-                        app.actionPanel.update(app.selectedCountryId, countryData);
-                    } else {
-                        // Si el país ya no existe en el estado (ej: fue eliminado), ocultar panel
-                        app.actionPanel.hide();
-                        app.selectedCountryId = null;
-                    }
-                }
-
-                // 4. Actualizar otros paneles existentes (si los hubiera)
-                // Ejemplo: Panel de Crisis, Log de Eventos, etc.
-                // if (app.crisisPanel) app.crisisPanel.update(newState.crisis);
-                
-                console.log('[UI] Estado sincronizado:', newState.tick);
-            };
-
+            
+            // Referencias base
             const canvas = document.getElementById('game-map');
             if (!canvas) {
-                console.error("❌ No se encontró el elemento canvas #game-map");
+                console.error("❌ CRÍTICO: No se encontró el elemento canvas #game-map");
                 return;
             }
 
-            // Ajustar tamaño inicial explícito antes de crear el renderer
+            // Ajuste inicial de tamaño seguro
             const parent = canvas.parentElement;
-            canvas.width = parent.clientWidth;
-            canvas.height = parent.clientHeight;
+            if (parent) {
+                canvas.width = parent.clientWidth;
+                canvas.height = parent.clientHeight;
+            }
 
-            // Instanciar renderizadores
-            window.mapRenderer = new MapRenderer(canvas);
+            // 2. INSTANCIAS ÚNICAS (Singletons por sesión)
+            // Evitamos duplicados si la función se llama por error múltiples veces
+            if (window.app && window.app.initialized) {
+                console.warn("⚠️ App ya estaba inicializada. Limpiando estado anterior...");
+                if (window.app.syncClient) window.app.syncClient.disconnect();
+                if (window.app.mapRenderer) window.app.mapRenderer.cleanup();
+            }
+
+            // Instanciar Renderizador
+            const mapRenderer = new MapRenderer(canvas);
             console.log("✅ MapRenderer instanciado.");
 
-            // Inicializar Panel de Acciones
+            // Instanciar Panel de Acciones
             const countryActionPanel = new CountryActionPanel('country-action-panel-container');
 
-            // Exponer handler global para los botones del panel
-            window.handleCountryAction = (actionType) => {
-                if (!countryActionPanel.currentNationId) return;
-                
-                console.log(`[Acción] ${actionType} sobre ${countryActionPanel.currentNationId}`);
-                
-                // Enviar intención al servidor
-                if (app.client && app.client.sendIntent) {
-                    app.client.sendIntent(actionType, { target_nation: countryActionPanel.currentNationId });
-                }
-                
-                // Feedback visual simple
-                alert(`Orden enviada: ${actionType} a ${countryActionPanel.currentNationId}`);
-            };
+            // Instanciar Cliente de Sincronización (ÚNICO)
+            const syncClient = new SyncClient(wsUrl);
 
-            // Guardar referencia en window.app
+            // 3. ESTADO GLOBAL DE LA APP
             window.app = {
-                mapRenderer,
-                syncClient,
-                currentPlayerNation: 'ARG', // O la que corresponda
-                countryActionPanel,
-                
-                // Nueva función para enviar intenciones
-                sendIntent: (type, targetId) => {
-                    console.log(`[App] Enviando intención: ${type} a ${targetId}`);
-                    
-                    // Construir objeto Intent según schema
+                mapRenderer: mapRenderer,
+                syncClient: syncClient,
+                actionPanel: countryActionPanel,
+                currentPlayerNation: null, // Se establecerá con el primer estado
+                selectedCountryId: null,
+                gameState: null,
+                initialized: true,
+
+                // Handler unificado para enviar intenciones
+                sendIntent: (type, targetId, parameters = {}) => {
                     const intent = {
                         type: type,
-                        actor: window.app.currentPlayerNation,
+                        actor: window.app.currentPlayerNation || 'UNKNOWN',
                         target: targetId,
                         timestamp: Date.now(),
-                        parameters: {} 
+                        parameters: parameters
                     };
 
-                    // Enviar vía WebSocket
-                    if (window.app.syncClient && window.app.syncClient.ws && window.app.syncClient.ws.readyState === WebSocket.OPEN) {
-                        window.app.syncClient.ws.send(JSON.stringify({
-                            type: 'intent',
-                            payload: intent
-                        }));
-                        
-                        // Feedback visual inmediato (opcional)
-                        alert(`Acción enviada: ${type} a ${targetId}`); 
+                    console.log(`[App] Enviando intención: ${type}`, intent);
+
+                    if (window.app.syncClient && window.app.syncClient.isConnected()) {
+                        window.app.syncClient.send('intent', intent);
+                        showNotification(`Orden enviada: ${type}`, "success");
                     } else {
-                        console.error('WebSocket no conectado');
-                    }
-                }
-            };
-
-            // Conectar cliente WebSocket
-            window.client = new SyncClient({
-                onStateUpdate: (state) => {
-                    console.log("🔄 Estado actualizado recibido", state);
-                    window.gameState = state;
-
-                    // Actualizar nación del jugador si cambia
-                    if (state.playerNationId) {
-                        window.app.currentPlayerNation = state.playerNationId;
-                    }
-
-                    // Actualizar UI
-                    updateMetrics(state);
-
-                    // Actualizar Asesor
-                    const advisorEl = document.getElementById('advisor-message');
-                    if (advisorEl) {
-                        if (state.advisor && state.advisor.advisorMessage) {
-                            advisorEl.textContent = state.advisor.advisorMessage;
-                        } else if (state.advisorMessage) {
-                            advisorEl.textContent = state.advisorMessage;
-                        } else {
-                            advisorEl.textContent = "Esperando datos...";
-                        }
-                    }
-
-                    // Actualizar mapa
-                    if (window.mapRenderer && typeof window.mapRenderer.update === 'function') {
-                        const pId = state.playerNationId || Object.keys(state.nations || {})[0];
-                        window.mapRenderer.update(state, pId);
-                    }
-
-                    // Actualizar panel diplomático
-                    if (typeof updateDiplomaticStatus === 'function') {
-                        updateDiplomaticStatus(state, window.app.currentPlayerNation);
+                        console.error('❌ WebSocket no conectado. No se puede enviar la intención.');
+                        showNotification("Error de conexión", "error");
                     }
                 },
-                onLog: (msg) => addLog(msg),
-                onIntelSignal: (signal) => addIntelSignal(signal),
-                onCustomEvent: (event) => handleCustomEvent(event)
-            });
 
-            
-
-            // Listeners de UI
-            document.getElementById('btn-save').onclick = () => {
-                if(window.client) window.client.saveGame();
-            };
-
-            document.getElementById('btn-load').onclick = () => {
-                document.getElementById('file-input').click();
-            };
-
-            document.getElementById('btn-diplomacy').onclick = () => {
-                showNotification("🌍 Módulo de Diplomacia: Abriendo panel...", "info");
-                // Solicitar relaciones detalladas al servidor
-                loadRelationsDetail();
-            };
-
-            window.mapRenderer = new MapRenderer(canvas);
-            app.actionPanel = new CountryActionPanel();
-            window.mapRenderer.onCountrySelect = (countryId) => {
-                const currentState = app.gameState || {};
-                const countryData = currentState.nations?.[countryId] || {};
-                app.selectedCountryId = countryId; // Guardar selección
-                app.actionPanel.show(countryId, countryData); // Mostrar panel
-                if (countryId && app.actionPanel) {
-                    app.actionPanel.show(countryId, countryData);
+                // Handler global expuesto para botones HTML
+                handleGlobalAction: (actionType) => {
+                    if (!window.app.actionPanel || !window.app.actionPanel.currentNationId) {
+                        console.warn("No hay nación seleccionada para la acción.");
+                        return;
+                    }
+                    const target = window.app.actionPanel.currentNationId;
+                    window.app.sendIntent(actionType, target);
                 }
             };
-            app.currentPlayerNation = 'ARG'; // O el valor por defecto
+
+            // Exponer handler específico para el panel de acciones (como usabas antes)
+            window.handleCountryAction = (actionType) => {
+                window.app.handleGlobalAction(actionType);
+            };
+
+            // 4. LÓGICA CENTRALIZADA DE ACTUALIZACIÓN DE ESTADO
+            syncClient.onStateUpdate = (newState) => {
+                // A. Guardar estado global
+                window.gameState = newState;
+                window.app.gameState = newState;
+
+                // B. Actualizar Nación del Jugador si cambia
+                if (newState.playerNationId && newState.playerNationId !== window.app.currentPlayerNation) {
+                    window.app.currentPlayerNation = newState.playerNationId;
+                    console.log(`👤 Jugador ahora controla: ${newState.playerNationId}`);
+                }
+
+                // C. Actualizar Mapa (Solo si hay renderer y nación válida)
+                const pId = window.app.currentPlayerNation || (newState.nations ? Object.keys(newState.nations)[0] : null);
+                if (mapRenderer && pId) {
+                    // Usamos update que internamente llamará a markDirty si es necesario
+                    mapRenderer.update(newState, pId);
+                }
+
+                // D. Actualizar Panel de Acciones (Si hay país seleccionado)
+                if (window.app.actionPanel && window.app.selectedCountryId) {
+                    const countryData = newState.nations ? newState.nations[window.app.selectedCountryId] : null;
+                    
+                    if (countryData) {
+                        window.app.actionPanel.update(window.app.selectedCountryId, countryData);
+                    } else {
+                        // El país seleccionado ya no existe
+                        window.app.actionPanel.hide();
+                        window.app.selectedCountryId = null;
+                    }
+                }
+
+                // E. Actualizar UI General (Métricas, Advisor, etc.)
+                if (typeof updateMetrics === 'function') {
+                    updateMetrics(newState);
+                }
+
+                // Actualizar Mensaje del Asesor
+                const advisorEl = document.getElementById('advisor-message');
+                if (advisorEl) {
+                    let msg = "Esperando datos...";
+                    if (newState.advisor?.advisorMessage) {
+                        msg = newState.advisor.advisorMessage;
+                    } else if (newState.advisorMessage) {
+                        msg = newState.advisorMessage;
+                    } else if (newState.turnInfo) {
+                        msg = `Turno ${newState.turnInfo.currentTurn} | Año: ${newState.turnInfo.year}`;
+                    }
+                    advisorEl.textContent = msg;
+                }
+
+                // Actualizar Panel Diplomático (si existe la función)
+                if (typeof updateDiplomaticStatus === 'function' && window.app.currentPlayerNation) {
+                    updateDiplomaticStatus(newState, window.app.currentPlayerNation);
+                }
+
+                console.log(`[UI] Estado sincronizado (Tick: ${newState.tick})`);
+            };
+
+            // Handlers auxiliares del cliente
+            syncClient.onLog = (msg) => addLog(msg);
+            syncClient.onIntelSignal = (signal) => addIntelSignal(signal);
+            syncClient.onCustomEvent = (event) => handleCustomEvent(event);
+
+            // 5. LISTENERS DE UI Y BOTONES
+            setupEventListeners();
+
+            // 6. CONEXIÓN FINAL
+            syncClient.connect();
+
+            console.log("✅ Interfaz inicializada correctamente y conectando...");
+
+            // --- FUNCIONES AUXILIARES INTERNAS ---
+
+            function setupEventListeners() {
+                // Botón Guardar
+                const btnSave = document.getElementById('btn-save');
+                if (btnSave) btnSave.onclick = () => syncClient.saveGame();
+
+                // Botón Cargar (Trigger input file)
+                const btnLoad = document.getElementById('btn-load');
+                if (btnLoad) {
+                    btnLoad.onclick = () => {
+                        const fileInput = document.getElementById('file-input');
+                        if (fileInput) fileInput.click();
+                    };
+                }
+
+                // Input File Oculto (Creación única)
+                let fileInput = document.getElementById('file-input');
+                if (!fileInput) {
+                    fileInput = document.createElement('input');
+                    fileInput.id = 'file-input';
+                    fileInput.type = 'file';
+                    fileInput.style.display = 'none';
+                    fileInput.accept = '.dat,.json';
+                    fileInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (file && syncClient) syncClient.loadGame(file);
+                    };
+                    document.body.appendChild(fileInput);
+                }
+
+                // Botón Diplomacia
+                const btnDiplo = document.getElementById('btn-diplomacy');
+                if (btnDiplo) {
+                    btnDiplo.onclick = () => {
+                        showNotification("🌍 Módulo de Diplomacia: Abriendo panel...", "info");
+                        loadRelationsDetail();
+                    };
+                }
+
+                // Botón Mercado de Inteligencia
+                const btnIntel = document.getElementById('btn-intel-market');
+                if (btnIntel) {
+                    btnIntel.onclick = () => {
+                        showNotification("🕵️ Mercado de Inteligencia: Próximamente", "info");
+                    };
+                }
+
+                // Listener de Selección de País en el Mapa
+                mapRenderer.onCountrySelect = (countryId) => {
+                    const currentState = window.app.gameState || {};
+                    const countryData = currentState.nations?.[countryId] || {};
+                    
+                    window.app.selectedCountryId = countryId;
+                    
+                    if (window.app.actionPanel) {
+                        window.app.actionPanel.show(countryId, countryData);
+                    }
+                    
+                    console.log(`🗺️ País seleccionado: ${countryId}`);
+                };
+            }
 
             /**
              * Solicita relaciones bilaterales detalladas al servidor
              */
             function loadRelationsDetail() {
-                if (!window.client || !window.client.isConnected()) {
+                if (!syncClient || !syncClient.isConnected()) {
                     showNotification("❌ No conectado al servidor", "error");
                     return;
                 }
 
-                const state = window.client.getState();
-                const nationId = state?.playerNationId || 'ARG';
+                const state = syncClient.getState();
+                const nationId = state?.playerNationId || window.app.currentPlayerNation || 'ARG';
                 const requestId = Date.now();
 
-                console.log(`[UI] 📊 Solicitando relaciones para ${nationId} (requestId: ${requestId})`);
+                console.log(`[UI] 📊 Solicitando relaciones para ${nationId} (req: ${requestId})`);
 
-                // Enviar solicitud al servidor
-                window.client.send('get_relations_detail', {
+                syncClient.send('get_relations_detail', {
                     nationId,
                     requestId
                 });
 
-                // Mostrar modal de carga
                 showModal('Relaciones Bilaterales', '<div style="text-align:center;padding:20px;">Cargando datos diplomáticos...</div>');
             }
 
             /**
-             * Muestra un modal genérico con título y contenido HTML
+             * Muestra un modal genérico
              */
             function showModal(title, htmlContent) {
                 const modal = document.getElementById('modal-generic');
-                document.getElementById('modal-title').textContent = title;
-                document.getElementById('modal-body').innerHTML = htmlContent;
-                modal.style.display = 'flex';
+                const titleEl = document.getElementById('modal-title');
+                const bodyEl = document.getElementById('modal-body');
+                
+                if (modal && titleEl && bodyEl) {
+                    titleEl.textContent = title;
+                    bodyEl.innerHTML = htmlContent;
+                    modal.style.display = 'flex';
+                } else {
+                    console.warn("Elementos del modal no encontrados en el DOM");
+                    alert(`${title}: ${htmlContent.replace(/<[^>]*>?/gm, '')}`);
+                }
             }
-
-            document.getElementById('btn-intel-market').onclick = () => {
-                showNotification("🕵️ Mercado de Inteligencia: Próximamente", "info");
-            };
-
-            // Input file oculto para carga
-            const fileInput = document.createElement('input');
-            fileInput.id = 'file-input';
-            fileInput.type = 'file';
-            fileInput.style.display = 'none';
-            fileInput.accept = '.dat,.json';
-            fileInput.onchange = (e) => {
-                const file = e.target.files[0];
-                if(file && window.client) window.client.loadGame(file);
-            };
-            document.body.appendChild(fileInput);
-
-            console.log("✅ Interfaz inicializada correctamente.");
         }
-
         // Manejo de Eventos Personalizados (CRISIS, DIPLOMACIA, etc.)
         function handleCustomEvent(event) {
             console.log("📨 Evento recibido:", event);

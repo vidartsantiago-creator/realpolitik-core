@@ -128,10 +128,15 @@ export class MapRenderer {
         const render = () => {
             this.frameId = requestAnimationFrame(render);
             
+            if (!this.ctx || !this.canvas) {
+    return;
+}
             if (this.dirty || this.particles.length > 0) {
-                this.redraw();
-                if (this.particles.length === 0) {
-                    this.dirty = false;
+                try {
+                    this.redraw();
+                    // ...
+                } catch (error) {
+                    console.warn('[MapRenderer] Error en redraw (recuperado):', error);
                 }
             }
         };
@@ -182,7 +187,7 @@ export class MapRenderer {
             // No lanzamos el error para no detener el requestAnimationFrame
         }
     }
-
+    
     /**
      * Genera una explosión de partículas
      */
@@ -207,7 +212,10 @@ export class MapRenderer {
                 size: 2 + Math.random() * 3
             });
         }
-        this.dirty = true;
+        markDirty() 
+        {
+            this.dirty = true;
+        }
     }
 
     /**
