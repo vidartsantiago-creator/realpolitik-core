@@ -655,15 +655,38 @@ export class MapRenderer {
      * 🔥 ACTUALIZADO: Maneja movimiento del mouse con hit testing sincronizado
      */
     handleMouseMove(e) {
+        // 1. Obtener coordenadas del ratón relativas al Canvas (Pantalla)
         const rect = this.canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
 
-        // ✅ Hit testing con transformaciones sincronizadas
-        const foundCountryId = this.findCountryAtPoint(mouseX, mouseY);
+        // 2. Inversión de la transformación de la cámara
+        // Fórmula: World = (Screen - Offset) / Scale + ViewBoxOrigin
+        
+        // A. Restar el desplazamiento (Offset) aplicado por translate()
+        const translatedX = screenX - this.transform.offsetX;
+        const translatedY = screenY - this.transform.offsetY;
 
-        if (foundCountryId !== this.hoveredCountry?.id && foundCountryId !== this.hoveredCountry) {
+        // B. Dividir por la escala aplicada por scale()
+        const scaledX = translatedX / this.transform.scale;
+        const scaledY = translatedY / this.transform.scale;
+
+        // C. COMPENSAR EL ORIGEN DEL VIEWBOX (La pieza faltante)
+        // Si el SVG original empieza en coordenadas negativas (ej: -169, -58),
+        // debemos sumar ese valor para mapear al sistema de coordenadas interno del path.
+        const viewBox = this.svgViewBox || { x: 0, y: 0 };
+        const worldX = scaledX + viewBox.x;
+        const worldY = scaledY + viewBox.y;
+
+        // 3. Hit Testing con las coordenadas corregidas (Mundo SVG Real)
+        const foundCountryId = this.findCountryAtPoint(worldX, worldY);
+
+        // 4. Gestión del Estado Hover
+        const prevId = this.hoveredCountry ? (this.hoveredCountry.id || this.hoveredCountry) : null;
+
+        if (foundCountryId !== prevId) {
             const nation = this.state?.nations?.[foundCountryId];
+            
             this.hoveredCountry = foundCountryId ? {
                 id: foundCountryId,
                 name: nation?.name || foundCountryId,
@@ -671,14 +694,14 @@ export class MapRenderer {
             } : null;
 
             this.canvas.style.cursor = foundCountryId ? 'pointer' : 'default';
-            this.dirty = true;
+            this.dirty = true; // Forzar redraw
         }
 
-        // Actualizar tooltip
+        // 5. Actualizar Tooltip (Usa coordenadas de pantalla para seguir al ratón visualmente)
         if (this.hoveredCountry) {
             this.tooltip.visible = true;
-            this.tooltip.x = mouseX + 15;
-            this.tooltip.y = mouseY - 10;
+            this.tooltip.x = screenX + 15; 
+            this.tooltip.y = screenY - 10;
             this.tooltip.content = this.getTooltipContent(this.hoveredCountry);
         } else {
             this.tooltip.visible = false;
