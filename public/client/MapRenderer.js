@@ -413,32 +413,38 @@ export class MapRenderer {
                 }
             }
 
+            // FIX: Usar namespace-aware matching para soportar ns0:path, ns0:polygon, etc.
             const pathElements = svgDoc.querySelectorAll('[id]');
-            const countryPaths = Array.from(pathElements).filter(el =>
-                el.tagName.toLowerCase().includes('path') ||
-                el.tagName.toLowerCase().includes('polygon')
-            );
+            const countryPaths = Array.from(pathElements).filter(el => {
+                const tagName = el.tagName.toLowerCase();
+                // Extraer nombre local sin namespace (ej: "ns0:path" -> "path")
+                const localName = tagName.includes(':') ? tagName.split(':')[1] : tagName;
+                return localName === 'path' || localName === 'polygon';
+            });
 
             countryPaths.forEach(element => {
                 const id = element.getAttribute('id');
                 if (!id) return;
 
                 let path2D = null;
+                
+                // FIX: Extraer nombre local sin namespace para comparación
+                const tagName = element.tagName.toLowerCase();
+                const localName = tagName.includes(':') ? tagName.split(':')[1] : tagName;
 
-                // 🔥 NUEVO: Soporte para <path> con atributo 'd'
-                if (element.tagName.toLowerCase() === 'path') {
+                // Soporte para <path> con atributo 'd'
+                if (localName === 'path') {
                     const d = element.getAttribute('d');
                     if (d) {
                         path2D = new Path2D(d);
                     }
                 }
                 
-                // 🔥 NUEVO: Soporte para <polygon> con atributo 'points'
-                if (element.tagName.toLowerCase() === 'polygon') {
+                // Soporte para <polygon> con atributo 'points'
+                if (localName === 'polygon') {
                     const points = element.getAttribute('points');
                     if (points) {
                         try {
-                            // Convertir "x1,y1 x2,y2 x3,y3" a Path2D
                             path2D = this.polygonPointsToPath2D(points);
                         } catch (error) {
                             console.warn(`[MapRenderer] Error procesando polygon ${id}:`, error);
@@ -449,13 +455,13 @@ export class MapRenderer {
                 if (path2D) {
                     this.countryPaths.set(id, path2D);
 
-                    // Calcular bounds (funciona igual para path y polygon)
-                    const boundsData = element.tagName.toLowerCase() === 'path' 
+                    // Calcular bounds - FIX: usar localName en lugar de tagName
+                    const boundsData = localName === 'path' 
                         ? element.getAttribute('d')
                         : this.polygonPointsToBounds(element.getAttribute('points'));
                     
                     if (boundsData) {
-                        const bounds = element.tagName.toLowerCase() === 'path'
+                        const bounds = localName === 'path'
                             ? this.calculatePathBounds(boundsData)
                             : this.calculatePolygonBounds(boundsData);
                         
