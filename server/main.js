@@ -130,6 +130,14 @@ async function main() {
         // 2. Cargar estado inicial
         console.log('[main] Cargando estado inicial...');
 
+        const nationGeometryData = {
+            'USA': { centroid: { x: 280, y: 280 }, bounds: { minX: 200, minY: 220, maxX: 360, maxY: 340 } },
+            'CHN': { centroid: { x: 750, y: 320 }, bounds: { minX: 680, minY: 280, maxX: 820, maxY: 380 } },
+            'RUS': { centroid: { x: 700, y: 180 }, bounds: { minX: 550, minY: 120, maxX: 900, maxY: 250 } },
+            'BRA': { centroid: { x: 380, y: 480 }, bounds: { minX: 320, minY: 420, maxX: 450, maxY: 550 } },
+            'ARG': { centroid: { x: 350, y: 580 }, bounds: { minX: 320, minY: 520, maxX: 380, maxY: 640 } }
+        };
+
         const nationsList = [
             { id: 'USA', name: 'Estados Unidos', stability: 80, economy: 90, influence: 85 },
             { id: 'CHN', name: 'China', stability: 75, economy: 85, influence: 70 },
@@ -142,6 +150,11 @@ async function main() {
             ...acc,
             [nation.id]: {
                 ...nation,
+                // INCLUIR GEOMETRÍA PARA EL CLIENTE
+                geometry: nationGeometryData[nation.id] || { 
+                    centroid: { x: 500, y: 330 }, 
+                    bounds: { minX: 450, minY: 280, maxX: 550, maxY: 380 } 
+                },
                 stats: { stability: nation.stability, economy: nation.economy, influence: nation.influence },
                 resources: { gold: 1000, food: 500 },
                 units: [],

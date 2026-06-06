@@ -2,12 +2,15 @@
  * MapRenderer.js - Motor de Renderizado Geopolítico con Mapa SVG Real
  * @description Convierte el estado del juego en representación visual en canvas usando mapa SVG real.
  *              Implementa capas de renderizado, conversión geo->píxeles, y detección de interacción.
- *              FASE 3: Carga de SVG real, coloreado dinámico por país, efectos glow/pulse
- * @version 3.0.1 - FIXED
+ *              FASE 3.2: Hit testing sincronizado + Soporte para polygons + LineWidth fix
+ * @version 3.2.0 - HIT TESTING FIXED + POLYGON SUPPORT + LINEWIDTH FIX
  * @module MapRenderer
  * @changes
  *   - Carga y parseo de SVG del mapa mundial real (/assets/maps/world-map.svg)
  *   - Extracción de paths de cada país como Path2D objects
+ *   - ✅ NUEVO: Soporte para <polygon> además de <path>
+ *   - ✅ NUEVO: Hit testing con transformaciones sincronizadas (findCountryAtPoint)
+ *   - ✅ NUEVO: LineWidth aplicado ANTES de scale para no distorsionar
  *   - Mapeo de coordenadas SVG→Canvas manteniendo proyección original
  *   - Coloreado dinámico según estado diplomático (player, ally, hostile, neutral)
  *   - Efectos glow/pulse sobre países activos
@@ -129,12 +132,12 @@ export class MapRenderer {
             this.frameId = requestAnimationFrame(render);
             
             if (!this.ctx || !this.canvas) {
-    return;
-}
+                return;
+            }
             if (this.dirty || this.particles.length > 0) {
                 try {
                     this.redraw();
-                    // ...
+                    this.dirty = false;
                 } catch (error) {
                     console.warn('[MapRenderer] Error en redraw (recuperado):', error);
                 }
@@ -146,7 +149,7 @@ export class MapRenderer {
     /**
      * MÉTODO PRINCIPAL DE RENDERIZADO
      */
- redraw() {
+    redraw() {
         // Protección crítica: Si el contexto no existe, salir silenciosamente
         if (!this.ctx || !this.canvas) return;
 
@@ -268,6 +271,8 @@ export class MapRenderer {
         
         this.ctx.fillStyle = '#2a2a4e';
         this.ctx.strokeStyle = this.config.borderColor;
+        
+        // 🔥 FIX: Aplicar lineWidth ANTES de scale para no distorsionar
         this.ctx.lineWidth = 1;
 
         if (pathData instanceof Path2D) {
@@ -332,6 +337,8 @@ export class MapRenderer {
 
         this.ctx.save();
         this.ctx.strokeStyle = colorStroke;
+        
+        // 🔥 FIX: Aplicar lineWidth ANTES de cualquier transformación
         this.ctx.lineWidth = width;
         this.ctx.lineJoin = 'round';
         
@@ -355,6 +362,7 @@ export class MapRenderer {
 
     /**
      * Carga y parsea el SVG del mapa
+     * 🔥 ACTUALIZADO: Ahora carga tanto <path> como <polygon>
      */
     async loadSVGMap() {
         try {
@@ -411,17 +419,49 @@ export class MapRenderer {
                 el.tagName.toLowerCase().includes('polygon')
             );
 
-            countryPaths.forEach(path => {
-                const id = path.getAttribute('id');
-                const d = path.getAttribute('d');
+            countryPaths.forEach(element => {
+                const id = element.getAttribute('id');
+                if (!id) return;
 
-                if (id && d) {
-                    const path2D = new Path2D(d);
+                let path2D = null;
+
+                // 🔥 NUEVO: Soporte para <path> con atributo 'd'
+                if (element.tagName.toLowerCase() === 'path') {
+                    const d = element.getAttribute('d');
+                    if (d) {
+                        path2D = new Path2D(d);
+                    }
+                }
+                
+                // 🔥 NUEVO: Soporte para <polygon> con atributo 'points'
+                if (element.tagName.toLowerCase() === 'polygon') {
+                    const points = element.getAttribute('points');
+                    if (points) {
+                        try {
+                            // Convertir "x1,y1 x2,y2 x3,y3" a Path2D
+                            path2D = this.polygonPointsToPath2D(points);
+                        } catch (error) {
+                            console.warn(`[MapRenderer] Error procesando polygon ${id}:`, error);
+                        }
+                    }
+                }
+
+                if (path2D) {
                     this.countryPaths.set(id, path2D);
 
-                    const bounds = this.calculatePathBounds(d);
-                    if (bounds) {
-                        this.countryBounds.set(id, bounds);
+                    // Calcular bounds (funciona igual para path y polygon)
+                    const boundsData = element.tagName.toLowerCase() === 'path' 
+                        ? element.getAttribute('d')
+                        : this.polygonPointsToBounds(element.getAttribute('points'));
+                    
+                    if (boundsData) {
+                        const bounds = element.tagName.toLowerCase() === 'path'
+                            ? this.calculatePathBounds(boundsData)
+                            : this.calculatePolygonBounds(boundsData);
+                        
+                        if (bounds) {
+                            this.countryBounds.set(id, bounds);
+                        }
                     }
                 }
             });
@@ -433,6 +473,53 @@ export class MapRenderer {
         } catch (error) {
             console.error('[MapRenderer] Error cargando SVG:', error);
         }
+    }
+
+    /**
+     * 🔥 NUEVO: Convierte puntos de polygon a Path2D
+     * @param {string} pointsString - Ej: "10,10 20,20 30,15"
+     * @returns {Path2D}
+     */
+    polygonPointsToPath2D(pointsString) {
+        const points = pointsString.trim().split(/\s+/).map(point => {
+            const [x, y] = point.split(',').map(Number);
+            return { x, y };
+        });
+
+        if (points.length === 0) throw new Error('No points in polygon');
+
+        const path = new Path2D();
+        path.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+            path.lineTo(points[i].x, points[i].y);
+        }
+        path.closePath();
+
+        return path;
+    }
+
+    /**
+     * 🔥 NUEVO: Calcula bounds de un polygon
+     * @param {string} pointsString - Ej: "10,10 20,20 30,15"
+     * @returns {Object|null}
+     */
+    calculatePolygonBounds(pointsString) {
+        const points = pointsString.trim().split(/\s+/).map(point => {
+            const [x, y] = point.split(',').map(Number);
+            return { x: Number(x), y: Number(y) };
+        });
+
+        if (points.length === 0) return null;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        points.forEach(point => {
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
+        });
+
+        return { minX, minY, maxX, maxY };
     }
 
     /**
@@ -510,6 +597,44 @@ export class MapRenderer {
     }
 
     /**
+     * 🔥 NUEVO: Hit testing con transformaciones sincronizadas
+     * Aplica las mismas transformaciones que en renderCountries()
+     * @param {number} canvasX - Coordenada X en espacio canvas
+     * @param {number} canvasY - Coordenada Y en espacio canvas
+     * @returns {string|null} ID del país encontrado o null
+     */
+    findCountryAtPoint(canvasX, canvasY) {
+        if (!this.ctx || this.countryPaths.size === 0) return null;
+
+        // CRÍTICO: Aplicar exactamente las mismas transformaciones que en renderCountries()
+        // Esto garantiza sincronización perfecta entre renderizado e hit testing
+        this.ctx.save();
+        this.ctx.translate(this.transform.offsetX, this.transform.offsetY);
+        this.ctx.scale(this.transform.scale, this.transform.scale);
+
+        let foundCountryId = null;
+
+        // Iterar en orden inverso para detectar correctamente cuando hay superposiciones
+        const pathIds = Array.from(this.countryPaths.keys()).reverse();
+        
+        for (const id of pathIds) {
+            const path = this.countryPaths.get(id);
+            
+            // isPointInPath ahora funciona correctamente:
+            // - El path está en espacio SVG
+            // - El contexto tiene translate + scale aplicados
+            // - Las coordenadas están en espacio canvas ANTES de las transformaciones
+            if (this.ctx.isPointInPath(path, canvasX, canvasY)) {
+                foundCountryId = id;
+                break;
+            }
+        }
+
+        this.ctx.restore();
+        return foundCountryId;
+    }
+
+    /**
      * Configura listeners de interacción
      */
     setupInteraction() {
@@ -521,39 +646,29 @@ export class MapRenderer {
     }
 
     /**
-     * Maneja movimiento del mouse
+     * 🔥 ACTUALIZADO: Maneja movimiento del mouse con hit testing sincronizado
      */
     handleMouseMove(e) {
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        let foundCountry = null;
-        const svgCoords = this.canvasToSvg(mouseX, mouseY);
+        // ✅ Hit testing con transformaciones sincronizadas
+        const foundCountryId = this.findCountryAtPoint(mouseX, mouseY);
 
-        for (const [id, path] of this.countryPaths.entries()) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = this.svgViewBox.width;
-            tempCanvas.height = this.svgViewBox.height;
-            const tempCtx = tempCanvas.getContext('2d');
+        if (foundCountryId !== this.hoveredCountry?.id && foundCountryId !== this.hoveredCountry) {
+            const nation = this.state?.nations?.[foundCountryId];
+            this.hoveredCountry = foundCountryId ? {
+                id: foundCountryId,
+                name: nation?.name || foundCountryId,
+                nationId: foundCountryId
+            } : null;
 
-            if (tempCtx && tempCtx.isPointInPath(path, svgCoords.x, svgCoords.y)) {
-                const nation = this.state?.nations?.[id];
-                foundCountry = {
-                    id,
-                    name: nation?.name || id,
-                    nationId: id
-                };
-                break;
-            }
-        }
-
-        if (foundCountry?.id !== this.hoveredCountry?.id) {
-            this.hoveredCountry = foundCountry;
-            this.canvas.style.cursor = foundCountry ? 'pointer' : 'default';
+            this.canvas.style.cursor = foundCountryId ? 'pointer' : 'default';
             this.dirty = true;
         }
 
+        // Actualizar tooltip
         if (this.hoveredCountry) {
             this.tooltip.visible = true;
             this.tooltip.x = mouseX + 15;
@@ -771,6 +886,7 @@ export class MapRenderer {
 
     /**
      * Renderiza países desde SVG
+     * 🔥 FIX: LineWidth aplicado ANTES de scale para no distorsionar
      */
     renderCountries() {
         if (this.countryPaths.size === 0) return;
@@ -789,14 +905,16 @@ export class MapRenderer {
             }
 
             this.ctx.save();
+            
+            // 🔥 FIX: Aplicar lineWidth ANTES de las transformaciones
+            this.ctx.lineWidth = lineWidth;
+            this.ctx.strokeStyle = strokeColor;
+            
             this.ctx.translate(this.transform.offsetX, this.transform.offsetY);
             this.ctx.scale(this.transform.scale, this.transform.scale);
 
             this.ctx.fillStyle = fillColor;
             this.ctx.fill(path);
-
-            this.ctx.strokeStyle = strokeColor;
-            this.ctx.lineWidth = lineWidth;
             this.ctx.stroke(path);
 
             this.ctx.restore();

@@ -1,104 +1,87 @@
 /**
  * @file SyncClient.js
- * @description Cliente de sincronización robusto para RealPolitik Core.
- *              Maneja WebSocket, reconexión con backoff exponencial y fusión profunda de estados.
- * @version 2.1.0 (Corregido)
- * @author RealPolitik Core Team
+ * @description Cliente de sincronización robusto. 
+ *              CORRECCIÓN: Ahora acepta el primer delta como estado inicial si es necesario.
+ * @version 3.0.1
  */
 
-// Configuración de Reconexión
-const RECONNECT_DELAY_BASE = 1000; // 1 segundo inicial
-const RECONNECT_BACKOFF_MULTIPLIER = 1.5; // Crecimiento suave
-const RECONNECT_MAX_DELAY = 10000; // Máximo 10 segundos
-const MAX_RECONNECT_ATTEMPTS = 10; // Intentos infinitos virtualmente (o pon un límite alto)
+const RECONNECT_DELAY = 1000;
+const RECONNECT_BACKOFF_MULTIPLIER = 1.5;
+const MAX_RECONNECT_DELAY = 10000;
 
 export class SyncClient {
-    /**
-     * @param {string} [wsUrl] - URL opcional del WebSocket. Si no se pasa, usa la del navegador.
-     */
     constructor(wsUrl) {
-        // Usar la URL proporcionada o deducirla del entorno actual
         this.wsUrl = wsUrl || `ws://${window.location.host}`;
         this.ws = null;
         this.localState = null;
-        this.connectionState = false;
-        this.clientId = null;
+        this.isConnected = false;
         
-        // Referencias externas
-        this.mapRenderer = null; 
+        // Cola de mensajes para deltas recibidos antes del init_state
+        this.messageQueue = [];
         
-        // Sistema de Audio
-        this.audioCtx = null;
-
-        // Estado de Reconexión
+        // Reconexión
         this.reconnectAttempts = 0;
         this.reconnectTimeoutId = null;
         this.isReconnecting = false;
 
-        // Callbacks opcionales para UI antigua (si existen)
-        this.onStateUpdate = null;
-        this.onLog = null;
-        this.onIntelSignal = null;
-        this.onCustomEvent = null;
+        // Referencias externas
+        this.mapRenderer = null;
+        this.onStateUpdate = null; // Callback para la UI
+
+        // Bindings
+        this.connect = this.connect.bind(this);
     }
 
-    /**
-     * Establece referencia al renderizador para notificar cambios
-     */
     setMapRenderer(renderer) {
         this.mapRenderer = renderer;
     }
 
-    /**
-     * Inicia la conexión WebSocket
-     */
     connect() {
-        // Prevenir múltiples conexiones simultáneas
         if (this.isReconnecting) {
-            console.log('[SyncClient] Reconexión en progreso, omitiendo connect()');
+            console.log('[SyncClient] Reconexión en curso, ignorando llamada connect().');
             return;
         }
 
-        // Si ya está abierto, no hacer nada
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            return;
+        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+            return; 
         }
 
-        // Limpiar estado previo si existe
+        // Limpiar estado anterior
         if (this.ws) {
-            this.ws.onclose = null; // Evitar disparar reconexión al cerrar manualmente
+            this.ws.onclose = null; 
             this.ws.close();
+            this.ws = null;
         }
 
-        console.log(`[SyncClient] 🔄 Conectando a ${this.wsUrl}...`);
+        console.log(`[SyncClient] Conectando a ${this.wsUrl}...`);
         
         try {
             this.ws = new WebSocket(this.wsUrl);
         } catch (e) {
-            console.error('[SyncClient] Error fatal creando WebSocket:', e);
-            this._scheduleReconnect();
+            console.error('[SyncClient] Error fatal al crear WebSocket:', e);
+            this.scheduleReconnect();
             return;
         }
 
         this.ws.onopen = () => {
-            console.log('[SyncClient] ✅ Conectado correctamente');
-            this.connectionState = true;
-            this.isReconnecting = false;
+            console.log('[SyncClient] ✅ Conectado correctamente.');
+            this.isConnected = true;
             this.reconnectAttempts = 0;
+            this.isReconnecting = false;
             
-            // Solicitar estado inicial si es necesario (depende del protocolo del servidor)
-            // this.send('request_init', { clientId: this.clientId });
+            // OPCIONAL: Si el servidor REQUIERE explícitamente un 'get_init' para enviarlo, descomenta esto:
+            // this.send('get_init', {}); 
         };
 
         this.ws.onclose = (event) => {
-            console.warn(`[SyncClient] ❌ Desconectado (Code: ${event.code}). Iniciando protocolo de reconexión...`);
-            this.connectionState = false;
-            this._scheduleReconnect();
+            console.warn(`[SyncClient] ❌ Desconectado (Code: ${event.code}). Programando reconexión...`);
+            this.isConnected = false;
+            this.ws = null;
+            this.scheduleReconnect();
         };
 
         this.ws.onerror = (err) => {
-            console.error('[SyncClient] Error de red:', err);
-            // No cerramos aquí, onclose se encargará
+            console.error('[SyncClient] Error de WebSocket:', err);
         };
 
         this.ws.onmessage = (event) => {
@@ -111,299 +94,198 @@ export class SyncClient {
         };
     }
 
-    /**
-     * Programa un reintento con backoff exponencial
-     */
-    _scheduleReconnect() {
-        if (this.isReconnecting) {
-            return; // Ya hay un timer activo
-        }
-
-        if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            console.error('[SyncClient] ⚠️ Máximo de reintentos alcanzado. Deteniendo reconexión.');
-            // Opcional: Disparar evento de "fallo crítico" a la UI
-            return;
-        }
-
+    scheduleReconnect() {
+        if (this.isReconnecting) return;
+        
         this.isReconnecting = true;
         this.reconnectAttempts++;
 
-        // Calcular delay: Base * (Multiplier ^ Intentos) con tope máximo
         const delay = Math.min(
-            RECONNECT_DELAY_BASE * Math.pow(RECONNECT_BACKOFF_MULTIPLIER, this.reconnectAttempts),
-            RECONNECT_MAX_DELAY
+            RECONNECT_DELAY * Math.pow(RECONNECT_BACKOFF_MULTIPLIER, this.reconnectAttempts),
+            MAX_RECONNECT_DELAY
         );
 
-        console.log(`[SyncClient] ⏳ Reintento ${this.reconnectAttempts} en ${Math.round(delay)}ms`);
+        console.log(`[SyncClient] Reintento ${this.reconnectAttempts} en ${delay}ms`);
 
         this.reconnectTimeoutId = setTimeout(() => {
             this.reconnectTimeoutId = null;
             this.isReconnecting = false;
-            this.connect(); // Intentar conectar de nuevo
+            this.connect();
         }, delay);
     }
 
-    /**
-     * Envía un mensaje al servidor
-     * @param {string} type - Tipo de mensaje
-     * @param {object} payload - Datos a enviar
-     */
-    send(type, payload = {}) {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.warn('[SyncClient] Offline: No se puede enviar', type);
-            return Promise.reject(new Error('Sin conexión WebSocket'));
-        }
-
-        const message = { type, ...payload };
-        try {
-            this.ws.send(JSON.stringify(message));
-            return Promise.resolve();
-        } catch (e) {
-            console.error('[SyncClient] Error enviando mensaje:', e);
-            return Promise.reject(e);
-        }
-    }
-
-    /**
-     * Procesa los mensajes entrantes
-     */
     handleMessage(message) {
-        switch (message.type) {
+        if (!message.type) {
+            console.warn('[SyncClient] Mensaje sin tipo recibido:', message);
+            return;
+        }
+
+        // Normalizar tipos de mensaje por si el servidor usa variantes
+        const type = message.type;
+        const payload = message.state || message.delta || message.payload;
+
+        switch (type) {
             case 'connected':
-                this.clientId = message.clientId;
-                console.log(`[SyncClient] 🆔 ID de cliente asignado: ${this.clientId}`);
+                console.log('[SyncClient] ID de sesión:', message.clientId);
                 break;
 
             case 'init_state':
-                // Estado inicial completo
-                console.log('[SyncClient] 📦 Recibido estado inicial');
-                this.localState = structuredClone 
-                    ? structuredClone(message.state) 
-                    : JSON.parse(JSON.stringify(message.state));
-                
-                this._notifyStateUpdate(this.localState);
+                console.log('[SyncClient] 📥 Recibido estado inicial explícito.');
+                this.localState = payload;
+                this.processMessageQueue();
+                this.notifyUpdate();
                 break;
 
             case 'state_update':
             case 'delta':
-                // Actualización diferencial
+            case 'tick': // Por si el servidor usa otro nombre
+                // LÓGICA CORREGIDA:
+                // Si no tenemos estado local, verificamos si este mensaje parece un estado completo.
+                // Un estado completo suele tener la propiedad 'nations' o 'map'.
                 if (!this.localState) {
-                    console.warn('[SyncClient] Recibido delta sin estado base. Solicitando init...');
-                    this.send('request_init');
-                    return;
+                    if (payload && payload.nations) {
+                        console.log('[SyncClient] 🚀 Primer mensaje recibido tiene estructura completa. Usando como init_state.');
+                        this.localState = JSON.parse(JSON.stringify(payload)); // Clonar para seguridad
+                        this.processMessageQueue();
+                        this.notifyUpdate();
+                        return;
+                    } else {
+                        // Si es un delta parcial y no tenemos base, encolar (esperar al completo)
+                        // PERO con un límite de tiempo o reintento para evitar bucles infinitos si el server falla
+                        console.warn('[SyncClient] Delta recibido antes de init_state. Encolando...');
+                        
+                        // Seguridad: Si la cola crece demasiado, forzar limpieza para evitar memoria infinita
+                        if (this.messageQueue.length > 50) {
+                            this.messageQueue.shift(); // Descartar el más antiguo
+                        }
+                        this.messageQueue.push(message);
+                        return;
+                    }
                 }
-                this.applyDelta(message.delta || message.state);
-                this._notifyStateUpdate(this.localState);
+
+                // Si ya tenemos estado, aplicamos el delta normalmente
+                this.applyDelta(payload);
+                this.notifyUpdate();
                 break;
 
             case 'intent_accepted':
-                console.log('[SyncClient] ✅ Acción aceptada:', message.payload);
-                this.playSound('success');
-                this._triggerVisualFeedback(message.payload);
+                console.log('[SyncClient] ⚡ Intención aceptada:', message.payload);
+                if (this.mapRenderer && typeof this.mapRenderer.playSound === 'function') {
+                    this.mapRenderer.playSound('success');
+                }
                 break;
 
             case 'intent_rejected':
-                console.warn('[SyncClient] ❌ Acción rechazada:', message.reason);
-                this.playSound('error');
+                console.warn('[SyncClient] 🚫 Intención rechazada:', message.reason);
+                if (this.mapRenderer && typeof this.mapRenderer.playSound === 'function') {
+                    this.mapRenderer.playSound('error');
+                }
                 break;
                 
-            case 'log':
-                if (this.onLog) this.onLog(message.message);
-                break;
-
-            case 'intel_signal':
-                if (this.onIntelSignal) this.onIntelSignal(message.signal);
-                break;
-
-            case 'custom_event':
-                if (this.onCustomEvent) this.onCustomEvent(message.event);
-                break;
-
             default:
-                // console.debug('[SyncClient] Mensaje desconocido:', message.type);
-                break;
-        }
-    }
-
-    /**
-     * Notifica a los suscriptores (UI/Renderer) sobre cambios de estado
-     */
-    _notifyStateUpdate(newState) {
-        // 1. Notificar al Renderizador (si existe y tiene markDirty)
-        if (this.mapRenderer) {
-            if (typeof this.mapRenderer.markDirty === 'function') {
-                this.mapRenderer.markDirty();
-            } else {
-                // Fallback antiguo: llamar a update directamente si existe
-                if (typeof this.mapRenderer.update === 'function' && this.clientId) {
-                    // Necesitamos el playerNationId, intentamos obtenerlo del estado
-                    const pId = newState.playerNationId || this.clientId; 
-                    this.mapRenderer.update(newState, pId);
+                console.debug('[SyncClient] Mensaje desconocido:', type, message);
+                // Fallback: Si el mensaje tiene datos de naciones y no tenemos estado, intentarlo usar
+                if (!this.localState && message.nations) {
+                     console.log('[SyncClient] Fallback: Usando mensaje desconocido como estado inicial.');
+                     this.localState = message;
+                     this.notifyUpdate();
                 }
-            }
-        }
-
-        // 2. Notificar callback global de UI (patrón legacy de index.html)
-        if (typeof this.onStateUpdate === 'function') {
-            try {
-                this.onStateUpdate(newState);
-            } catch (e) {
-                console.error('[SyncClient] Error en callback onStateUpdate:', e);
-            }
-        }
-
-        // 3. Actualizar variable global si existe (para debug/consola)
-        if (typeof window !== 'undefined') {
-            window.gameState = newState;
         }
     }
 
-    /**
-     * Aplica un delta al estado local usando fusión profunda recursiva.
-     */
-    applyDelta(delta) {
-        if (!this.localState) {
-            this.localState = structuredClone ? structuredClone(delta) : JSON.parse(JSON.stringify(delta));
-            return;
+    processMessageQueue() {
+        if (this.messageQueue.length === 0) return;
+
+        console.log(`[SyncClient] Procesando ${this.messageQueue.length} mensajes pendientes...`);
+        
+        while (this.messageQueue.length > 0) {
+            const pendingMsg = this.messageQueue.shift();
+            const payload = pendingMsg.state || pendingMsg.delta || pendingMsg.payload;
+            if (payload) {
+                this.applyDelta(payload);
+            }
         }
+        
+        this.notifyUpdate();
+    }
 
-        const deepMerge = (target, source) => {
+    applyDelta(delta) {
+        if (!this.localState || !delta) return;
+
+        // Fusión profunda simple
+        const merge = (target, source) => {
             for (const key in source) {
-                if (!source.hasOwnProperty(key)) continue;
+                if (source.hasOwnProperty(key)) {
+                    const srcVal = source[key];
+                    const tgtVal = target[key];
 
-                const sourceVal = source[key];
-                const targetVal = target[key];
-
-                // Si es objeto puro (no null, no array), mergear recursivamente
-                if (typeof sourceVal === 'object' && sourceVal !== null && !Array.isArray(sourceVal)) {
-                    if (typeof targetVal !== 'object' || targetVal === null || Array.isArray(targetVal)) {
-                        target[key] = {};
+                    if (srcVal && typeof srcVal === 'object' && !Array.isArray(srcVal)) {
+                        if (!tgtVal || typeof tgtVal !== 'object' || Array.isArray(tgtVal)) {
+                            target[key] = {};
+                        }
+                        merge(target[key], srcVal);
+                    } else {
+                        target[key] = srcVal;
                     }
-                    deepMerge(target[key], sourceVal);
-                } 
-                // Si es array, reemplazar completo (más seguro para listas de entidades)
-                else if (Array.isArray(sourceVal)) {
-                    target[key] = [...sourceVal];
-                } 
-                // Primitivos: asignar directo
-                else {
-                    target[key] = sourceVal;
                 }
             }
         };
 
-        deepMerge(this.localState, delta);
+        merge(this.localState, delta);
     }
 
-    /**
-     * Dispara efectos visuales basados en eventos del servidor
-     */
-    _triggerVisualFeedback(payload) {
-        if (!this.mapRenderer || typeof this.mapRenderer.spawnFeedback !== 'function') return;
+    notifyUpdate() {
+        if (!this.localState) return;
 
-        if (payload?.action === 'declare_war') {
-            this.mapRenderer.spawnFeedback(
-                window.innerWidth / 2, 
-                window.innerHeight / 2, 
-                'war'
-            );
+        // 1. Notificar a la UI general (si existe callback)
+        if (this.onStateUpdate) {
+            this.onStateUpdate(this.localState);
         }
-    }
-
-    /**
-     * Sistema de audio procedural
-     */
-    playSound(type) {
-        if (typeof window === 'undefined') return;
-        if (!window.AudioContext && !window.webkitAudioContext) return;
-
-        if (!this.audioCtx) {
-            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-
-        if (this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume().catch(() => {});
-        }
-
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-
-        const now = this.audioCtx.currentTime;
-
-        try {
-            switch (type) {
-                case 'success':
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(523.25, now);
-                    osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.1);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-                    osc.start(now);
-                    osc.stop(now + 0.3);
-                    break;
-                case 'error':
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(150, now);
-                    osc.frequency.linearRampToValueAtTime(100, now + 0.2);
-                    gain.gain.setValueAtTime(0.1, now);
-                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
-                    osc.start(now);
-                    osc.stop(now + 0.2);
-                    break;
-                case 'war':
-                    osc.type = 'square';
-                    osc.frequency.setValueAtTime(100, now);
-                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
-                    gain.gain.setValueAtTime(0.2, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-                    osc.start(now);
-                    osc.stop(now + 0.5);
-                    break;
-                default:
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(440, now);
-                    gain.gain.setValueAtTime(0.05, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-                    osc.start(now);
-                    osc.stop(now + 0.1);
+        
+        // 2. Notificar al Renderizador
+        if (this.mapRenderer) {
+            const playerId = this.localState.playerNationId || (this.localState.nations ? Object.keys(this.localState.nations)[0] : null);
+            
+            // Cargar geometría si es la primera vez y el renderer lo soporta
+            if (this.mapRenderer.loadGeometry && (!this.mapRenderer.gameState || Object.keys(this.mapRenderer.gameState || {}).length === 0)) {
+                 if (this.localState.nations) {
+                     this.mapRenderer.loadGeometry(this.localState.nations);
+                 }
             }
-        } catch (e) {
-            // Silenciar errores de audio para no molestar
+            
+            // Actualizar renderer
+            this.mapRenderer.update(this.localState, playerId);
         }
     }
 
-    /**
-     * Cierra la conexión limpiamente
-     */
-    disconnect() {
-        this.isReconnecting = false; // Detener reconexiones
-        if (this.reconnectTimeoutId) {
-            clearTimeout(this.reconnectTimeoutId);
-            this.reconnectTimeoutId = null;
+    send(type, payload = {}) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.warn('[SyncClient] Offline: No se puede enviar', type);
+            return false;
         }
+        this.ws.send(JSON.stringify({ type, ...payload }));
+        return true;
+    }
+
+    sendIntent(actionType, parameters) {
+        const intent = {
+            type: actionType,
+            actor: this.localState?.playerNationId || 'UNKNOWN',
+            timestamp: Date.now(),
+            parameters: parameters || {}
+        };
+        return this.send('intent', { payload: intent });
+    }
+
+    disconnect() {
+        if (this.reconnectTimeoutId) clearTimeout(this.reconnectTimeoutId);
+        this.isReconnecting = false;
         if (this.ws) {
             this.ws.close();
             this.ws = null;
         }
-        this.connectionState = false;
-        console.log('[SyncClient] 🔌 Desconectado manualmente');
-    }
-    
-    /**
-     * Verifica si está conectado
-     */
-    isConnected() {
-        return this.ws && this.ws.readyState === WebSocket.OPEN;
-    }
-    
-    /**
-     * Obtiene el estado local actual
-     */
-    getState() {
-        return this.localState;
+        this.isConnected = false;
+        console.log('[SyncClient] Desconectado manualmente.');
     }
 }
 
