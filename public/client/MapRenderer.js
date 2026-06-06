@@ -609,27 +609,17 @@ export class MapRenderer {
      * @param {number} canvasY - Coordenada Y en espacio canvas
      * @returns {string|null} ID del país encontrado o null
      */
+    // ✅ VERSIÓN CORRECTA PARA SVG NORMALIZADO
     findCountryAtPoint(canvasX, canvasY) {
         if (!this.ctx || this.countryPaths.size === 0) return null;
 
-        // CRÍTICO: Aplicar exactamente las mismas transformaciones que en renderCountries()
-        // Esto garantiza sincronización perfecta entre renderizado e hit testing
         this.ctx.save();
-        this.ctx.translate(this.transform.offsetX, this.transform.offsetY);
-        this.ctx.scale(this.transform.scale, this.transform.scale);
-
+        
         let foundCountryId = null;
-
-        // Iterar en orden inverso para detectar correctamente cuando hay superposiciones
         const pathIds = Array.from(this.countryPaths.keys()).reverse();
         
         for (const id of pathIds) {
             const path = this.countryPaths.get(id);
-            
-            // isPointInPath ahora funciona correctamente:
-            // - El path está en espacio SVG
-            // - El contexto tiene translate + scale aplicados
-            // - Las coordenadas están en espacio canvas ANTES de las transformaciones
             if (this.ctx.isPointInPath(path, canvasX, canvasY)) {
                 foundCountryId = id;
                 break;
@@ -655,31 +645,74 @@ export class MapRenderer {
      * 🔥 ACTUALIZADO: Maneja movimiento del mouse con hit testing sincronizado
      */
     handleMouseMove(e) {
+        // --- INICIO LOGS DE DIAGNÓSTICO (Versión Segura) ---
+        // Usamos nombres únicos para no chocar con variables existentes
+        const dbg_rect = this.canvas.getBoundingClientRect();
+        const dbg_scaleX = this.canvas.width / dbg_rect.width;
+        const dbg_scaleY = this.canvas.height / dbg_rect.height;
+
+        // Calculamos coordenadas seguras
+        const dbg_rawX = e.clientX - dbg_rect.left;
+        const dbg_rawY = e.clientY - dbg_rect.top;
+        const dbg_internalX = dbg_rawX * dbg_scaleX;
+        const dbg_internalY = dbg_rawY * dbg_scaleY;
+
+        console.group("🔍 DIAGNÓSTICO MOUSE");
+        console.log("1. DIMENSIONES CANVAS:");
+        console.log("   - Interno (Atributo):", this.canvas.width, "x", this.canvas.height);
+        console.log("   - Visual (CSS):", dbg_rect.width, "x", dbg_rect.height);
+        console.log("   - Factor Escala X/Y:", dbg_scaleX.toFixed(2), "/", dbg_scaleY.toFixed(2));
+
+        console.log("2. POSICIÓN RAW (Evento):");
+        console.log("   - e.clientX:", e.clientX, "| e.clientY:", e.clientY);
+        console.log("   - e.offsetX:", e.offsetX, "| e.offsetY:", e.offsetY);
+
+        console.log("3. POSICIÓN RELATIVA AL CANVAS (Sin corregir):");
+        console.log("   - X:", dbg_rawX.toFixed(2), "| Y:", dbg_rawY.toFixed(2));
+
+        console.log("4. POSICIÓN REAL EN COORDENADAS INTERNAS (Corregida por DPR/CSS):");
+        console.log("   - X_Interno:", dbg_internalX.toFixed(2), "| Y_Interno:", dbg_internalY.toFixed(2));
+
+        console.log("5. ESTADO REAL DE TRANSFORMACIÓN (Usado para renderizar):");
+        // LEEMOS DEL OBJETO CORRECTO: this.transform
+        const t = this.transform; 
+        console.log("   - OffsetX:", t.offsetX.toFixed(2));
+        console.log("   - OffsetY:", t.offsetY.toFixed(2));
+        console.log("   - Escala:", t.scale.toFixed(4));
+
+        // CÁLCULO DE PRUEBA MANUAL
+        // Fórmula correcta: (Mouse - Offset) / Scale
+        const worldX = (dbg_internalX - t.offsetX) / t.scale;
+        const worldY = (dbg_internalY - t.offsetY) / t.scale;
+
+        console.log("6. RESULTADO DE TRANSFORMACIÓN INVERSA (Coordenadas Mundo):");
+        console.log("   - World X:", worldX.toFixed(2));
+        console.log("   - World Y:", worldY.toFixed(2));
+        console.log("   - ¿Coincide esto con las coordenadas del SVG original? (Verifica en Inkscape/Illustrator)");
+        console.groupEnd();
+        // --- FIN LOGS DE DIAGNÓSTICO ---
+
         // 1. Obtener coordenadas del ratón relativas al Canvas (Pantalla)
         const rect = this.canvas.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
+        const x = e.offsetX; 
+        const y = e.offsetY;
 
+        const countryId = this.findCountryAtPoint(x, y);
         // 2. Inversión de la transformación de la cámara
         // Fórmula: World = (Screen - Offset) / Scale + ViewBoxOrigin
         
-        // A. Restar el desplazamiento (Offset) aplicado por translate()
-        const translatedX = screenX - this.transform.offsetX;
-        const translatedY = screenY - this.transform.offsetY;
+        
 
-        // B. Dividir por la escala aplicada por scale()
-        const scaledX = translatedX / this.transform.scale;
-        const scaledY = translatedY / this.transform.scale;
+ 
 
         // C. COMPENSAR EL ORIGEN DEL VIEWBOX (La pieza faltante)
         // Si el SVG original empieza en coordenadas negativas (ej: -169, -58),
         // debemos sumar ese valor para mapear al sistema de coordenadas interno del path.
         const viewBox = this.svgViewBox || { x: 0, y: 0 };
-        const worldX = scaledX + viewBox.x;
-        const worldY = scaledY + viewBox.y;
+
 
         // 3. Hit Testing con las coordenadas corregidas (Mundo SVG Real)
-        const foundCountryId = this.findCountryAtPoint(worldX, worldY);
+        const foundCountryId = this.findCountryAtPoint(screenX, screenY);
 
         // 4. Gestión del Estado Hover
         const prevId = this.hoveredCountry ? (this.hoveredCountry.id || this.hoveredCountry) : null;
@@ -712,8 +745,13 @@ export class MapRenderer {
      * Maneja click en el mapa
      */
     handleClick(e) {
-        if (this.hoveredCountry) {
-            this.selectedCountry = this.hoveredCountry.id === this.selectedCountry ? null : this.hoveredCountry.id;
+        const rect = this.canvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const foundCountryId = this.findCountryAtPoint(screenX, screenY);
+
+        if (foundCountryId) {
+            this.selectedCountry = foundCountryId === this.selectedCountry ? null : foundCountryId;
             this.onNodeSelect?.(this.selectedCountry);
             this.dirty = true;
         }
@@ -752,8 +790,10 @@ export class MapRenderer {
      */
     resize() {
         if (!this.canvas) return;
-
         const parent = this.canvas.parentElement;
+        const displayWidth = parent.clientWidth;
+        const displayHeight = parent.clientHeight;
+        
         this.canvas.width = parent.clientWidth;
         this.canvas.height = parent.clientHeight;
 
