@@ -20,6 +20,7 @@ let gameState = {};
 
 // ✅ NUEVO: Inicialización de Componentes (FASE 2)
 const mapRenderer = new MapRenderer('world-canvas');
+window.mapRenderer = mapRenderer; // <-- AGREGA ESTO
 const intelFeed = new IntelFeed('intel-feed');
 const diplomaticModal = new DiplomaticModal('modal-overlay');
 const crisisPanel = new CrisisPanel('crisis-panel-container'); // Nuevo componente

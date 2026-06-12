@@ -1,97 +1,222 @@
+/**
+ * fix_map.mjs
+ * Script de normalización robusto para SVGs de mapas geopolíticos.
+ * 
+ * OBJETIVOS:
+ * 1. Extraer coordenadas SOLO de los atributos 'd' (paths).
+ * 2. Ignorar atributos de contenedor (width, height, geoViewBox) para el cálculo de bounds.
+ * 3. Normalizar el mapa al origen (0,0).
+ * 4. Insertar un viewBox estándar respetando los namespaces XML.
+ * 5. Preservar la información antigua de geoViewBox en un backup JSON.
+ */
+
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// CONFIGURACIÓN
-const INPUT_FILE = './public/assets/maps/world-map.svg';
-const OUTPUT_FILE = './public/assets/maps/world-map-fixed.svg';
+// Configuración de rutas
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-console.log('🗺️  Iniciando normalización del mapa SVG...');
+const INPUT_FILE = path.join(__dirname, 'public/assets/maps/world-map_OLD.svg');
+const OUTPUT_FILE = path.join(__dirname, 'public/assets/maps/world-map-fixed.svg');
+const BACKUP_FILE = path.join(__dirname, 'public/assets/maps/geoviewbox-backup.json');
 
-if (!fs.existsSync(INPUT_FILE)) {
-    console.error(`❌ Error: No se encontró el archivo en ${INPUT_FILE}`);
-    process.exit(1);
-}
+// Expresiones Regulares
+// 1. Captura el contenido dentro de d="..." (manejando comillas simples o dobles si fuera necesario, aquí asumimos dobles estándar)
+const PATH_DATA_REGEX = /d="([^"]+)"/g;
+// 2. Captura pares de números (coordenadas) dentro del string del path
+// Soporta notación científica y decimales. Separa por coma o espacio.
+const COORD_REGEX = /(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)[,\s]+(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g;
 
-const svgContent = fs.readFileSync(INPUT_FILE, 'utf8');
+// Namespace SVG común en editores vectoriales
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
-// 1. EXTRAER TODAS LAS COORDENADAS DE LOS PATHS
-// Esta regex busca pares de números (flotantes o enteros) separados por coma o espacio
-// Ignoramos comandos de letra y nos enfocamos en los valores numéricos
-const coordRegex = /(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/g;
+async function normalizeMap() {
+    console.log('🚀 Iniciando normalización del mapa...');
+    console.log(`📂 Input: ${INPUT_FILE}`);
 
-let minX = Infinity;
-let minY = Infinity;
-let maxX = -Infinity;
-let maxY = -Infinity;
+    if (!fs.existsSync(INPUT_FILE)) {
+        console.error('❌ Error: El archivo de entrada no existe.');
+        return;
+    }
 
-let match;
-// Ejecutamos la regex sobre todo el contenido para encontrar los límites reales
-while ((match = coordRegex.exec(svgContent)) !== null) {
-    const x = parseFloat(match[1]);
-    const y = parseFloat(match[2]);
+    let svgContent = fs.readFileSync(INPUT_FILE, 'utf-8');
+
+    // ---------------------------------------------------------
+    // PASO 1: Extracción de límites REALES solo desde paths
+    // ---------------------------------------------------------
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let pathCount = 0;
+    let coordCount = 0;
+
+    // Backup del geoViewBox antiguo si existe
+    let oldGeoViewBox = null;
+    const geoViewBoxMatch = svgContent.match(/geoViewBox="([^"]+)"/);
+    if (geoViewBoxMatch) {
+        oldGeoViewBox = geoViewBoxMatch[1];
+        console.log('💾 geoViewBox original detectado:', oldGeoViewBox);
+    }
+
+    console.log('🔍 Escaneando coordenadas en atributos "d"...');
+
+    // Iteramos sobre cada atributo d="..."
+    let match;
+    while ((match = PATH_DATA_REGEX.exec(svgContent)) !== null) {
+        pathCount++;
+        const pathData = match[1];
+        
+        // Reset regex para el nuevo path
+        COORD_REGEX.lastIndex = 0;
+        let coordMatch;
+
+        while ((coordMatch = COORD_REGEX.exec(pathData)) !== null) {
+            const x = parseFloat(coordMatch[1]);
+            const y = parseFloat(coordMatch[2]);
+
+            if (!isNaN(x) && !isNaN(y)) {
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+                coordCount++;
+            }
+        }
+    }
+
+    if (pathCount === 0 || coordCount === 0) {
+        console.error('❌ Error crítico: No se encontraron paths o coordenadas válidas.');
+        return;
+    }
+
+    console.log(`✅ Escaneo completo: ${pathCount} paths, ${coordCount} coordenadas analizadas.`);
+    console.log(`📏 Bounds originales encontrados: [${minX.toFixed(2)}, ${minY.toFixed(2)}] a [${maxX.toFixed(2)}, ${maxY.toFixed(2)}]`);
+
+    // ---------------------------------------------------------
+    // PASO 2: Cálculo de Offset y Dimensiones
+    // ---------------------------------------------------------
+    const offsetX = -minX;
+    const offsetY = -minY;
+    const newWidth = maxX - minX;
+    const newHeight = maxY - minY;
+
+    console.log(`🔄 Offset calculado: X=${offsetX.toFixed(4)}, Y=${offsetY.toFixed(4)}`);
+    console.log(`📐 Nuevas dimensiones: ${newWidth.toFixed(4)} x ${newHeight.toFixed(4)}`);
+
+    // ---------------------------------------------------------
+    // PASO 3: Transformación de los Paths
+    // ---------------------------------------------------------
+    console.log('✏️  Reescribiendo coordenadas...');
     
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-}
+    let fixedContent = svgContent.replace(PATH_DATA_REGEX, (match, pathData) => {
+        // Transformamos las coordenadas dentro de este string específico
+        return match.replace(COORD_REGEX, (m, xStr, yStr) => {
+            const x = parseFloat(xStr);
+            const y = parseFloat(yStr);
+            
+            const newX = x + offsetX;
+            const newY = y + offsetY;
 
-if (minX === Infinity) {
-    console.error('❌ No se encontraron coordenadas válidas en el SVG.');
-    process.exit(1);
-}
+            // Mantenemos la precisión original pero aseguramos formato limpio
+            // Si el número original tenía muchos decimales, los mantenemos, si no, limpiamos
+            const precision = Math.max(xStr.split('.')[1]?.length || 0, yStr.split('.')[1]?.length || 0);
+            const finalPrecision = Math.min(precision, 6); // Máximo 6 decimales para no inflar el archivo
 
-console.log(`📊 Límites originales detectados:`);
-console.log(`   X: [${minX.toFixed(2)}, ${maxX.toFixed(2)}]`);
-console.log(`   Y: [${minY.toFixed(2)}, ${maxY.toFixed(2)}]`);
-
-// 2. CALCULAR OFFSETS PARA MOVER EL ORIGEN A (0,0)
-// Queremos que el punto más a la izquierda y arriba sea (0,0)
-const offsetX = -minX;
-const offsetY = -minY;
-
-console.log(`🔧 Aplicando traslación:`);
-console.log(`   Offset X: +${offsetX.toFixed(4)}`);
-console.log(`   Offset Y: +${offsetY.toFixed(4)}`);
-
-// 3. PROCESAR Y TRANSFORMAR LOS PATHS
-// Buscamos específicamente los atributos d="..." para transformarlos
-const fixedContent = svgContent.replace(/d="([^"]+)"/g, (match, pathData) => {
-    const transformedPath = pathData.replace(coordRegex, (coordMatch, xStr, yStr) => {
-        const x = parseFloat(xStr);
-        const y = parseFloat(yStr);
-        
-        const newX = x + offsetX;
-        const newY = y + offsetY;
-        
-        // Mantenemos 4 decimales para precisión sin exceso de peso
-        return `${newX.toFixed(4)},${newY.toFixed(4)}`;
+            return `${newX.toFixed(finalPrecision)},${newY.toFixed(finalPrecision)}`;
+        });
     });
+
+    // ---------------------------------------------------------
+    // PASO 4: Inserción de viewBox estándar respetando namespaces
+    // ---------------------------------------------------------
+    const newViewBoxString = `viewBox="0 0 ${newWidth.toFixed(4)} ${newHeight.toFixed(4)}"`;
     
-    return match.replace(pathData, transformedPath);
-});
+    // Regex para encontrar la etiqueta de apertura <svg ...> o <ns0:svg ...>
+    // Grupo 1: nombre de la etiqueta (svg, ns0:svg, etc.)
+    // Grupo 2: el resto de atributos hasta el cierre >
+    const svgTagRegex = /<([a-zA-Z0-9_:]+svg)([^>]*)>/i;
 
-// 4. ACTUALIZAR EL VIEWBOX
-// El nuevo viewBox debe empezar en 0 0 y tener el tamaño del bounding box
-const width = maxX - minX;
-const height = maxY - minY;
+    if (!svgTagRegex.test(fixedContent)) {
+        console.error('❌ Error: No se encontró la etiqueta de apertura <svg>.');
+        return;
+    }
 
-const newViewBox = `viewBox="0 0 ${width.toFixed(4)} ${height.toFixed(4)}"`;
+    fixedContent = fixedContent.replace(svgTagRegex, (fullMatch, tagName, attributes) => {
+        // Eliminar viewBox o geoViewBox existentes si los hubiera en los atributos
+        let cleanAttrs = attributes
+            .replace(/\s*viewBox="[^"]*"/gi, '')
+            .replace(/\s*geoViewBox="[^"]*"/gi, '');
+        
+        // Insertar el nuevo viewBox al principio de los atributos
+        return `<${tagName} ${newViewBoxString}${cleanAttrs}>`;
+    });
 
-// Reemplazamos cualquier viewBox existente o lo añadimos si no existe
-let finalContent = fixedContent.replace(/viewBox="[^"]*"/, newViewBox);
-if (!finalContent.includes('viewBox=')) {
-    // Si no tenía viewBox, lo insertamos después de <svg
-    finalContent = finalContent.replace(/<svg/, `<svg ${newViewBox}`);
+    // Eliminar cualquier atributo geoViewBox residual que pudiera estar fuera de la etiqueta svg (poco probable pero seguro)
+    fixedContent = fixedContent.replace(/\s+geoViewBox="[^"]*"/gi, '');
+
+    // ---------------------------------------------------------
+    // PASO 5: Validación Final
+    // ---------------------------------------------------------
+    console.log('🛡️  Validando resultado...');
+    
+    // Verificar que el nuevo contenido tenga viewBox
+    if (!fixedContent.includes('viewBox="0 0')) {
+        console.error('❌ Error crítico: Fallo al insertar el viewBox.');
+        return;
+    }
+
+    // Verificación rápida de que las nuevas coordenadas mínimas son ~0
+    // (Re-escaneo rápido del primer path para sanity check)
+    const firstPathMatch = fixedContent.match(PATH_DATA_REGEX);
+    if (firstPathMatch) {
+        const firstPathData = firstPathMatch[0].match(/d="([^"]+)"/)[1];
+        const firstCoordMatch = firstPathData.match(COORD_REGEX);
+        if (firstCoordMatch) {
+            const checkX = parseFloat(firstCoordMatch[1]);
+            const checkY = parseFloat(firstCoordMatch[2]);
+            
+            // Permitimos una pequeña tolerancia por redondeo float
+            if (Math.abs(checkX) > 0.01 || Math.abs(checkY) > 0.01) {
+                console.warn(`⚠️  ADVERTENCIA: La primera coordenada no es (0,0). Es (${checkX}, ${checkY}).`);
+                console.warn('   Esto podría indicar que el primer path no es el que define el límite izquierdo superior.');
+            } else {
+                console.log('✅ Validación exitosa: Las coordenadas comienzan cerca de (0,0).');
+            }
+        }
+    }
+
+    // ---------------------------------------------------------
+    // PASO 6: Guardado de Archivos
+    // ---------------------------------------------------------
+    
+    // 6a. Guardar Backup de geoViewBox
+    const backupData = {
+        originalFile: 'world-map_OLD.svg',
+        processedDate: new Date().toISOString(),
+        originalGeoViewBox: oldGeoViewBox,
+        calculatedBounds: {
+            minX: minX, minY: minY, maxX: maxX, maxY: maxY
+        },
+        appliedOffset: { x: offsetX, y: offsetY },
+        newDimensions: { width: newWidth, height: newHeight }
+    };
+    
+    fs.writeFileSync(BACKUP_FILE, JSON.stringify(backupData, null, 2));
+    console.log(`💾 Backup guardado en: ${BACKUP_FILE}`);
+
+    // 6b. Guardar SVG Normalizado
+    fs.writeFileSync(OUTPUT_FILE, fixedContent);
+    console.log(`✅ Mapa normalizado guardado en: ${OUTPUT_FILE}`);
+    
+    console.log('\n🎉 Proceso finalizado con éxito.');
+    console.log('👉 Siguiente paso: Copiar world-map-fixed.svg sobre world-map.svg si el resultado es correcto.');
 }
 
-// Eliminar atributos geoViewBox antiguos si existen para limpiar
-finalContent = finalContent.replace(/geoViewBox="[^"]*"\s*/g, '');
-
-// 5. GUARDAR ARCHIVO
-fs.writeFileSync(OUTPUT_FILE, finalContent);
-
-console.log(`✅ ¡Proceso completado con éxito!`);
-console.log(`📁 Nuevo archivo generado: ${OUTPUT_FILE}`);
-console.log(`📏 Nuevas dimensiones del mapa: ${width.toFixed(2)} x ${height.toFixed(2)}`);
-console.log(`💡 Nota: Recuerda actualizar tu JS para usar este nuevo archivo y eliminar compensaciones manuales.`);
+// Ejecutar
+normalizeMap().catch(err => {
+    console.error('💥 Error inesperado:', err);
+    process.exit(1);
+});

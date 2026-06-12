@@ -78,7 +78,7 @@ export class MapRenderer {
         // Datos geográficos
         this.countryPaths = new Map();
         this.countryBounds = new Map();
-        this.svgViewBox = { x: 0, y: 0, width: 1009.67, height: 665.96 };
+        this.svgViewBox = { x: 0, y: 0, width: 840, height: 540 };
         this.scaleFactor = 1;
         this.offsetX = 0;
         this.offsetY = 0;
@@ -377,14 +377,22 @@ export class MapRenderer {
 
             const svgElement = svgDoc.querySelector('svg');
             if (svgElement) {
+                // --- LOG 1: Verificar atributos crudos del SVG ---
+                console.log('📄 Atributos raw del SVG:', {
+                    viewBox: svgElement.getAttribute('viewBox'),
+                    width: svgElement.getAttribute('width'),
+                    height: svgElement.getAttribute('height'),
+                    geoViewBox: svgElement.getAttribute('ns1:geoViewBox')
+                });
+
                 let viewBox = svgElement.getAttribute('viewBox');
 
                 if (!viewBox) {
                     const geoViewBox = svgElement.getAttribute('ns1:geoViewBox');
                     if (geoViewBox) {
                         const [minLon, minLat, maxLon, maxLat] = geoViewBox.split(/\s+/).map(Number);
-                        const svgWidth = svgElement.getAttribute('width') || 1009.67;
-                        const svgHeight = svgElement.getAttribute('height') || 665.96;
+                        const svgWidth = svgElement.getAttribute('width') || 840;
+                        const svgHeight = svgElement.getAttribute('height') || 540;
 
                         const x = minLon;
                         const y = maxLat;
@@ -400,17 +408,20 @@ export class MapRenderer {
                     this.svgViewBox = {
                         x: x || 0,
                         y: y || 0,
-                        width: Math.abs(w) || 1009.67,
-                        height: Math.abs(h) || 665.96
+                        width: Math.abs(w) || 840,
+                        height: Math.abs(h) || 540
                     };
                 }
-
+                //
+                /*
                 const attrWidth = svgElement.getAttribute('width');
                 const attrHeight = svgElement.getAttribute('height');
                 if (attrWidth && attrHeight) {
                     this.svgViewBox.width = parseFloat(attrWidth);
                     this.svgViewBox.height = parseFloat(attrHeight);
                 }
+                */
+               //
             }
 
             // FIX: Usar namespace-aware matching para soportar ns0:path, ns0:polygon, etc.
@@ -565,40 +576,52 @@ export class MapRenderer {
     }
 
     /**
-     * Calcula transformación SVG a Canvas
+     * Calcula transformación SVG a Canvas (Origen 0,0 puro)
+     * Asume que el SVG ya fue normalizado y su viewBox comienza en (0,0)
      */
     calculateTransform() {
-        if (this.svgViewBox.width === 0 || this.canvas.width === 0) return;
+        // Validación de seguridad
+        if (!this.svgViewBox || this.svgViewBox.width === 0 || this.canvas.width === 0) return;
 
+        // 1. Calcular escala uniforme para mantener aspecto (Fit-to-screen)
         const scaleX = this.canvas.width / this.svgViewBox.width;
         const scaleY = this.canvas.height / this.svgViewBox.height;
-
+        
+        // Usamos la menor escala para que todo el mapa quepa en el canvas
         this.transform.scale = Math.min(scaleX, scaleY);
 
+        // 2. Calcular dimensiones escaladas del mapa
         const scaledWidth = this.svgViewBox.width * this.transform.scale;
         const scaledHeight = this.svgViewBox.height * this.transform.scale;
 
+        // 3. Centrar el mapa en el canvas
+        // Como el origen del SVG es (0,0), solo necesitamos centrar el rectángulo resultante
         this.transform.offsetX = (this.canvas.width - scaledWidth) / 2;
         this.transform.offsetY = (this.canvas.height - scaledHeight) / 2;
+
+        console.log(`[Transform] Escala: ${this.transform.scale.toFixed(4)}, Offset: (${this.transform.offsetX.toFixed(2)}, ${this.transform.offsetY.toFixed(2)})`);
     }
 
     /**
-     * Transforma coordenadas SVG a Canvas
+     * Transforma coordenadas SVG (Mundo) a Canvas (Pantalla)
+     * Fórmula simplificada: (SVG * Scale) + Offset
      */
     svgToCanvas(svgX, svgY) {
         return {
-            x: (svgX - this.svgViewBox.x) * this.transform.scale + this.transform.offsetX,
-            y: (svgY - this.svgViewBox.y) * this.transform.scale + this.transform.offsetY
+            x: (svgX * this.transform.scale) + this.transform.offsetX,
+            y: (svgY * this.transform.scale) + this.transform.offsetY
         };
     }
 
     /**
-     * Transforma coordenadas Canvas a SVG
+     * Transforma coordenadas Canvas (Pantalla) a SVG (Mundo)
+     * Fórmula inversa: (Canvas - Offset) / Scale
+     * CRÍTICO: Esta función debe ser exacta para que el hit-testing funcione.
      */
     canvasToSvg(canvasX, canvasY) {
         return {
-            x: (canvasX - this.transform.offsetX) / this.transform.scale + this.svgViewBox.x,
-            y: (canvasY - this.transform.offsetY) / this.transform.scale + this.svgViewBox.y
+            x: (canvasX - this.transform.offsetX) / this.transform.scale,
+            y: (canvasY - this.transform.offsetY) / this.transform.scale
         };
     }
 
@@ -646,52 +669,7 @@ export class MapRenderer {
      */
     handleMouseMove(e) {
         // --- INICIO LOGS DE DIAGNÓSTICO (Versión Segura) ---
-        // Usamos nombres únicos para no chocar con variables existentes
-        const dbg_rect = this.canvas.getBoundingClientRect();
-        const dbg_scaleX = this.canvas.width / dbg_rect.width;
-        const dbg_scaleY = this.canvas.height / dbg_rect.height;
-
-        // Calculamos coordenadas seguras
-        const dbg_rawX = e.clientX - dbg_rect.left;
-        const dbg_rawY = e.clientY - dbg_rect.top;
-        const dbg_internalX = dbg_rawX * dbg_scaleX;
-        const dbg_internalY = dbg_rawY * dbg_scaleY;
-
-        console.group("🔍 DIAGNÓSTICO MOUSE");
-        console.log("1. DIMENSIONES CANVAS:");
-        console.log("   - Interno (Atributo):", this.canvas.width, "x", this.canvas.height);
-        console.log("   - Visual (CSS):", dbg_rect.width, "x", dbg_rect.height);
-        console.log("   - Factor Escala X/Y:", dbg_scaleX.toFixed(2), "/", dbg_scaleY.toFixed(2));
-
-        console.log("2. POSICIÓN RAW (Evento):");
-        console.log("   - e.clientX:", e.clientX, "| e.clientY:", e.clientY);
-        console.log("   - e.offsetX:", e.offsetX, "| e.offsetY:", e.offsetY);
-
-        console.log("3. POSICIÓN RELATIVA AL CANVAS (Sin corregir):");
-        console.log("   - X:", dbg_rawX.toFixed(2), "| Y:", dbg_rawY.toFixed(2));
-
-        console.log("4. POSICIÓN REAL EN COORDENADAS INTERNAS (Corregida por DPR/CSS):");
-        console.log("   - X_Interno:", dbg_internalX.toFixed(2), "| Y_Interno:", dbg_internalY.toFixed(2));
-
-        console.log("5. ESTADO REAL DE TRANSFORMACIÓN (Usado para renderizar):");
-        // LEEMOS DEL OBJETO CORRECTO: this.transform
-        const t = this.transform; 
-        console.log("   - OffsetX:", t.offsetX.toFixed(2));
-        console.log("   - OffsetY:", t.offsetY.toFixed(2));
-        console.log("   - Escala:", t.scale.toFixed(4));
-
-        // CÁLCULO DE PRUEBA MANUAL
-        // Fórmula correcta: (Mouse - Offset) / Scale
-        const worldX = (dbg_internalX - t.offsetX) / t.scale;
-        const worldY = (dbg_internalY - t.offsetY) / t.scale;
-
-        console.log("6. RESULTADO DE TRANSFORMACIÓN INVERSA (Coordenadas Mundo):");
-        console.log("   - World X:", worldX.toFixed(2));
-        console.log("   - World Y:", worldY.toFixed(2));
-        console.log("   - ¿Coincide esto con las coordenadas del SVG original? (Verifica en Inkscape/Illustrator)");
-        console.groupEnd();
-        // --- FIN LOGS DE DIAGNÓSTICO ---
-
+        
         // 1. Obtener coordenadas del ratón relativas al Canvas (Pantalla)
         const rect = this.canvas.getBoundingClientRect();
         const x = e.offsetX; 
