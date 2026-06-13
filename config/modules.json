@@ -8,6 +8,7 @@
     "FactionRule",
     "CrisisRule",
     "EspionageRule",
-    "UIMessageHandler"
+    "UIMessageHandler",
+    "ObjectiveManager"
   ]
 }

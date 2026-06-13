@@ -22,6 +22,9 @@ import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
 import { processIntent } from '../modules/IntentProcessor.js';
+import * as ObjectiveManager from '../modules/ObjectiveManager.js';
+import objectivesConfig from '../config/objectives.json' with { type: 'json' };
+import strategiesConfig from '../config/strategies.json' with { type: 'json' };
 
 
 // Configuración de rutas
@@ -67,7 +70,8 @@ async function registerModules() {
         'FactionRule',
         'CrisisRule', // Asegúrate de que este archivo exista en modules/
         'EspionageRule',
-        'UIMessageHandler'
+        'UIMessageHandler',
+        'ObjectiveManager'
     ];
 
     for (const moduleName of activeModules) {
@@ -182,6 +186,29 @@ async function main() {
 
         // 3. Registrar módulos
         await registerModules();
+
+        // --- INICIO: Inicialización de ObjectiveManager ---
+        try {
+            console.log('[main] Inicializando ObjectiveManager...');
+
+            // Fusionar configuraciones de objetivos y estrategias en un solo objeto
+            const objectiveSystemConfig = {
+                categories: objectivesConfig.categories,
+                strategies: strategiesConfig.strategies,
+                global_settings: {
+                    ...(objectivesConfig.global_settings || {}),
+                    ...(strategiesConfig.global_settings || {})
+                }
+            };
+
+            // Iniciar el módulo con la configuración combinada
+            ObjectiveManager.init(objectiveSystemConfig);
+
+            console.log('[main] ✅ ObjectiveManager inicializado correctamente.');
+        } catch (error) {
+            console.error('[main] ❌ ERROR crítico inicializando ObjectiveManager:', error);
+            // No detenemos el servidor, pero el sistema de objetivos no funcionará
+        }
 
         // Inicializar subsistemas de diplomacia explícitamente
         if (typeof initDiplomacyEngine === 'function') {

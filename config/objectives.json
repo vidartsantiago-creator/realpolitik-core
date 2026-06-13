@@ -1,0 +1,398 @@
+{
+  "version": "1.0.0",
+  "description": "Configuración de Objetivos Estratégicos para RealPolitik Core",
+  "categories": {
+    "economic": {
+      "id": "economic",
+      "label": "Hegemonía Económica",
+      "icon": "📈",
+      "objectives": [
+        {
+          "id": "regional_energy_hub",
+          "name": "Hub Energético Regional",
+          "description": "Convertirse en el principal exportador de energía de la región",
+          "category": "economic",
+          "difficulty": "medium",
+          "base_legacy_reward": 25,
+          "requirements": {
+            "min_resources_energy": 200,
+            "min_trade_partners": 3,
+            "required_tech": ["desalination", "renewable_grid"]
+          },
+          "milestones": [
+            {
+              "tick_range": [10, 30],
+              "condition": "resources.energy >= 150",
+              "reward": { "legacy": 5, "budget": 20 },
+              "message": "Has establecido una base energética sólida en la región"
+            },
+            {
+              "tick_range": [30, 60],
+              "condition": "diplomacy.trade_agreements >= 3",
+              "reward": { "legacy": 10, "stability": 5 },
+              "message": "Tus acuerdos comerciales energéticos están dando frutos"
+            },
+            {
+              "tick_range": [60, 100],
+              "condition": "resources.energy >= 250 && diplomacy.trade_partners >= 5",
+              "reward": { "legacy": 15, "budget": 50, "influence": 10 },
+              "message": "¡Objetivo completado! Eres el hub energético regional"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "stability < 30", "duration_ticks": 10, "penalty": { "legacy": -10, "stability": -10 } },
+            { "condition": "budget < -100", "duration_ticks": 5, "penalty": { "legacy": -5, "budget": -20 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "populists",
+              "trigger": "energy_exports_ratio > 0.5",
+              "effect": { "loyalty_delta": -15 },
+              "message": "Los populistas critican la exportación masiva de energía mientras hay escasez interna"
+            },
+            {
+              "faction": "financial_oligarchy",
+              "trigger": "foreign_debt > 200",
+              "effect": { "coup_risk_delta": 25 },
+              "message": "La oligarquía financiera ve oportunidades en tu deuda externa creciente"
+            }
+          ]
+        },
+        {
+          "id": "tech_superpower",
+          "name": "Potencia Tecnológica",
+          "description": "Liderar la innovación tecnológica y digitalización regional",
+          "category": "economic",
+          "difficulty": "hard",
+          "base_legacy_reward": 35,
+          "requirements": {
+            "min_budget": 150,
+            "min_stability": 60,
+            "required_tech": ["digital_infrastructure", "ai_research"]
+          },
+          "milestones": [
+            {
+              "tick_range": [15, 40],
+              "condition": "tech_level >= 3",
+              "reward": { "legacy": 8, "budget": 30 },
+              "message": "Tu inversión en I+D comienza a mostrar resultados"
+            },
+            {
+              "tick_range": [40, 70],
+              "condition": "tech_level >= 5 && gdp_growth > 0.05",
+              "reward": { "legacy": 12, "influence": 8 },
+              "message": "Empresas tecnológicas extranjeras buscan establecerse en tu país"
+            },
+            {
+              "tick_range": [70, 120],
+              "condition": "tech_level >= 7 && tech_exports >= 100",
+              "reward": { "legacy": 20, "budget": 80, "influence": 15 },
+              "message": "¡Objetivo completado! Eres una potencia tecnológica reconocida"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "budget < -150", "duration_ticks": 10, "penalty": { "legacy": -15 } },
+            { "condition": "brain_drain > 0.3", "duration_ticks": 15, "penalty": { "legacy": -10, "tech_level": -1 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "traditionalists",
+              "trigger": "tech_investment_ratio > 0.25",
+              "effect": { "loyalty_delta": -12 },
+              "message": "Los tradicionalistas ven la tecnología como una amenaza cultural"
+            },
+            {
+              "faction": "labor_unions",
+              "trigger": "automation_rate > 0.4",
+              "effect": { "loyalty_delta": -18, "strike_risk": 30 },
+              "message": "Los sindicatos alertan sobre desempleo tecnológico masivo"
+            }
+          ]
+        }
+      ]
+    },
+    "diplomatic": {
+      "id": "diplomatic",
+      "label": "Maestría Diplomática",
+      "icon": "🤝",
+      "objectives": [
+        {
+          "id": "regional_alliance_leader",
+          "name": "Líder de Alianza Regional",
+          "description": "Formar y liderar una alianza política-militar regional estable",
+          "category": "diplomatic",
+          "difficulty": "medium",
+          "base_legacy_reward": 30,
+          "requirements": {
+            "min_influence": 50,
+            "min_stability": 55,
+            "required_tech": ["diplomatic_corps"]
+          },
+          "milestones": [
+            {
+              "tick_range": [10, 25],
+              "condition": "diplomacy.bilateral_agreements >= 2",
+              "reward": { "legacy": 5, "influence": 10 },
+              "message": "Has sentado las bases para una cooperación regional"
+            },
+            {
+              "tick_range": [25, 50],
+              "condition": "alliance_members >= 3",
+              "reward": { "legacy": 10, "stability": 8, "military_support": 15 },
+              "message": "Tu alianza regional comienza a tomar forma"
+            },
+            {
+              "tick_range": [50, 90],
+              "condition": "alliance_members >= 5 && alliance_cohesion >= 0.7",
+              "reward": { "legacy": 20, "influence": 20, "budget": 40 },
+              "message": "¡Objetivo completado! Eres el líder indiscutido de la alianza regional"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "alliance_members < 2", "duration_ticks": 20, "penalty": { "legacy": -15, "influence": -20 } },
+            { "condition": "alliance_cohesion < 0.4", "duration_ticks": 15, "penalty": { "legacy": -10 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "nationalists",
+              "trigger": "alliance_commitments > 3",
+              "effect": { "loyalty_delta": -20 },
+              "message": "Los nacionalistas critican la pérdida de soberanía por compromisos aliados"
+            },
+            {
+              "faction": "military_junta",
+              "trigger": "joint_military_exercises >= 2",
+              "effect": { "loyalty_delta": -10, "coup_risk_delta": 15 },
+              "message": "Elementos militares ven las alianzas como limitaciones a la autonomía defensiva"
+            }
+          ]
+        },
+        {
+          "id": "peace_broker",
+          "name": "Mediador de Paz Global",
+          "description": "Establecerse como mediador confiable en conflictos internacionales",
+          "category": "diplomatic",
+          "difficulty": "hard",
+          "base_legacy_reward": 40,
+          "requirements": {
+            "min_influence": 70,
+            "min_stability": 65,
+            "prestige >= 60": true
+          },
+          "milestones": [
+            {
+              "tick_range": [20, 40],
+              "condition": "successful_mediations >= 1",
+              "reward": { "legacy": 8, "prestige": 15, "influence": 10 },
+              "message": "Tu primera mediación exitosa te da credibilidad internacional"
+            },
+            {
+              "tick_range": [40, 70],
+              "condition": "successful_mediations >= 3 && peace_treaties_facilitated >= 2",
+              "reward": { "legacy": 15, "prestige": 25, "budget": 30 },
+              "message": "Las naciones en conflicto te buscan activamente como mediador"
+            },
+            {
+              "tick_range": [70, 120],
+              "condition": "successful_mediations >= 5 && global_peace_index_improvement >= 0.2",
+              "reward": { "legacy": 25, "prestige": 40, "influence": 30, "nobel_nomination": true },
+              "message": "¡Objetivo completado! Eres reconocido como el gran mediador de paz global"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "failed_mediations >= 3", "duration_ticks": 30, "penalty": { "legacy": -20, "prestige": -30 } },
+            { "condition": "involved_in_direct_conflict", "duration_ticks": 1, "penalty": { "legacy": -25, "influence": -25 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "military_industrial",
+              "trigger": "peace_treaties_facilitated >= 2",
+              "effect": { "loyalty_delta": -25, "budget_delta": -10 },
+              "message": "El complejo militar-industrial pierde contratos por tus esfuerzos de paz"
+            },
+            {
+              "faction": "intelligence_agency",
+              "trigger": "transparency_level > 0.6",
+              "effect": { "loyalty_delta": -15 },
+              "message": "La agencia de inteligencia ve reducidas sus operaciones encubiertas"
+            }
+          ]
+        }
+      ]
+    },
+    "military": {
+      "id": "military",
+      "label": "Dominio Militar",
+      "icon": "⚔️",
+      "objectives": [
+        {
+          "id": "regional_hegemon",
+          "name": "Hegemón Regional",
+          "description": "Establecer superioridad militar indiscutible en la región",
+          "category": "military",
+          "difficulty": "hard",
+          "base_legacy_reward": 35,
+          "requirements": {
+            "min_military_strength": 150,
+            "min_budget": 200,
+            "required_tech": ["modern_warfare", "strategic_deterrence"]
+          },
+          "milestones": [
+            {
+              "tick_range": [15, 35],
+              "condition": "military_strength >= 200",
+              "reward": { "legacy": 8, "deterrence": 15 },
+              "message": "Tu capacidad militar disuade agresiones menores"
+            },
+            {
+              "tick_range": [35, 60],
+              "condition": "military_strength >= 300 && military_bases_abroad >= 2",
+              "reward": { "legacy": 12, "influence": 15, "strategic_reach": 20 },
+              "message": "Tu proyección de poder se extiende más allá de las fronteras"
+            },
+            {
+              "tick_range": [60, 100],
+              "condition": "military_strength >= 400 && regional_threats_neutralized >= 3",
+              "reward": { "legacy": 25, "influence": 25, "deterrence": 40 },
+              "message": "¡Objetivo completado! Eres el hegemón militar regional indiscutido"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "military_strength < 100", "duration_ticks": 20, "penalty": { "legacy": -20, "influence": -30 } },
+            { "condition": "lost_territorial_conflict", "duration_ticks": 1, "penalty": { "legacy": -30, "stability": -20 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "civil_society",
+              "trigger": "military_budget_ratio > 0.35",
+              "effect": { "loyalty_delta": -20, "protest_risk": 40 },
+              "message": "La sociedad civil protesta por el exceso de gasto militar"
+            },
+            {
+              "faction": "military_junta",
+              "trigger": "military_strength > 350",
+              "effect": { "coup_risk_delta": 30 },
+              "message": "Los altos mandos militares consideran que pueden gobernar mejor"
+            }
+          ]
+        },
+        {
+          "id": "strategic_deterrence",
+          "name": "Disuasión Estratégica",
+          "description": "Desarrollar capacidades de disuasión nuclear o asimétrica",
+          "category": "military",
+          "difficulty": "extreme",
+          "base_legacy_reward": 50,
+          "requirements": {
+            "min_tech_level": 6,
+            "min_budget": 300,
+            "min_stability": 70,
+            "required_tech": ["nuclear_program", "missile_technology"]
+          },
+          "milestones": [
+            {
+              "tick_range": [30, 50],
+              "condition": "nuclear_program_progress >= 0.5",
+              "reward": { "legacy": 10, "deterrence": 20 },
+              "message": "Tu programa estratégico avanza significativamente"
+            },
+            {
+              "tick_range": [50, 80],
+              "condition": "nuclear_capability_achieved || asymmetric_deterrence_ready",
+              "reward": { "legacy": 20, "deterrence": 40, "global_attention": true },
+              "message": "Has alcanzado capacidad de disuasión estratégica"
+            },
+            {
+              "tick_range": [80, 130],
+              "condition": "second_strike_capability && international_recognition",
+              "reward": { "legacy": 30, "deterrence": 60, "unsc_seat_consideration": true },
+              "message": "¡Objetivo completado! Tu disuasión estratégica es reconocida globalmente"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "program_sabotaged", "duration_ticks": 1, "penalty": { "legacy": -25, "tech_level": -2 } },
+            { "condition": "international_sanctions_severe", "duration_ticks": 30, "penalty": { "budget": -100, "trade": -50 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "international_community",
+              "trigger": "nuclear_tests_conducted >= 1",
+              "effect": { "sanctions_risk": 60, "trade_penalty": 40 },
+              "message": "La comunidad internacional considera sanciones severas"
+            },
+            {
+              "faction": "scientific_community",
+              "trigger": "program_secrecy_level > 0.8",
+              "effect": { "loyalty_delta": -15, "brain_drain_risk": 25 },
+              "message": "Científicos cuestionan la opacidad y riesgos del programa"
+            }
+          ]
+        }
+      ]
+    },
+    "influence": {
+      "id": "influence",
+      "label": "Influencia Global",
+      "icon": "🌐",
+      "objectives": [
+        {
+          "id": "cultural_superpower",
+          "name": "Superpotencia Cultural",
+          "description": "Exportar cultura, idioma y valores a nivel global",
+          "category": "influence",
+          "difficulty": "medium",
+          "base_legacy_reward": 30,
+          "requirements": {
+            "min_soft_power": 50,
+            "min_cultural_budget": 30,
+            "required_tech": ["media_empire", "cultural_diplomacy"]
+          },
+          "milestones": [
+            {
+              "tick_range": [15, 35],
+              "condition": "cultural_exports >= 50",
+              "reward": { "legacy": 6, "soft_power": 15 },
+              "message": "Tu cultura comienza a ganar tracción internacional"
+            },
+            {
+              "tick_range": [35, 65],
+              "condition": "language_learners_abroad >= 1000000 && media_reach >= 5",
+              "reward": { "legacy": 12, "soft_power": 25, "tourism_boost": 30 },
+              "message": "Tu idioma y cultura son estudiados globalmente"
+            },
+            {
+              "tick_range": [65, 110],
+              "condition": "cultural_index_global_rank <= 3 && soft_power >= 150",
+              "reward": { "legacy": 20, "soft_power": 40, "influence": 25 },
+              "message": "¡Objetivo completado! Eres una superpotencia cultural reconocida"
+            }
+          ],
+          "failure_conditions": [
+            { "condition": "cultural_backlash_events >= 3", "duration_ticks": 40, "penalty": { "legacy": -15, "soft_power": -30 } }
+          ],
+          "internal_risks": [
+            {
+              "faction": "traditionalists",
+              "trigger": "cultural_globalization_index > 0.6",
+              "effect": { "loyalty_delta": -18 },
+              "message": "Los tradicionalistas temen la pérdida de identidad cultural auténtica"
+            },
+            {
+              "faction": "artists_intellectuals",
+              "trigger": "state_cultural_control > 0.5",
+              "effect": { "loyalty_delta": -20, "censorship_protests": true },
+              "message": "Artistas e intelectuales rechazan la instrumentalización estatal de la cultura"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "global_settings": {
+    "max_active_objectives_per_nation": 3,
+    "objective_cooldown_ticks": 10,
+    "legacy_decay_per_tick": 0.01,
+    "crisis_threshold_multiplier": 1.5,
+    "ai_objective_generation_frequency": 20
+  }
+}
