@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Server",
+      "program": "${workspaceFolder}/server/main.js",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch Client",
+      "url": "http://localhost:8080", // Ajusta el puerto según tu configuración
+      "webRoot": "${workspaceFolder}/public",
+      "sourceMaps": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Server & Client",
+      "configurations": ["Launch Server", "Launch Client"]
+    }
+  ]
+}

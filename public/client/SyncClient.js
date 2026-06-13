@@ -15,10 +15,10 @@ export class SyncClient {
         this.ws = null;
         this.localState = null;
         this.isConnected = false;
-        
+
         // Cola de mensajes para deltas recibidos antes del init_state
         this.messageQueue = [];
-        
+
         // Reconexión
         this.reconnectAttempts = 0;
         this.reconnectTimeoutId = null;
@@ -30,6 +30,8 @@ export class SyncClient {
 
         // Bindings
         this.connect = this.connect.bind(this);
+        // ---> INTEGRACIÓN DEL SPRINT 1: Control de estados para disparadores visuales
+        this._lastRenderedTick = -1;
     }
 
     setMapRenderer(renderer) {
@@ -43,18 +45,18 @@ export class SyncClient {
         }
 
         if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
-            return; 
+            return;
         }
 
         // Limpiar estado anterior
         if (this.ws) {
-            this.ws.onclose = null; 
+            this.ws.onclose = null;
             this.ws.close();
             this.ws = null;
         }
 
         console.log(`[SyncClient] Conectando a ${this.wsUrl}...`);
-        
+
         try {
             this.ws = new WebSocket(this.wsUrl);
         } catch (e) {
@@ -68,7 +70,7 @@ export class SyncClient {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this.isReconnecting = false;
-            
+
             // OPCIONAL: Si el servidor REQUIERE explícitamente un 'get_init' para enviarlo, descomenta esto:
             // this.send('get_init', {}); 
         };
@@ -96,7 +98,7 @@ export class SyncClient {
 
     scheduleReconnect() {
         if (this.isReconnecting) return;
-        
+
         this.isReconnecting = true;
         this.reconnectAttempts++;
 
@@ -120,9 +122,10 @@ export class SyncClient {
             return;
         }
 
-        // Normalizar tipos de mensaje por si el servidor usa variantes
         const type = message.type;
-        const payload = message.state || message.delta || message.payload;
+
+        // CORRECCIÓN: Estructura de extracción adaptativa más flexible
+        const payload = message.state || message.delta || message.payload || message.data || message;
 
         switch (type) {
             case 'connected':
@@ -138,32 +141,23 @@ export class SyncClient {
 
             case 'state_update':
             case 'delta':
-            case 'tick': // Por si el servidor usa otro nombre
-                // LÓGICA CORREGIDA:
-                // Si no tenemos estado local, verificamos si este mensaje parece un estado completo.
-                // Un estado completo suele tener la propiedad 'nations' o 'map'.
+            case 'tick':
                 if (!this.localState) {
                     if (payload && payload.nations) {
                         console.log('[SyncClient] 🚀 Primer mensaje recibido tiene estructura completa. Usando como init_state.');
-                        this.localState = JSON.parse(JSON.stringify(payload)); // Clonar para seguridad
+                        this.localState = JSON.parse(JSON.stringify(payload));
                         this.processMessageQueue();
                         this.notifyUpdate();
                         return;
                     } else {
-                        // Si es un delta parcial y no tenemos base, encolar (esperar al completo)
-                        // PERO con un límite de tiempo o reintento para evitar bucles infinitos si el server falla
                         console.warn('[SyncClient] Delta recibido antes de init_state. Encolando...');
-                        
-                        // Seguridad: Si la cola crece demasiado, forzar limpieza para evitar memoria infinita
                         if (this.messageQueue.length > 50) {
-                            this.messageQueue.shift(); // Descartar el más antiguo
+                            this.messageQueue.shift();
                         }
                         this.messageQueue.push(message);
                         return;
                     }
                 }
-
-                // Si ya tenemos estado, aplicamos el delta normalmente
                 this.applyDelta(payload);
                 this.notifyUpdate();
                 break;
@@ -181,14 +175,43 @@ export class SyncClient {
                     this.mapRenderer.playSound('error');
                 }
                 break;
-                
+
+            // ==================================================================
+            // 🔓 NUEVOS CASOS: APERTURA DE COMPUERTAS PARA EVENTOS EN VIVO
+            // ==================================================================
+            case 'intel_signal':
+            case 'advisor_suggestion':
+            case 'relations_detail':
+            case 'relations_data':
+            case 'get_relations_detail_response':
+            case 'crisis_started':
+            case 'crisis_escalated':
+            case 'crisis_resolved':
+            case 'treaty_signed':
+            case 'treaty_expired':
+            case 'diplomacy_action_result':
+                console.log(`[SyncClient] 📡 Redireccionando evento calificado a UI: ${type}`);
+
+                // Ejecutamos tu función handleCustomEvent registrada en index.html
+                if (typeof this.onCustomEvent === 'function') {
+                    this.onCustomEvent(message);
+                } else if (typeof window.handleCustomEvent === 'function') {
+                    window.handleCustomEvent(message);
+                }
+                break;
+
             default:
                 console.debug('[SyncClient] Mensaje desconocido:', type, message);
-                // Fallback: Si el mensaje tiene datos de naciones y no tenemos estado, intentarlo usar
-                if (!this.localState && message.nations) {
-                     console.log('[SyncClient] Fallback: Usando mensaje desconocido como estado inicial.');
-                     this.localState = message;
-                     this.notifyUpdate();
+
+                // Si el mensaje desconocido tiene pinta de evento, lo dejamos pasar de forma dinámica
+                if (typeof window.handleCustomEvent === 'function' || typeof this.onCustomEvent === 'function') {
+                    console.log(`[SyncClient] Enrutando por fallback dinámico: ${type}`);
+                    if (typeof this.onCustomEvent === 'function') this.onCustomEvent(message);
+                    else window.handleCustomEvent(message);
+                } else if (!this.localState && message.nations) {
+                    console.log('[SyncClient] Fallback: Usando mensaje desconocido como estado inicial.');
+                    this.localState = message;
+                    this.notifyUpdate();
                 }
         }
     }
@@ -197,7 +220,7 @@ export class SyncClient {
         if (this.messageQueue.length === 0) return;
 
         console.log(`[SyncClient] Procesando ${this.messageQueue.length} mensajes pendientes...`);
-        
+
         while (this.messageQueue.length > 0) {
             const pendingMsg = this.messageQueue.shift();
             const payload = pendingMsg.state || pendingMsg.delta || pendingMsg.payload;
@@ -205,7 +228,7 @@ export class SyncClient {
                 this.applyDelta(payload);
             }
         }
-        
+
         this.notifyUpdate();
     }
 
@@ -241,20 +264,32 @@ export class SyncClient {
         if (this.onStateUpdate) {
             this.onStateUpdate(this.localState);
         }
-        
+
         // 2. Notificar al Renderizador
         if (this.mapRenderer) {
             const playerId = this.localState.playerNationId || (this.localState.nations ? Object.keys(this.localState.nations)[0] : null);
-            
+
             // Cargar geometría si es la primera vez y el renderer lo soporta
             if (this.mapRenderer.loadGeometry && (!this.mapRenderer.gameState || Object.keys(this.mapRenderer.gameState || {}).length === 0)) {
-                 if (this.localState.nations) {
-                     this.mapRenderer.loadGeometry(this.localState.nations);
-                 }
+                if (this.localState.nations) {
+                    this.mapRenderer.loadGeometry(this.localState.nations);
+                }
             }
-            
+
             // Actualizar renderer
             this.mapRenderer.update(this.localState, playerId);
+        }
+
+        // ---> INTEGRACIÓN DEL SPRINT 1: Lógica de Feedback Inmediato ("Fun Factor")
+        // Verificamos si avanzamos de tick para no saturar con el mismo paquete repetido
+        if (this.localState.tick !== undefined && this.localState.tick !== this._lastRenderedTick) {
+            this._lastRenderedTick = this.localState.tick;
+
+            // Disparador 1: Animación de la cuenta atrás (Tensión del turno)
+            this._triggerTurnProgressBar();
+
+            // Disparador 2: Escanear crisis/eventos para el feed narrativo
+            this._triggerGeopoliticalFeed();
         }
     }
 
@@ -275,6 +310,64 @@ export class SyncClient {
             parameters: parameters || {}
         };
         return this.send('intent', { payload: intent });
+    }
+
+    // ---> INTEGRACIÓN DEL SPRINT 1: Métodos auxiliares de UI del Cliente
+
+    /**
+     * Reinicia la barra de progreso de tiempo del turno para generar tensión visual.
+     * Busca un elemento HTML con el ID 'turn-progress-bar'.
+     */
+    _triggerTurnProgressBar() {
+        const bar = document.getElementById('turn-progress-bar');
+        if (!bar) return;
+
+        bar.style.transition = 'none'; // Desactivar la transición CSS para restablecer el ancho inmediatamente
+        bar.style.width = '100%';       // Llevar la barra al máximo
+
+        // Forzar un reflow en el motor de renderizado del navegador de Ubuntu (Chrome/Firefox V8)
+        void bar.offsetWidth;
+
+        bar.style.transition = 'width 1000s linear'; // Simulación visual continua (se ajusta dinámicamente con cada tick)
+        bar.style.width = '0%';
+    }
+
+    /**
+     * Revisa el estado de la simulación en busca de eventos críticos (como crisis activas)
+     * e inyecta alertas legibles y dinámicas en el feed de noticias lateral.
+     */
+    _triggerGeopoliticalFeed() {
+        const feedContainer = document.getElementById('geopolitical-feed');
+        if (!feedContainer) return;
+
+        // Extraer si hay crisis activa en este tick
+        if (this.localState.crisis && this.localState.crisis.active) {
+            const currentPhase = this.localState.crisis.phase || 0;
+            const crisisType = this.localState.crisis.type || 'Inestabilidad Internacional';
+
+            const message = `🚨 ALERTA GLOBAL (Tick ${this.localState.tick}): Crisis de tipo [${crisisType}] escalada a Fase ${currentPhase}.`;
+            this._injectNewsItem(feedContainer, message);
+        }
+    }
+
+    /**
+     * Añade un nodo de texto animado al inicio de la lista del feed HTML.
+     */
+    _injectNewsItem(container, text) {
+        const entry = document.createElement('div');
+        entry.className = 'feed-entry alert-flash'; // 'alert-flash' se encarga del parpadeo CSS
+        entry.style.padding = '8px';
+        entry.style.borderBottom = '1px solid #333';
+        entry.style.color = '#ff3333';
+        entry.style.fontFamily = 'monospace';
+        entry.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+
+        container.insertBefore(entry, container.firstChild);
+
+        // Mantener el buffer del DOM limpio (máximo 5 elementos históricos visibles)
+        while (container.children.length > 5) {
+            container.removeChild(container.lastChild);
+        }
     }
 
     disconnect() {

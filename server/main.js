@@ -14,13 +14,15 @@ import { initRng } from '../core/Rng.js';
 import { on, emit } from '../core/EventDispatcher.js';
 import { setInitialState, applyDelta, getState, snapshot } from '../core/StateManager.js';
 import * as TimeEngine from '../core/TimeEngine.js';
+import * as StateManager from '../core/StateManager.js';
 import GameWebSocketServer from '../network/WebSocketServer.js';
 import { initPersistenceManager } from '../core/PersistenceManager.js';
 import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.js';
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
-import { processIntent} from '../modules/IntentProcessor.js';
+import { processIntent } from '../modules/IntentProcessor.js';
+
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -151,9 +153,9 @@ async function main() {
             [nation.id]: {
                 ...nation,
                 // INCLUIR GEOMETRÍA PARA EL CLIENTE
-                geometry: nationGeometryData[nation.id] || { 
-                    centroid: { x: 500, y: 330 }, 
-                    bounds: { minX: 450, minY: 280, maxX: 550, maxY: 380 } 
+                geometry: nationGeometryData[nation.id] || {
+                    centroid: { x: 500, y: 330 },
+                    bounds: { minX: 450, minY: 280, maxX: 550, maxY: 380 }
                 },
                 stats: { stability: nation.stability, economy: nation.economy, influence: nation.influence },
                 resources: { gold: 1000, food: 500 },
@@ -186,7 +188,7 @@ async function main() {
             initDiplomacyEngine();
             console.log('[main] ✅ DiplomacyEngine listo.');
         }
-        
+
         if (typeof initDiplomacyAI === 'function') {
             initDiplomacyAI();
             console.log('[main] ✅ DiplomacyAI activa.');
@@ -251,18 +253,18 @@ async function main() {
 
         // 6. Inicializar WebSocketServer ADJUNTO al HTTP
         console.log('[main] Iniciando WebSocketServer adjunto a HTTP...');
-        
+
         // CORRECCIÓN CRÍTICA: Pasar httpServer como primer argumento
         // La clase debe esperar (server, config) o similar
         const wsServer = new GameWebSocketServer(
-            httpServer, 
-            CONFIG, 
+            httpServer,
+            CONFIG,
             getState,           // Función para leer el estado
             { process: processIntent }, // Wrapper simple si processIntent es una función suelta
             TimeEngine          // Módulo completo de tiempo
         );
         global.gameServer = wsServer;
-        
+
         // Iniciar el WebSocket (esto adjuntará el listener 'upgrade' al httpServer)
         wsServer.start();
 
@@ -280,7 +282,15 @@ async function main() {
         // 7. Suscribirse al bucle de ticks (TimeEngine)
         // Usamos la función onTickStart exportada desde TimeEngine.js
         TimeEngine.onTickStart((tick) => {
+            // ---> INTEGRACIÓN DEL PARCHE: Vaciamos y aplicamos de forma atómica 
+            // los deltas que los jugadores enviaron por red durante este milisegundo.
+            if (typeof StateManager.processPendingDeltas === 'function') {
+                StateManager.processPendingDeltas(tick);
+            }
+
+            // Ahora el gameLoop se ejecuta con las acciones de los jugadores ya aplicadas en el estado
             gameLoop(tick);
+
             const currentState = getState();
 
             const payload = {
@@ -386,7 +396,7 @@ async function main() {
                     success: success !== false,
                     error: error || null,
                     requestId,
-                    data: data 
+                    data: data
                 });
                 console.log(`[main] 📤 Respuesta enviada a ${wsClientId}`);
             }

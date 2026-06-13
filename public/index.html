@@ -815,12 +815,90 @@
             background: rgba(0, 170, 255, 0.2);
             color: var(--accent-secondary);
         }
+         
+    /*   ========================================================================== 
+         PARCHE SPRINT 1: ESTILOS PARA FEEDBACK VISUAL INMEDIATO 
+         ========================================================================== -->
+    */
 
-        
+        #turn-progress-container {
+            width: 100%;
+            background-color: rgba(16, 18, 27, 0.8);
+            height: 4px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 999;
+        }
+        #turn-progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #00ffcc, #00bcff);
+            box-shadow: 0 0 8px #00ffcc;
+        }
+        #geopolitical-feed-panel {
+            position: fixed;
+            right: 16px;
+            top: 20px;
+            width: 320px;
+            max-height: 380px;
+            background: rgba(13, 16, 24, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 998;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+        #geopolitical-feed-panel h4 {
+            margin: 0 0 10px 0;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            border-bottom: 1px solid rgba(0, 255, 204, 0.1);
+            padding-bottom: 6px;
+        }
+        #geopolitical-feed {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .feed-entry {
+            font-size: 11px;
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(255, 51, 51, 0.05);
+            border-left: 2px solid #ff3333;
+            padding: 6px 8px;
+            border-radius: 0 4px 4px 0;
+            animation: flashFade 0.5s ease-out;
+        }
+        @keyframes flashFade {
+            0% { background: rgba(255, 51, 51, 0.4); transform: translateX(10px); }
+            100% { background: rgba(255, 51, 51, 0.05); transform: translateX(0); }
+        }
 
     </style>
+    
+
 </head>
 <body>
+
+    <div id="turn-progress-container">
+        <div id="turn-progress-bar"></div>
+    </div>
+
+    <div id="geopolitical-feed-panel">
+        <h4>LIVE_GEOPOLITIK_FEED</h4>
+        <div id="geopolitical-feed"></div>
+    </div>
+    ```
 
     <!-- Contenedor de Notificaciones -->
     <div id="toast-container"></div>
@@ -1227,8 +1305,10 @@
             console.log("🚀 Iniciando interfaz de usuario unificada...");
 
             // 1. CONFIGURACIÓN INICIAL Y REFERENCIAS GLOBALES
-            const wsUrl = `ws://${window.location.host}`;
-            
+            const wsUrl = `ws://localhost:8080`;
+            const syncClient = new SyncClient(wsUrl);
+            syncClient.onCustomEvent = handleCustomEvent; 
+
             // Referencias base
             const canvas = document.getElementById('game-map');
             if (!canvas) {
@@ -1258,8 +1338,7 @@
             // Instanciar Panel de Acciones
             const countryActionPanel = new CountryActionPanel('country-action-panel-container');
 
-            // Instanciar Cliente de Sincronización (ÚNICO)
-            const syncClient = new SyncClient(wsUrl);
+
 
             // 3. ESTADO GLOBAL DE LA APP
             window.app = {
@@ -1310,6 +1389,51 @@
 
             // 4. LÓGICA CENTRALIZADA DE ACTUALIZACIÓN DE ESTADO
             syncClient.onStateUpdate = (newState) => {
+                 // A. Sincronización de la barra de progreso (Parche previo)
+                if (newState.tick !== undefined) {
+                    const progressBar = document.getElementById('turn-progress-bar');
+                    if (progressBar) {
+                        const hourFactor = (newState.tick % 24) / 24;
+                        progressBar.style.width = `${hourFactor * 100}%`;
+                    }
+                }
+
+                // ==================================================================
+                // 🛠️ PARCHE: ESCÁNER PASIVO DE EVENTOS INTERNOS DEL TICK
+                // ==================================================================
+                // Si el servidor envía un evento efímero o un log en este tick, lo capturamos
+                if (newState.lastEvent) {
+                    handleCustomEvent(newState.lastEvent);
+                }
+                
+                // Si tu motor de diplomacia guarda logs dentro del estado de la crisis o diplomacia:
+                if (newState.diplomacy?.lastAction) {
+                    handleCustomEvent({
+                        type: 'diplomacy_action_result',
+                        ...newState.diplomacy.lastAction
+                    });
+                }
+
+                // ==================================================================
+                // PARCHE SPRINT 1: PROGRESO TEMPORAL (INSERCIÓN)
+                // ==================================================================
+                if (newState.timeEngine) {
+                    const progressBar = document.getElementById('turn-progress-bar');
+                    if (progressBar) {
+                        // Calcula el porcentaje si tu servidor maneja la acumulación de sub-ticks
+                        const progress = (newState.timeEngine.currentSubTick / newState.timeEngine.subTicksPerTick) * 100;
+                        progressBar.style.width = `${progress}%`;
+                    }
+                } else if (newState.tick) {
+                    // Fallback adaptativo: Destello rápido por cada tick recibido si no viene estructura anidada
+                    const progressBar = document.getElementById('turn-progress-bar');
+                    if (progressBar) {
+                        progressBar.style.width = '100%';
+                        setTimeout(() => { progressBar.style.width = '0%'; }, 150);
+                    }
+                }
+                // ==================================================================
+
                 // A. Guardar estado global
                 window.gameState = newState;
                 window.app.gameState = newState;
@@ -1447,12 +1571,12 @@
              * Solicita relaciones bilaterales detalladas al servidor
              */
             function loadRelationsDetail() {
-                if (!syncClient || !syncClient.isConnected()) {
+                if (!syncClient || !syncClient.isConnected) {
                     showNotification("❌ No conectado al servidor", "error");
                     return;
                 }
 
-                const state = syncClient.getState();
+                const state = syncClient.localState;
                 const nationId = state?.playerNationId || window.app.currentPlayerNation || 'ARG';
                 const requestId = Date.now();
 
@@ -1488,79 +1612,162 @@
         function handleCustomEvent(event) {
             console.log("📨 Evento recibido:", event);
 
-            // Estructura defensiva: los datos pueden venir en event.data o directamente en event
+            // Estructura defensiva: extraer datos planos o anidados
             const data = event.data || event;
-            // Variable global para rastrear solicitudes recientes
-            const processedRequests = new Set();
+            const feedContainer = document.getElementById('geopolitical-feed');
 
+            // Diccionario de traducción: Código Técnico ➔ Narrativa Inmersiva
+            const accionesDiplomaticas = {
+                'aid_humanitarian': 'Ayuda Humanitaria',
+                'investment_cultural': 'Inversión Cultural',
+                'improve_relations': 'Mejora de Relaciones',
+                'covert_ops': 'Operación Encubierta',
+                'trade_treaty': 'Tratado Comercial'
+            };
+
+            // Auxiliar único y centralizado para inyectar datos en el feed geopolítico
+            const appendToGeopoliticalFeed = (headline, content, borderHexColor = null) => {
+                if (feedContainer) {
+                    const entry = document.createElement('div');
+                    entry.className = 'feed-entry';
+                    
+                    const time = new Date();
+                    const timestamp = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
+                    
+                    if (borderHexColor) {
+                        entry.style.borderLeft = `3px solid ${borderHexColor}`;
+                    }
+                    
+                    entry.innerHTML = `<strong>[${timestamp}] ${headline.toUpperCase()}:</strong> ${content}`;
+                    feedContainer.insertBefore(entry, feedContainer.firstChild);
+                    
+                    // Recorte preventivo de desbordamiento en DOM (Mantiene últimas 15)
+                    if (feedContainer.children.length > 15) {
+                        feedContainer.removeChild(feedContainer.lastChild);
+                    }
+                }
+            };
+
+            // ==================================================================
+            // SWITCH CENTRAL: UN SOLO FLUJO POR EVENTO (EVITA DUPLICADOS)
+            // ==================================================================
             switch(event.type) {
+                
+                case 'geopolitical_alert':
+                case 'news_broadcast':
+                    appendToGeopoliticalFeed(
+                        data.headline || 'ALERTA URGENTE', 
+                        data.content || data.message || 'Despliegue internacional detectado.'
+                    );
+                    break;
+
                 case 'crisis_started':
                     window.showNotification(`⚠️ CRISIS INICIADA: ${data.type} en fase ${data.phase}`, 'warning');
                     window.updateCrisisUI(data);
+                    
+                    appendToGeopoliticalFeed('🚨 CRISIS DETECTADA', `Iniciada crisis de tipo ${data.type} (Fase ${data.phase})`, '#ffaa00');
                     break;
 
                 case 'crisis_escalated':
                     window.showNotification(`🔥 Crisis escalada a fase ${data.phase}`, 'error');
                     window.updateCrisisUI(data);
+                    
+                    appendToGeopoliticalFeed('🔥 ESCALADA DE CRISIS', `La tensión global ha subido a Fase ${data.phase}`, '#ff3333');
                     break;
 
                 case 'crisis_resolved':
-                    window.showNotification(`✅ Crisis resuelta: ${data.reason}`, 'success');
+                    window.showNotification(`¼️ Crisis resuelta: ${data.reason}`, 'success');
                     window.hideCrisisPanel();
+                    
+                    appendToGeopoliticalFeed('✅ CRISIS RESUELTA', `Resolución: ${data.reason || 'Acuerdo diplomático'}`, '#00ffcc');
                     break;
 
                 case 'treaty_signed':
-                    window.showNotification(`✅ Tratado '${data.treatyName}' firmado`, 'success');
+                    window.showNotification(`✅ Tratado '${data.treatyName || data.id}' firmado`, 'success');
                     if(window.gameState && window.gameState.crisis) {
                         window.updateCrisisUI(window.gameState.crisis);
                     }
+                    
+                    appendToGeopoliticalFeed(
+                        '📜 TRATADO ACORDADO', 
+                        `Firmado exitosamente el tratado internacional: '${data.treatyName || data.id}'`, 
+                        '#00ffcc'
+                    );
                     break;
 
                 case 'treaty_expired':
-                    window.showNotification(`⏳ Tratado '${data.treatyName}' vencido`, 'info');
+                    window.showNotification(`⏳ Tratado '${data.treatyName || data.id}' vencido`, 'info');
+                    
+                    appendToGeopoliticalFeed(
+                        '⏳ TRATADO EXPIRADO', 
+                        `Ha caducado la vigencia del tratado: '${data.treatyName || data.id}'`, 
+                        '#707070'
+                    );
                     break;
 
                 case 'diplomacy_action_result':
-                    // Acceder directamente a las propiedades del evento
+                    // 1. Traducir el ID técnico usando nuestro diccionario narrativo
+                    const rawAction = data.actionName || data.actionId || 'Acción';
+                    const cleanActionName = accionesDiplomaticas[rawAction] || rawAction;
+                    
+                    const actorName = data.actor || 'Una nación';
+                    const targetName = data.target ? ` hacia ${data.target}` : '';
+                    const motivoError = data.reason || data.error || 'Condiciones geopolíticas inestables';
+
+                    // 2. Desplegar Toasts y Feeds de forma emparejada y limpia
                     if(data.success) {
-                        window.showNotification(`✅ ${data.actionName || data.actionId} exitosa`, 'success');
+                        window.showNotification(`✅ ${cleanActionName} exitosa`, 'success');
+                        
+                        appendToGeopoliticalFeed(
+                            '🌍 DIPLOMACIA', 
+                            `${actorName} ejecutó con éxito la iniciativa: **${cleanActionName}**${targetName}.`, 
+                            '#00aaff'
+                        );
                     } else {
-                        window.showNotification(`❌ ${data.actionName || data.actionId} fallida: ${data.reason || data.error}`, 'error');
+                        window.showNotification(`❌ ${cleanActionName} fallida: ${motivoError}`, 'error');
+                        
+                        appendToGeopoliticalFeed(
+                            '⚠️ DISPUTA DIPLOMÁTICA', 
+                            `Fallo en la propuesta de **${cleanActionName}** de ${actorName}${targetName}. Motivo: ${motivoError}`, 
+                            '#ff3333'
+                        );
                     }
+                    break;
+
+                case 'intel_signal':
+                    // Soporte nativo para reportes de espionaje del SyncClient
+                    const signalData = data.signal || data;
+                    const textoIntel = signalData.signalText || 'Actividad sospechosa en las fronteras.';
+                    appendToGeopoliticalFeed('🛰️ INTEL SEÑAL', textoIntel, '#ffaa00');
                     break;
 
                 case 'advisor_suggestion':
                     if(data.suggestion) {
-                        document.getElementById('advisor-text').textContent = data.suggestion.title || "Sugerencia recibida";
+                        const advisorEl = document.getElementById('advisor-text');
+                        if (advisorEl) {
+                            advisorEl.textContent = data.suggestion.title || "Sugerencia recibida";
+                        }
                     }
                     break;
 
                 case 'relations_detail':
-                    // 1. Blindaje contra duplicados estricto
                     if (data.requestId && data.requestId === window._lastProcessedRelationsRequest) {
                         console.log(`[UI] ⏭️ Ignorando duplicado de relations_detail (ID: ${data.requestId})`);
                         return;
                     }
 
-                    // 2. Normalización de datos (acepta estructura plana o anidada)
-                    // El servidor a veces envía { data: {...} } o directamente { treaties: [...] }
                     const payload = (data.data && data.data.treaties !== undefined) ? data.data : data;
 
                     if (!payload || !payload.nationId) {
                         console.error('[UI] ❌ Datos inválidos o incompletos:', data);
-                        // No cerramos el modal aquí, solo mostramos error en consola
                         return;
                     }
 
-                    // 3. Marcar como procesado
                     window._lastProcessedRelationsRequest = data.requestId;
-
-                    // 4. Renderizar
                     renderRelationsModal(payload);
                     break;
             }
         }
-
         /**
          * Renderiza el contenido del modal con los datos de relaciones
          * @param {Object} relationsData - Datos de relaciones del servidor

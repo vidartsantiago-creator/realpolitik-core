@@ -33,6 +33,10 @@ const _config = {
  */
 let _intervalId = null;
 
+// ---> INTEGRACIÓN DEL PARCHE: Añadir estas dos variables de control
+let _timeoutId = null;
+let _expectedTime = 0n; // Almacenará el timestamp absoluto esperado en nanosegundos (BigInt)
+
 /**
  * Callbacks registrados para el evento tick_start
  * @type {Array<Function>}
@@ -126,10 +130,33 @@ export function start() {
 
   if (_config.mode === 'continuous') {
     const intervalMs = _config.tickRate / _config.speed;
-    _intervalId = setInterval(() => executeTick(), intervalMs);
-    console.log(`[TimeEngine] Bucle continuous iniciado (${intervalMs}ms/tick)`);
+
+
+    // ---> INTEGRACIÓN DEL PARCHE: Configurar reloj de alta resolución
+    const tickRateNs = BigInt(Math.floor(intervalMs)) * 1000000n; // Convertir ms a nanosegundos
+    _expectedTime = process.hrtime.bigint() + tickRateNs;
+
+    // Definimos el bucle recursivo autorregulado
+    const _loop = () => {
+      executeTick();
+
+      // Recalcular el intervalo considerando la velocidad actual dinámicamente
+      const currentIntervalMs = _config.tickRate / _config.speed;
+      const currentTickRateNs = BigInt(Math.floor(currentIntervalMs)) * 1000000n;
+
+      _expectedTime += currentTickRateNs;
+      let nextDelayNs = _expectedTime - process.hrtime.bigint();
+
+      if (nextDelayNs < 0n) nextDelayNs = 0n; // Salvaguarda si hay lag crítico
+
+      _timeoutId = setTimeout(_loop, Number(nextDelayNs / 1000000n));
+    };
+
+    // Lanzar el bucle por primera vez
+    _timeoutId = setTimeout(_loop, Math.floor(intervalMs));
+    console.log(`[TimeEngine] Bucle determinista de alta precisión iniciado (${intervalMs}ms/tick)`);
+
   } else if (_config.mode === 'batch') {
-    // En modo batch, el tick se dispara externamente cuando se cierra la ventana
     console.log(`[TimeEngine] Modo batch iniciado (ventana=${_config.batchWindow} ticks)`);
   }
 }
@@ -138,11 +165,17 @@ export function start() {
  * Detiene el bucle de ticks.
  */
 export function stop() {
+  // ---> INTEGRACIÓN DEL PARCHE: Limpiar temporizador de alta resolución
+  if (_timeoutId !== null) {
+    clearTimeout(_timeoutId);
+    _timeoutId = null;
+  }
+
   if (_intervalId !== null) {
     clearInterval(_intervalId);
     _intervalId = null;
-    console.log('[TimeEngine] Bucle detenido.');
   }
+  console.log('[TimeEngine] Bucle detenido.');
 }
 
 /**
@@ -230,6 +263,8 @@ export function step() {
  */
 export function ResetForTests() {
   stop();
+  _timeoutId = null; // ---> PARCHE: Limpieza de referencia
+  _expectedTime = 0n; // ---> PARCHE: Limpieza de referencia
   _config.currentTick = 0;
   _config.paused = false;
   _config.speed = 1;

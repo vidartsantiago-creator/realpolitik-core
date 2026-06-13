@@ -49,6 +49,8 @@ let _version = 0;
  */
 const _deltaHistory = [];
 const MAX_HISTORY_TICKS = 120;
+// ---> INTEGRACIÓN DEL PARCHE: Declarar la cola de deltas del búfer de red
+let _actionQueue = [];
 
 /**
  * Obtiene el estado global actual (solo lectura).
@@ -56,6 +58,45 @@ const MAX_HISTORY_TICKS = 120;
  */
 export function getState() {
   return Object.freeze(structuredClone(_state));
+}
+
+// ---> INTEGRACIÓN DEL PARCHE: Método seguro para recibir inputs concurrentes
+/**
+ * Encola un delta recibido por la red para ser procesado al inicio del siguiente tick.
+ * @param {Object} delta - Parche parcial
+ * @param {string} source - Identificador del jugador o socket
+ */
+export function queueDelta(delta, source = 'player') {
+  if (typeof delta !== 'object' || delta === null || Array.isArray(delta)) {
+    return { success: false, error: 'Delta inválido' };
+  }
+  _actionQueue.push({ delta: structuredClone(delta), source });
+  return { success: true };
+}
+
+// ---> INTEGRACIÓN DEL PARCHE: Procesador atómico secuencial
+/**
+ * Procesa y aplica secuencialmente todos los deltas encolados durante el tick.
+ * Diseñado para ser invocado de forma determinista por el TimeEngine.
+ * @param {number} targetTick - El número de tick que se está procesando
+ */
+export function processPendingDeltas(targetTick) {
+  const processedVersions = [];
+
+  // Vaciamos la cola procesando los comandos acumulados
+  while (_actionQueue.length > 0) {
+    const { delta, source } = _actionQueue.shift();
+
+    // Forzamos a que el delta se estampe con el número de tick exacto del motor
+    delta.tick = targetTick;
+
+    const result = applyDelta(delta, source);
+    if (result.success) {
+      processedVersions.push(result.version);
+    }
+  }
+
+  return processedVersions;
 }
 
 /**
@@ -87,10 +128,10 @@ export function applyDelta(delta, source = 'system') {
       for (const [nationId, nationDelta] of Object.entries(delta.nations)) {
         // Asegurar existencia de la nación con estructura completa
         if (!_state.nations[nationId]) {
-          _state.nations[nationId] = { 
-            stats: {}, 
-            resources: {}, 
-            units: [], 
+          _state.nations[nationId] = {
+            stats: {},
+            resources: {},
+            units: [],
             factions: {},
             policies: []
           };
@@ -128,14 +169,14 @@ export function applyDelta(delta, source = 'system') {
           if (!Array.isArray(currentNation.units)) {
             currentNation.units = [];
           }
-          
+
           // Concatenar nuevas unidades
           if (Array.isArray(nationDelta.units)) {
             currentNation.units.push(...nationDelta.units);
           } else if (typeof nationDelta.units === 'object' && nationDelta.units !== null) {
             currentNation.units.push(nationDelta.units);
           }
-          
+
           console.log(`[StateManager] ✅ Unidad añadida a ${nationId}. Total: ${currentNation.units.length}`);
         }
 
@@ -151,7 +192,7 @@ export function applyDelta(delta, source = 'system') {
               if (factionKey === 'loyalty') {
                 currentNation.factions[factionId][factionKey] = factionValue;
               } else if (typeof factionValue === 'number') {
-                currentNation.factions[factionId][factionKey] = 
+                currentNation.factions[factionId][factionKey] =
                   (currentNation.factions[factionId][factionKey] || 0) + factionValue;
               } else {
                 currentNation.factions[factionId][factionKey] = factionValue;
@@ -306,6 +347,7 @@ export function ResetForTests(initialState = null) {
   };
   _version = 0;
   _deltaHistory.length = 0;
+  _actionQueue = []; // ---> PARCHE: Resetear la cola de entrada de red
 }
 
 /**
