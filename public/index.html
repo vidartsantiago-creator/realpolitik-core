@@ -1022,6 +1022,111 @@
         </div>
     </div>
 
+    <!-- ============================================ -->
+    <!-- Módulo: Gabinete de Estrategia (Modal) -->
+    <!-- ============================================ -->
+    <div id="strategy-cabinet-modal" class="modal-overlay hidden">
+    <div class="modal-content strategy-cabinet">
+        
+        <!-- Cabecera -->
+        <header class="cabinet-header">
+        <h2>🏛️ Gabinete de Estrategia Nacional</h2>
+        <button id="btn-close-cabinet" class="btn-icon" aria-label="Cerrar">&times;</button>
+        </header>
+
+        <!-- Sección 1: Objetivos Activos (Slots) -->
+        <section class="cabinet-section objectives-panel">
+        <h3>🎯 Objetivos Geopolíticos Activos (<span id="obj-count">0</span>/2)</h3>
+        <div id="active-objectives-list" class="objectives-grid">
+            <!-- Se llena dinámicamente: Slot Vacío o Tarjeta de Objetivo -->
+            <!-- Ejemplo de plantilla interna (no renderizada hasta JS):
+            <div class="objective-card locked" data-id="...">
+            <div class="card-header">...</div>
+            <div class="progress-bar">...</div>
+            <div class="card-footer">...</div>
+            </div> 
+            -->
+        </div>
+        <button id="btn-select-objective" class="btn-primary" disabled>+ Asignar Nuevo Objetivo</button>
+        </section>
+
+        <!-- Sección 2: Gestión de Estrategias (Por objetivo seleccionado) -->
+        <section class="cabinet-section strategies-panel">
+        <h3>⚙️ Implementación Estratégica</h3>
+        
+        <!-- Selector de objetivo para gestionar estrategias -->
+        <div class="strategy-context-selector">
+            <label>Gestionar estrategias para:</label>
+            <select id="strategy-objective-select">
+            <option value="" disabled selected>Seleccione un objetivo activo...</option>
+            </select>
+        </div>
+
+        <div id="strategy-management-area" class="hidden">
+            <!-- Panel Dinámico: Se llena al seleccionar un objetivo -->
+            
+            <!-- 2.1 Lista de Estrategias Disponibles (Filtradas por ámbito) -->
+            <div class="strategies-available">
+            <h4>Estrategias Disponibles</h4>
+            <div id="available-strategies-list" class="strategies-list">
+                <!-- Cards de estrategias inyectadas por JS -->
+            </div>
+            </div>
+
+            <!-- 2.2 Asignación de Recursos -->
+            <div class="resource-allocation">
+            <h4>Asignación de Recursos</h4>
+            <div id="resource-sliders">
+                <!-- Sliders generados dinámicamente según la estrategia -->
+            </div>
+            <div class="allocation-summary">
+                <span>Costo Tick: <strong id="alloc-cost-display">0</strong></span>
+                <span>Riesgo Interno: <strong id="alloc-risk-display">Bajo</strong></span>
+            </div>
+            </div>
+
+            <!-- 2.3 Botón de Activación -->
+            <button id="btn-activate-strategy" class="btn-success">Activar Estrategia</button>
+        </div>
+        </section>
+
+        <!-- Sección 3: Asesoría IA y Reportes -->
+        <section class="cabinet-section ai-advisor-panel">
+        <h3>🤖 Asesoría de Inteligencia (IA)</h3>
+        <div id="ai-report-content" class="ai-report-box">
+            <p class="placeholder">Solicite un reporte para analizar el progreso y recibir recomendaciones.</p>
+        </div>
+        <div class="ai-actions">
+            <button id="btn-ai-report-progress" class="btn-secondary">📊 Reporte de Avance</button>
+            <button id="btn-ai-recommendation" class="btn-secondary">💡 Recomendar Estrategia</button>
+        </div>
+        </section>
+
+    </div>
+    </div>
+
+    <!-- Modal Secundario: Selector de Objetivos (Nested Modal o Overlay) -->
+    <div id="objective-selector-modal" class="modal-overlay hidden">
+    <div class="modal-content objective-selector">
+        <header>
+        <h3>Seleccionar Nuevo Objetivo Estratégico</h3>
+        <button id="btn-close-selector" class="btn-icon">&times;</button>
+        </header>
+        
+        <!-- Pestañas de Ámbito -->
+        <div class="scope-tabs">
+        <button class="tab-btn active" data-scope="global">Global 🌍</button>
+        <button class="tab-btn" data-scope="regional">Regional 🗺️</button>
+        <button class="tab-btn" data-scope="local">Local 🏙️</button>
+        </div>
+
+        <!-- Grid de Objetivos Filtrados -->
+        <div id="objective-catalog" class="objective-catalog-grid">
+        <!-- Se llena dinámicamente desde config cargada en cliente o evento init -->
+        </div>
+    </div>
+    </div>
+
     <!-- Script Principal Corregido -->
     <script type="module">
         // Importación correcta de módulos
