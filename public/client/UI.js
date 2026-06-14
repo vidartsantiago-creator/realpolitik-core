@@ -10,7 +10,7 @@
  * - v1.0.0: Creación inicial. Implementa estructura básica de UI para MVP.
  */
 
-import { getState } from './SyncClient.js';
+
 import { StrategyCabinet } from './components/StrategyCabinet.js';
 
 // Referencias a elementos DOM
@@ -367,4 +367,3 @@ export function sendPolicyDecision(optionIndex) {
   console.log('[UI] Enviando decisión al servidor (pendiente de implementación):', optionIndex);
   // Se conectará con UIMessageHandler.js cuando esté implementado
 }
-

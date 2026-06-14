@@ -12,15 +12,16 @@ export class StrategyCabinet {
   constructor() {
     // Referencias al DOM
     this.modal = document.getElementById('strategy-cabinet-modal');
-    this.closeBtn = document.getElementById('cabinet-close-btn');
+    this.closeBtn = document.getElementById('btn-close-cabinet');
 
     // Contenedores principales
-    this.objectivesListContainer = document.getElementById('cabinet-objectives-list');
+    this.objectivesList = document.getElementById('active-objectives-list');
+    this.strategiesContainer = document.getElementById('strategy-management-area');
+    this.adviceContainer = document.getElementById('ai-report-content');
     this.activeStrategiesContainer = document.getElementById('cabinet-active-strategies');
-    this.aiAdviceContainer = document.getElementById('cabinet-ai-advice');
 
     // Pestañas de filtrado
-    this.filterTabs = document.querySelectorAll('.cabinet-filter-tab');
+    this.filterTabs = document.querySelectorAll('[data-scope="filter"]');
 
     // Estado interno local (para evitar re-renderizados innecesarios)
     this.currentFilter = 'all';

@@ -9,6 +9,7 @@ import { IntelFeed } from '../../client/components/IntelFeed.js';
 import { DiplomaticModal } from '../../client/components/DiplomaticModal.js';
 import { CrisisPanel } from '../../client/components/CrisisPanel.js';
 import { StateMapper } from '../../client/utils/StateMapper.js';
+import { StrategyCabinet } from './components/StrategyCabinet.js';
 
 // Configuración
 const WS_URL = `ws://${window.location.hostname}:8080`;
@@ -24,6 +25,9 @@ window.mapRenderer = mapRenderer; // <-- AGREGA ESTO
 const intelFeed = new IntelFeed('intel-feed');
 const diplomaticModal = new DiplomaticModal('modal-overlay');
 const crisisPanel = new CrisisPanel('crisis-panel-container'); // Nuevo componente
+const strategyCabinet = new StrategyCabinet();
+strategyCabinet.init();
+window.strategyCabinet = strategyCabinet;
 
 // Callbacks de acción hacia el servidor
 intelFeed.setActionCallback((type, payload) => sendWS(type, payload));
@@ -122,6 +126,13 @@ function updateUI() {
     // ✅ NUEVO: Actualizar panel de crisis (FASE 2)
     const crisisData = gameState.crisis || { active: false };
     crisisPanel.update(crisisData);
+
+    if (window.strategyCabinet) {
+        window.strategyCabinet.update({
+            ...gameState,
+            playerNationId: PLAYER_NATION_ID
+        });
+    }
 }
 
 function updateAdvisor(payload) {
@@ -134,7 +145,7 @@ function updateDiplomaticStatus(state, playerNationId) {
     if (!listEl || !state || !state.nations) return;
 
     let html = '';
-    
+
     // Iterar sobre las naciones conocidas
     Object.keys(state.nations).forEach(nationId => {
         if (nationId === playerNationId) return; // Saltar al jugador

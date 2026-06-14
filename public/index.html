@@ -1145,6 +1145,7 @@
         import { SyncClient } from './client/SyncClient.js';
         import { MapRenderer } from './client/MapRenderer.js';
         import { CountryActionPanel } from './client/components/CountryActionPanel.js';
+        import { initUI } from './client/UI.js';
         // Si existe NetworkOverlay, descomentar la siguiente línea
         // import { NetworkOverlay } from './client/NetworkOverlay.js';
 
@@ -2037,6 +2038,8 @@
         } else {
             initApp();
         }
+        // Inicializar la interfaz de usuario
+        initUI();
     </script>
     <div id="country-action-panel-container"></div>
 </body>
