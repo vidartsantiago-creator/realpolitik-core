@@ -1,201 +1,596 @@
-/* ============================================
-   Gabinete de Estrategia - Estilos
-   ============================================ */
+/**
+ * @file cabinet.css
+ * @description Estilos para el componente StrategyCabinet (Gabinete de Estrategia)
+ * @version 1.0.0
+ */
 
-/* Modal Overlay Base */
-.modal-overlay {
+/* --- Contenedor Principal del Modal --- */
+.strategy-cabinet-modal {
+  display: none; /* Oculto por defecto, se activa con clase .active */
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.75);
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(15, 23, 42, 0.85); /* Fondo oscuro semitransparente */
   backdrop-filter: blur(4px);
+  overflow-y: auto;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.strategy-cabinet-modal.active {
   display: flex;
   justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  transition: opacity 0.3s ease;
+  align-items: flex-start;
+  padding-top: 40px;
 }
 
-.modal-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
-  display: none; /* Opcional: mantener display flex y solo togglear opacity/pointer */
-}
-
-/* Contenido Principal */
-.strategy-cabinet {
-  background: #f4f4f9; /* Ajustar al tema base */
-  color: #333;
-  width: 90%;
-  max-width: 1200px;
-  height: 85vh;
+/* --- Panel Central --- */
+.cabinet-content {
+  background: #1e293b; /* Slate 800 */
+  border: 1px solid #334155;
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  display: grid;
-  grid-template-rows: auto 1fr 1fr 1fr; /* Header, Objetivos, Estrategias, IA */
-  gap: 1rem;
-  padding: 1.5rem;
-  overflow-y: auto;
+  width: 90%;
+  max-width: 1100px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  animation: slideDown 0.3s ease-out;
 }
 
+@keyframes slideDown {
+  from { transform: translateY(-50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* --- Cabecera --- */
 .cabinet-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #ddd;
-  padding-bottom: 0.5rem;
+  padding: 16px 24px;
+  border-bottom: 1px solid #334155;
+  background: #0f172a; /* Slate 900 */
+  border-radius: 8px 8px 0 0;
 }
 
-.cabinet-header h2 { margin: 0; font-size: 1.5rem; }
-
-/* Secciones Generales */
-.cabinet-section {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 1rem;
-  overflow-y: auto;
+.cabinet-header h2 {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.cabinet-section h3 {
-  margin-top: 0;
-  color: #2c3e50;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 0.5rem;
-  margin-bottom: 1rem;
+.close-cabinet {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  cursor: pointer;
+  transition: color 0.2s;
 }
 
-/* Grid de Objetivos */
-.objectives-grid {
+.close-cabinet:hover {
+  color: #fff;
+}
+
+/* --- Cuerpo del Modal (Layout Grid) --- */
+.cabinet-body {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
+  grid-template-columns: 2fr 1fr; /* 2 partes objetivos, 1 parte asesoría */
+  gap: 20px;
+  padding: 24px;
+  overflow-y: auto;
+  flex-grow: 1;
 }
 
-.objective-card {
-  border: 1px solid #ccc;
+/* Responsive: Columna única en móviles */
+@media (max-width: 900px) {
+  .cabinet-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Secciones --- */
+.cabinet-section {
+  background: #1e293b;
+  border: 1px solid #334155;
   border-radius: 6px;
-  padding: 1rem;
-  background: #fafafa;
+  padding: 16px;
+}
+
+.section-title {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --- Pestañas de Objetivos (Global/Regional/Local) --- */
+.objective-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  background: #334155;
+  border: none;
+  color: #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  background: #475569;
+}
+
+.tab-btn.active {
+  background: #3b82f6; /* Blue 500 */
+  color: white;
+  font-weight: 600;
+}
+
+/* --- Lista de Objetivos Disponibles --- */
+.objectives-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Scrollbar personalizado */
+.objectives-list::-webkit-scrollbar {
+  width: 6px;
+}
+.objectives-list::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border-radius: 3px;
+}
+
+/* --- Tarjeta de Objetivo --- */
+.objective-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 12px;
+  transition: transform 0.2s, border-color 0.2s;
+  cursor: pointer;
   position: relative;
-  transition: transform 0.2s;
+}
+
+.objective-card:hover {
+  transform: translateY(-2px);
+  border-color: #3b82f6;
+}
+
+.objective-card.selected {
+  border-color: #10b981; /* Emerald 500 */
+  box-shadow: 0 0 0 1px #10b981;
 }
 
 .objective-card.locked {
-  border-color: #27ae60;
-  background: #eafaf1;
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
 }
 
-.objective-card.failed {
-  border-color: #c0392b;
-  background: #fdedec;
+.obj-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
 }
 
+.obj-name {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.obj-difficulty {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.obj-difficulty.hard { background: #ef4444; color: white; }
+.obj-difficulty.medium { background: #f59e0b; color: black; }
+.obj-difficulty.easy { background: #10b981; color: black; }
+
+.obj-desc {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.obj-requirements {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.req-tag {
+  background: #1e293b;
+  padding: 2px 4px;
+  border-radius: 2px;
+  border: 1px solid #334155;
+}
+
+/* --- Barra de Progreso --- */
 .progress-container {
-  margin: 0.5rem 0;
+  margin-top: 8px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  margin-bottom: 4px;
 }
 
 .progress-bar-bg {
-  width: 100%;
-  height: 10px;
-  background: #ddd;
-  border-radius: 5px;
+  height: 6px;
+  background: #334155;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .progress-bar-fill {
   height: 100%;
-  background: #3498db;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
   width: 0%;
   transition: width 0.5s ease;
 }
 
-.progress-bar-fill.critical { background: #e74c3c; }
-.progress-bar-fill.warning { background: #f39c12; }
-.progress-bar-fill.success { background: #27ae60; }
-
-/* Estrategias y Recursos */
-.strategy-context-selector {
-  margin-bottom: 1rem;
+.progress-bar-fill.critical {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
 }
 
-.strategies-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 200px;
-  overflow-y: auto;
+.progress-bar-fill.success {
+  background: linear-gradient(90deg, #10b981, #059669);
 }
 
-.strategy-item {
+/* --- Panel de Estrategias Activas --- */
+.active-strategies-panel {
+  margin-top: 20px;
+  border-top: 1px solid #334155;
+  padding-top: 16px;
+}
+
+.strategy-slot {
+  background: #0f172a;
+  border: 1px dashed #475569;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.strategy-slot.filled {
+  border-style: solid;
+  border-color: #3b82f6;
+  background: #172554; /* Azul muy oscuro */
+}
+
+.slot-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem;
-  border: 1px solid #eee;
-  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.slot-title {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  font-size: 1.2rem;
   cursor: pointer;
+  opacity: 0.7;
+}
+.btn-remove:hover { opacity: 1; }
+
+.resource-allocation {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 
-.strategy-item.selected {
-  background: #e8f4fc;
-  border-color: #3498db;
-}
-
-.resource-sliders {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin: 1rem 0;
-}
-
-.resource-slider-group {
+.res-input-group {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
-.resource-slider-group label { font-size: 0.9rem; font-weight: bold; }
-
-/* Panel IA */
-.ai-report-box {
-  background: #f8f9fa;
-  border-left: 4px solid #3498db;
-  padding: 1rem;
-  font-style: italic;
-  min-height: 80px;
-  margin-bottom: 1rem;
+.res-input-group label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  margin-bottom: 2px;
 }
 
-.ai-actions {
+.res-input {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  padding: 4px;
+  border-radius: 3px;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+/* --- Panel Lateral: Asesoría IA --- */
+.advisor-panel {
+  background: #0f172a;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  padding: 16px;
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  height: fit-content;
 }
 
-/* Botones Genéricos (Asumiendo existencia o definiendo básicos) */
-.btn-primary, .btn-success, .btn-secondary, .btn-icon {
-  padding: 0.5rem 1rem;
-  border: none;
+.advisor-avatar {
+  width: 40px;
+  height: 40px;
+  background: #3b82f6;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  margin-bottom: 12px;
+  color: white;
+}
+
+.advisor-message {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.advisor-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-advisor {
+  background: #1e293b;
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+  padding: 8px;
   border-radius: 4px;
   cursor: pointer;
-  font-weight: bold;
+  font-size: 0.85rem;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.btn-advisor:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-advisor.secondary {
+  border-color: #64748b;
+  color: #94a3b8;
+}
+.btn-advisor.secondary:hover {
+  background: #475569;
+  color: white;
+}
+
+/* --- Botones Generales --- */
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
   transition: background 0.2s;
 }
 
-.btn-primary { background: #3498db; color: white; }
-.btn-primary:disabled { background: #bdc3c7; cursor: not-allowed; }
-.btn-success { background: #27ae60; color: white; width: 100%; margin-top: 1rem;}
-.btn-secondary { background: #95a5a6; color: white; }
-.btn-icon { background: transparent; font-size: 1.5rem; color: #555; }
+.btn-primary:hover {
+  background: #2563eb;
+}
 
-/* Responsive */
-@media (max-width: 768px) {
-  .strategy-cabinet {
-    grid-template-rows: auto 1fr 1fr 1fr;
-    height: 95vh;
-    padding: 1rem;
+.btn-primary:disabled {
+  background: #475569;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* --- Utilidades de Estado --- */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.status-on-track { background: #064e3b; color: #34d399; }
+.status-at-risk { background: #451a03; color: #fbbf24; }
+.status-failed { background: #450a0a; color: #f87171; }
+
+/* --- Notificación de Riesgo Interno --- */
+.internal-risk-alert {
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #ef4444;
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
+/* ============================================================================
+   ESTILOS DEL BOTÓN DE ACCESO (Sidebar)
+   ============================================================================ */
+
+/* Contenedor en el sidebar para dar espaciado correcto */
+.strategy-cabinet-trigger {
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  margin-bottom: 15px;
+}
+
+/* El botón principal */
+.btn-cabinet-open {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+  border: 1px solid #4299e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.btn-cabinet-open:hover {
+  background: linear-gradient(135deg, #2c5282 0%, #3182ce 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+.btn-cabinet-open:active {
+  transform: translateY(0);
+}
+
+/* Icono del botón */
+.btn-cabinet-open .icon {
+  font-size: 1.5rem;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+/* Grupo de texto */
+.label-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Texto principal */
+.label-main {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Texto secundario */
+.label-sub {
+  font-size: 0.75rem;
+  color: #cbd5e0;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Ajuste para modo oscuro/contraste si es necesario */
+@media (prefers-color-scheme: dark) {
+  .btn-cabinet-open {
+    background: linear-gradient(135deg, #1a365d 0%, #2b4c7e 100%);
+    border-color: #4299e1;
   }
-  
-  .objectives-grid {
-    grid-template-columns: 1fr;
-  }
+}
+/* Asegurar que el sidebar tenga flexbox vertical para empujar el botón al fondo si sobra espacio */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    /* El resto de tus estilos actuales del sidebar */
+}
+
+/* Estilo específico para el contenedor del botón al final */
+.strategy-cabinet-trigger {
+    margin-top: 15px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid var(--accent-primary);
+    transition: all 0.3s ease;
+}
+
+.strategy-cabinet-trigger:hover {
+    background: rgba(0, 102, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 102, 255, 0.2);
+}
+
+/* Estilos del botón interno */
+.btn-cabinet-open {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--bg-panel), #2a2a2a);
+    border: 1px solid var(--accent-primary);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-family: inherit;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-cabinet-open:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+    border-color: #00ccff;
+}
+
+.btn-cabinet-open .icon {
+    font-size: 1.5rem;
+}
+
+.btn-cabinet-open .label-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.btn-cabinet-open .label-main {
+    font-weight: bold;
+    font-size: 0.95rem;
+    color: var(--accent-primary);
+}
+
+.btn-cabinet-open .label-sub {
+    font-size: 0.75rem;
+    color: var(--text-muted);
 }

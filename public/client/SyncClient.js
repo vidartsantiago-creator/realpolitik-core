@@ -280,6 +280,10 @@ export class SyncClient {
             this.mapRenderer.update(this.localState, playerId);
         }
 
+        // 3. Notificar a componentes UI avanzados (StrategyCabinet, etc.)
+        // Disparamos un evento personalizado con el estado completo para que los componentes se suscriban
+        window.dispatchEvent(new CustomEvent('game-state-update', { detail: this.localState }));
+
         // ---> INTEGRACIÓN DEL SPRINT 1: Lógica de Feedback Inmediato ("Fun Factor")
         // Verificamos si avanzamos de tick para no saturar con el mismo paquete repetido
         if (this.localState.tick !== undefined && this.localState.tick !== this._lastRenderedTick) {
@@ -311,6 +315,8 @@ export class SyncClient {
         };
         return this.send('intent', { payload: intent });
     }
+
+
 
     // ---> INTEGRACIÓN DEL SPRINT 1: Métodos auxiliares de UI del Cliente
 

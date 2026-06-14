@@ -11,10 +11,15 @@
  */
 
 import { getState } from './SyncClient.js';
+import { StrategyCabinet } from './components/StrategyCabinet.js';
 
 // Referencias a elementos DOM
 let elements = {};
 let localState = null;
+
+
+// Nueva variable de módulo para la instancia
+const strategyCabinet = new StrategyCabinet();
 
 /**
  * Inicializa la interfaz de usuario.
@@ -65,10 +70,38 @@ function setupDOM() {
     factionPanel: document.getElementById('faction-panel'),
     relationsPanel: document.getElementById('relations-panel'),
 
+    // Gabinete de Estrategia
+    btnOpenCabinet: document.getElementById('btn-open-cabinet'),
+
     // Estado general
     tickDisplay: document.getElementById('tick-display'),
     nationName: document.getElementById('nation-name')
   };
+
+  // Inicializar Gabinete de Estrategia ---
+  strategyCabinet.init();
+
+  // Listener para abrir el gabinete
+  if (elements.btnOpenCabinet) {
+    elements.btnOpenCabinet.addEventListener('click', () => {
+      strategyCabinet.open();
+    });
+  }
+
+  // Escuchar actualizaciones de estado desde SyncClient
+  window.addEventListener('game-state-update', (event) => {
+    const state = event.detail;
+
+    // Actualizar dashboard principal (si tienes una función renderDashboard que toma state completo)
+    // renderDashboard(state); 
+
+    // Actualizar el gabinete de estrategia
+    if (strategyCabinet) {
+      strategyCabinet.update(state);
+    }
+  });
+  console.log('[UI] ✅ StrategyCabinet inicializado.');
+
 
   // Suscribirse a actualizaciones del estado
   subscribeToUpdates();
@@ -135,6 +168,35 @@ function updateMetricBar(barElement, valueElement, value, min, max) {
   if (trendElement && trendElement.classList.contains('trend-indicator')) {
     trendElement.textContent = '─';
   }
+}
+
+/**
+ * Función central de actualización de UI llamada en cada tick.
+ * @param {Object} state - Estado global completo recibido del servidor.
+ */
+export function update(state) {
+  if (!state || !state.nations) return;
+
+  const nationId = state.playerNationId;
+  const nation = state.nations[nationId];
+
+  if (!nation) return;
+
+  // 1. Actualizar componentes existentes (ejemplos básicos)
+  if (nation.stats) {
+    renderDashboard(nation.stats);
+  }
+
+  updateTickDisplay(state.meta?.tick || 0);
+  setNationName(nation.name);
+
+  // Renderizar otros paneles si hay datos disponibles
+  if (nation.factions) renderQuickPanel(nation.factions, nation.diplomacy);
+  if (state.intel) renderIntelFeed(state.intel);
+
+  // 2. --- ACTUALIZAR GABINETE DE ESTRATEGIA ---
+  // Pasamos el estado completo para que el gabinete extraiga lo que necesite
+  strategyCabinet.update(state);
 }
 
 /**
@@ -243,7 +305,7 @@ export function renderIntelFeed(intelItems) {
 
   elements.intelFeed.innerHTML = intelItems.map(item => {
     const tagClass = item.type === 'interna' ? 'tag-internal' :
-                     item.type === 'externa' ? 'tag-external' : 'tag-public';
+      item.type === 'externa' ? 'tag-external' : 'tag-public';
 
     return `
       <div class="feed-item">
