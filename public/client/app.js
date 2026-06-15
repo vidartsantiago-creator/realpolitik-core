@@ -186,6 +186,8 @@ document.querySelectorAll('#layer-controls button').forEach(btn => {
         mapRenderer.setLayer(layer, e.target.classList.contains('active'));
     });
 });
+// Exponer función global para enviar intenciones de juego desde otros componentes
+window.sendGameIntent = (type, payload) => sendWS(type, payload);
 
 // Iniciar
 connect();

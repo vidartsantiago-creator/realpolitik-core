@@ -92,16 +92,13 @@ function setupDOM() {
   window.addEventListener('game-state-update', (event) => {
     const state = event.detail;
 
-    // Actualizar dashboard principal (si tienes una función renderDashboard que toma state completo)
-    // renderDashboard(state); 
-
     // Actualizar el gabinete de estrategia
+    // CORRECCIÓN: Usar la variable local 'strategyCabinet' y corregir 'window'
     if (strategyCabinet) {
       strategyCabinet.update(state);
     }
   });
   console.log('[UI] ✅ StrategyCabinet inicializado.');
-
 
   // Suscribirse a actualizaciones del estado
   subscribeToUpdates();
@@ -196,7 +193,10 @@ export function update(state) {
 
   // 2. --- ACTUALIZAR GABINETE DE ESTRATEGIA ---
   // Pasamos el estado completo para que el gabinete extraiga lo que necesite
-  strategyCabinet.update(state);
+  if (strategyCabinet) {
+    strategyCabinet.updateLastState(state); // <-- AÑADIR ESTA LÍNEA
+    strategyCabinet.update(state);
+  }
 }
 
 /**

@@ -1,138 +1,338 @@
 /**
  * @file StrategyCabinet.js
- * @description Componente UI para la gestión de Objetivos Estratégicos y Estrategias Activas.
- *              Permite al jugador seleccionar objetivos, activar estrategias, asignar recursos
- *              y recibir asesoría de IA. Se comunica con el backend vía IntentDispatcher.
- * 
- * @version 1.0.0
- * @dependencies UI.js (para inyección), app.js (para envío de intents)
+ * @description Componente UI para la gestión de Objetivos Estratégicos.
  */
 
 export class StrategyCabinet {
   constructor() {
-    // Referencias al DOM
-    this.modal = document.getElementById('strategy-cabinet-modal');
-    this.closeBtn = document.getElementById('btn-close-cabinet');
+    // --- Referencias al DOM (Se asignarán en init) ---
+    this.modal = null;
+    this.closeBtn = null;
 
-    // Contenedores principales
-    this.objectivesList = document.getElementById('active-objectives-list');
-    this.strategiesContainer = document.getElementById('strategy-management-area');
-    this.adviceContainer = document.getElementById('ai-report-content');
-    this.activeStrategiesContainer = document.getElementById('cabinet-active-strategies');
+    // --- Contenedores Críticos ---
+    this.objectivesList = null;           // #active-objectives-list
+    this.strategiesContainer = null;      // #strategy-management-area
+    this.availableStrategiesList = null;  // #available-strategies-list
+    this.adviceContainer = null;          // #ai-report-content
 
-    // Pestañas de filtrado
-    this.filterTabs = document.querySelectorAll('[data-scope="filter"]');
+    // --- Botones de Acción ---
+    this.btnSelectObjective = null;       // #btn-select-objective
+    this.btnActivateStrategy = null;      // #btn-activate-strategy
+    this.btnAiReport = null;              // #btn-ai-report-progress
+    this.btnAiRecommend = null;           // #btn-ai-recommendation
 
-    // Estado interno local (para evitar re-renderizados innecesarios)
+    // --- Selectores ---
+    this.objectiveSelector = null;        // #strategy-objective-select
+
+    // --- Estado Interno ---
     this.currentFilter = 'all';
     this.availableObjectives = [];
     this.activePlayerObjectives = [];
     this.activeStrategies = [];
     this.playerNationId = null;
+    this.objConfig = null;
+    this.stratConfig = null;
+    this.selectedObjectiveId = null;
 
-    // Bindings
-    this._handleTabClick = this._handleTabClick.bind(this);
-    this._handleObjectiveSelect = this._handleObjectiveSelect.bind(this);
-    this._handleStrategyActivate = this._handleStrategyActivate.bind(this);
-    this._handleResourceChange = this._handleResourceChange.bind(this);
+    // --- Bindings (CRÍTICO: Solo métodos que EXISTEN en esta clase) ---
     this._handleClose = this._handleClose.bind(this);
+    this._handleSelectObjectiveBtn = this._handleSelectObjectiveBtn.bind(this);
+    this._handleObjectiveSelectorChange = this._handleObjectiveSelectorChange.bind(this);
+    this._handleActivateStrategy = this._handleActivateStrategy.bind(this);
+
+    // Handlers internos para eventos dinámicos
+    this._onObjectiveCardClick = this._onObjectiveCardClick.bind(this);
+    this._onAddNewObjectiveClick = this._onAddNewObjectiveClick.bind(this);
   }
 
-  /**
-   * Inicializa listeners internos y configura el componente.
-   * Se llama una vez al cargar la aplicación.
-   */
   init() {
-    if (!this.modal) {
+    console.log('[StrategyCabinet] Iniciando componente...');
+
+    if (!document.getElementById('strategy-cabinet-modal')) {
       console.error('[StrategyCabinet] Modal no encontrado en el DOM.');
       return;
     }
 
-    // Listener botón cerrar
+    // 1. Asignar referencias DOM
+    this.modal = document.getElementById('strategy-cabinet-modal');
+    this.closeBtn = document.getElementById('btn-close-cabinet');
+
+    // Contenedores
+    this.objectivesList = document.getElementById('active-objectives-list');
+    this.strategiesContainer = document.getElementById('strategy-management-area');
+    this.availableStrategiesList = document.getElementById('available-strategies-list');
+    this.adviceContainer = document.getElementById('ai-report-content');
+
+    // Botones y Selectores
+    this.btnSelectObjective = document.getElementById('btn-select-objective');
+    this.btnActivateStrategy = document.getElementById('btn-activate-strategy');
+    this.objectiveSelector = document.getElementById('strategy-objective-select');
+
+    // 2. Adjuntar Listeners Estáticos
+
+    // Cerrar modal
     if (this.closeBtn) {
       this.closeBtn.addEventListener('click', this._handleClose);
     }
 
-    // Listeners pestañas de filtro
-    this.filterTabs.forEach(tab => {
-      tab.addEventListener('click', this._handleTabClick);
-    });
-
-    // Listener clic fuera del modal para cerrar (opcional)
+    // Click fuera del modal
     window.addEventListener('click', (e) => {
       if (e.target === this.modal) this.close();
     });
 
-    console.log('[StrategyCabinet] Inicializado correctamente.');
+    // Listener para el botón "+ Asignar Nuevo Objetivo"
+    if (this.btnSelectObjective) {
+      this.btnSelectObjective.addEventListener('click', this._handleSelectObjectiveBtn);
+      console.log('[StrategyCabinet] Listener asignado a btn-select-objective');
+    } else {
+      console.warn('[StrategyCabinet] No se encontró btn-select-objective');
+    }
+
+    // Listener para cambiar de objetivo en el dropdown
+    if (this.objectiveSelector) {
+      this.objectiveSelector.addEventListener('change', this._handleObjectiveSelectorChange);
+    }
+
+    // Listener para activar estrategia
+    if (this.btnActivateStrategy) {
+      this.btnActivateStrategy.addEventListener('click', this._handleActivateStrategy);
+    }
+
+    console.log('[StrategyCabinet] ✅ Inicialización completada y listeners activos.');
   }
 
-  /**
-   * Actualiza el estado del componente con los datos frescos del servidor.
-   * Se llama desde UI.js en cada tick o cuando llega un evento relevante.
-   * @param {Object} state - Estado global del juego.
-   */
   update(state) {
     if (!state || !state.nations) return;
 
-    const prevNationId = this.playerNationId;
     this.playerNationId = state.playerNationId;
     const nation = state.nations[this.playerNationId];
-
     if (!nation) return;
 
-    // 1. Actualizar datos internos si cambió la nación o es la primera vez
-    if (prevNationId !== this.playerNationId) {
-      this._syncLocalState(nation, state.objectiveManagerConfig);
+    // Guardar configuración si llega
+    if (state.objectiveManagerConfig) {
+      this.objConfig = state.objectiveManagerConfig;
+      this.stratConfig = state.strategyConfig || null;
+
+      if (this.objConfig && this.objConfig.categories) {
+        this.availableObjectives = this._flattenObjectives(this.objConfig.categories);
+      }
     }
 
-    // 2. Renderizar lista de objetivos disponibles (si está vacía o cambió)
-    // Optimización: Solo re-renderizar si hay cambios reales en la lista disponible
-    this._renderObjectivesList(nation);
+    // Sincronizar activos
+    this.activePlayerObjectives = nation.objectives || [];
+    this.activeStrategies = nation.activeStrategies || [];
 
-    // 3. Renderizar estrategias activas y progreso
-    this._renderActiveStrategies(nation);
-
-    // 4. Actualizar panel de IA (consejos dinámicos)
+    // Renderizar
+    this._renderObjectivesList();
+    this._updateObjectiveSelector();
     this._updateAIAdvice(nation, state);
+
+    // Debug visual del contador
+    const countSpan = document.getElementById('obj-count');
+    if (countSpan) countSpan.textContent = this.activePlayerObjectives.length;
   }
 
-  /**
-   * Abre el modal.
-   */
   open() {
     if (this.modal) {
       this.modal.style.display = 'flex';
-      // Forzar actualización inmediata al abrir
-      // UI.js debería llamar a update() justo después
+      this.modal.classList.remove('hidden');
       console.log('[StrategyCabinet] Modal abierto.');
     }
   }
 
-  /**
-   * Cierra el modal.
-   */
   close() {
     if (this.modal) {
       this.modal.style.display = 'none';
-      console.log('[StrategyCabinet] Modal cerrado.');
+      this.modal.classList.add('hidden');
     }
   }
 
-  // ==========================================================================
-  // Lógica Interna de Renderizado
-  // ==========================================================================
+  // --- Renderizado ---
 
-  _syncLocalState(nation, config) {
-    // Sincronizar datos locales desde el estado de la nación
-    // Asumimos que el estado tiene campos como: nation.objectives, nation.strategies
-    this.activePlayerObjectives = nation.objectives || [];
-    this.activeStrategies = nation.activeStrategies || [];
-
-    // Cargar configuración completa de objetivos disponibles desde el estado global o config estático
-    // Nota: El backend debería enviar la lista completa de definiciones en el primer payload o en un evento 'config_loaded'
-    if (config && config.categories) {
-      this.availableObjectives = this._flattenObjectives(config.categories);
+  _renderObjectivesList() {
+    if (!this.objectivesList) {
+      console.warn('[StrategyCabinet] objectivesList no encontrado en el DOM.');
+      return;
     }
+
+    const maxObjectives = 2;
+    const currentCount = this.activePlayerObjectives.length;
+    const canAddMore = currentCount < maxObjectives;
+
+    // 1. Renderizar las tarjetas de objetivos activos
+    if (currentCount === 0) {
+      this.objectivesList.innerHTML = '<div style="color:#888; padding:15px; text-align:center;">No hay objetivos activos asignados.</div>';
+    } else {
+      this.objectivesList.innerHTML = this.activePlayerObjectives.map(obj => {
+        const config = this.availableObjectives.find(o => o.id === (obj.configId || obj.id)) || {};
+        const objId = config.id || obj.configId || obj.id;
+
+        return `
+          <div class="objective-card active" data-id="${objId}" style="cursor:pointer; border:1px solid #444; padding:10px; margin-bottom:10px; background:#222;">
+            <div class="card-header" style="display:flex; justify-content:space-between; margin-bottom:5px;">
+              <h4 style="margin:0; color:#fff;">${config.name || 'Objetivo Desconocido'}</h4>
+              <span class="badge" style="background:#555; padding:2px 6px; font-size:0.8em;">${config.difficulty || 'Normal'}</span>
+            </div>
+            <p style="font-size:0.85em; color:#aaa; margin:5px 0;">${config.description || 'Sin descripción disponible.'}</p>
+            <div class="progress-container" style="background:#333; height:6px; width:100%; margin-top:8px;">
+              <div style="width:${obj.progress || 0}%; background:#4caf50; height:100%; transition:width 0.3s;"></div>
+            </div>
+            <div style="text-align:right; font-size:0.75em; color:#888; margin-top:4px;">Progreso: ${obj.progress || 0}%</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 2. Gestionar el botón "+ Asignar Nuevo Objetivo"
+    // CORRECCIÓN: Usar this.btnSelectObjective (nombre correcto del constructor)
+    if (this.btnSelectObjective) {
+      if (canAddMore && this.availableObjectives.length > 0) {
+        this.btnSelectObjective.disabled = false;
+        this.btnSelectObjective.textContent = '+ Asignar Nuevo Objetivo';
+        this.btnSelectObjective.style.opacity = '1';
+        this.btnSelectObjective.style.cursor = 'pointer';
+      } else if (!canAddMore) {
+        this.btnSelectObjective.disabled = true;
+        this.btnSelectObjective.textContent = 'Máximo de objetivos alcanzado (2/2)';
+        this.btnSelectObjective.style.opacity = '0.5';
+        this.btnSelectObjective.style.cursor = 'not-allowed';
+      } else {
+        this.btnSelectObjective.disabled = true;
+        this.btnSelectObjective.textContent = 'No hay objetivos disponibles';
+        this.btnSelectObjective.style.opacity = '0.5';
+      }
+    }
+
+    // 3. Re-asignar Event Listeners (CRUCIAL: Se pierden al usar innerHTML)
+
+    // Listener para seleccionar un objetivo activo
+    this.objectivesList.querySelectorAll('.objective-card.active').forEach(card => {
+      // Remover listener previo si existe (opcional, pero buena práctica)
+      card.removeEventListener('click', this._onObjectiveCardClick);
+      card.addEventListener('click', this._onObjectiveCardClick);
+    });
+
+    // Listener para el botón de añadir nuevo
+    if (this.btnSelectObjective && !this.btnSelectObjective.disabled) {
+      this.btnSelectObjective.removeEventListener('click', this._onAddNewObjectiveClick);
+      this.btnSelectObjective.addEventListener('click', this._onAddNewObjectiveClick);
+    }
+  }
+
+  /**
+   * Handler interno para click en tarjeta de objetivo
+   */
+  _onObjectiveCardClick(e) {
+    const card = e.currentTarget;
+    const id = card.dataset.id;
+    console.log(`[StrategyCabinet] Tarjeta clickeada: ${id}`);
+    this._onObjectiveSelected(id);
+  }
+
+  /**
+   * Handler interno para click en botón "Asignar Nuevo"
+   */
+  _onAddNewObjectiveClick() {
+    console.log('[StrategyCabinet] Click directo en botón Asignar Nuevo');
+    this._openObjectiveSelector();
+  }
+
+  /**
+   * Maneja la lógica cuando se selecciona un objetivo activo de la lista.
+   */
+  _onObjectiveSelected(objectiveId) {
+    console.log(`[StrategyCabinet] Preparando gestión para objetivo: ${objectiveId}`);
+    this.selectedObjectiveId = objectiveId;
+
+    // Visualmente marcar como seleccionado
+    this.objectivesList.querySelectorAll('.objective-card').forEach(c => c.style.border = '1px solid #444');
+    const selectedCard = this.objectivesList.querySelector(`.objective-card[data-id="${objectiveId}"]`);
+    if (selectedCard) selectedCard.style.border = '1px solid #4caf50';
+
+    // CORRECCIÓN: Usar this.strategiesContainer (nombre correcto)
+    if (this.strategiesContainer) {
+      this.strategiesContainer.classList.remove('hidden');
+      this.strategiesContainer.style.display = 'block';
+
+      // Actualizar el selector dropdown
+      if (this.objectiveSelector) {
+        this.objectiveSelector.value = objectiveId;
+        // Disparar cambio manualmente para cargar estrategias
+        this.objectiveSelector.dispatchEvent(new Event('change'));
+      }
+    }
+  }
+
+  /**
+   * Abre un modal o lógica para elegir un nuevo objetivo de la lista disponible.
+   */
+  _openObjectiveSelector() {
+    const activeIds = new Set(this.activePlayerObjectives.map(o => o.configId || o.id));
+    const available = this.availableObjectives.filter(o => !activeIds.has(o.id));
+
+    if (available.length === 0) {
+      alert("No hay más objetivos disponibles para asignar.");
+      return;
+    }
+
+    const firstAvailable = available[0];
+    if (confirm(`¿Deseas asignar el objetivo: "${firstAvailable.name}"?`)) {
+      this._sendIntent('player_set_objective', { objectiveId: firstAvailable.id });
+    }
+  }
+
+  _updateObjectiveSelector() {
+    if (!this.objectiveSelector) return;
+
+    const currentVal = this.objectiveSelector.value;
+    let options = '<option value="" disabled selected>Seleccione un objetivo activo...</option>';
+
+    this.activePlayerObjectives.forEach(obj => {
+      const config = this.availableObjectives.find(o => o.id === obj.configId || o.id === obj.id) || obj;
+      const isSelected = (obj.id === currentVal || obj.configId === currentVal) ? 'selected' : '';
+      options += `<option value="${config.id}" ${isSelected}>${config.name}</option>`;
+    });
+
+    this.objectiveSelector.innerHTML = options;
+
+    if (currentVal && this.activePlayerObjectives.some(o => o.id === currentVal || o.configId === currentVal)) {
+      this._renderStrategiesFor(currentVal);
+    } else {
+      if (this.strategiesContainer) this.strategiesContainer.classList.add('hidden');
+    }
+  }
+
+  _renderStrategiesFor(objectiveId) {
+    if (!this.strategiesContainer || !this.availableStrategiesList) return;
+
+    this.strategiesContainer.classList.remove('hidden');
+
+    // Simulación de estrategias disponibles
+    const relevantStrategies = this.stratConfig || [];
+
+    if (relevantStrategies.length === 0) {
+      this.availableStrategiesList.innerHTML = '<div style="padding:10px; color:#888;">Cargando estrategias o ninguna disponible para este objetivo.</div>';
+      return;
+    }
+
+    this.availableStrategiesList.innerHTML = relevantStrategies.map(strat => `
+      <div class="strategy-card" style="background:#2a2a2a; padding:10px; margin-bottom:5px; border:1px solid #444;">
+        <h4>${strat.name || strat.id}</h4>
+        <p style="font-size:0.85em; color:#aaa;">${strat.description || 'Estrategia táctica'}</p>
+        <div style="margin-top:5px; font-size:0.8em; color:#ff9800;">Costo: ${strat.cost || 'Medio'} | Riesgo: ${strat.risk || 'Bajo'}</div>
+        <button class="btn-sm" style="margin-top:5px;" onclick="console.log('Activar ${strat.id}')">Activar</button>
+      </div>
+    `).join('');
+  }
+
+  _updateAIAdvice(nation, state) {
+    if (!this.adviceContainer) return;
+    const stability = nation.stability || 50;
+    const msg = stability < 40
+      ? "⚠️ ALERTA: Estabilidad crítica. Priorice bienestar social."
+      : "La situación es estable. Considere expandir influencia económica.";
+
+    this.adviceContainer.innerHTML = `<p>${msg}</p><small>Tick: ${state.meta?.tick || 0}</small>`;
   }
 
   _flattenObjectives(categories) {
@@ -145,202 +345,35 @@ export class StrategyCabinet {
     return all;
   }
 
-  _renderObjectivesList(nation) {
-    if (!this.objectivesListContainer) return;
+  // --- Handlers ---
 
-    // Filtrar objetivos ya activos
-    const activeIds = new Set(this.activePlayerObjectives.map(o => o.id || o.configId));
-    let filtered = this.availableObjectives.filter(o => !activeIds.has(o.id));
-
-    // Aplicar filtro de pestaña
-    if (this.currentFilter !== 'all') {
-      // Mapeo simple de filtros: 'global', 'regional', 'local' vs categorías del JSON ('economic', 'military'...)
-      // Aquí asumimos que el filtro UI coincide con la categoría o añadimos lógica de mapeo
-      if (['economic', 'military', 'diplomatic', 'influence'].includes(this.currentFilter)) {
-        filtered = filtered.filter(o => o.category === this.currentFilter);
-      }
-    }
-
-    if (filtered.length === 0) {
-      this.objectivesListContainer.innerHTML = '<div class="empty-state">No hay objetivos disponibles en esta categoría.</div>';
-      return;
-    }
-
-    this.objectivesListContainer.innerHTML = filtered.map(obj => `
-      <div class="objective-card" data-id="${obj.id}">
-        <div class="card-header">
-          <h4>${obj.name}</h4>
-          <span class="badge ${obj.difficulty}">${obj.difficulty}</span>
-        </div>
-        <p class="desc">${obj.description}</p>
-        <div class="requirements">
-          ${this._renderRequirements(obj.requirements)}
-        </div>
-        <div class="card-actions">
-          <button class="btn-select" data-action="select" data-id="${obj.id}">Seleccionar</button>
-        </div>
-      </div>
-    `).join('');
-
-    // Re-asignar listeners a los nuevos botones
-    this.objectivesListContainer.querySelectorAll('[data-action="select"]').forEach(btn => {
-      btn.addEventListener('click', this._handleObjectiveSelect);
-    });
+  _handleSelectObjectiveBtn() {
+    console.log('[StrategyCabinet] Click en "Asignar Nuevo Objetivo" (Handler Principal)');
+    this._openObjectiveSelector();
   }
 
-  _renderRequirements(reqs) {
-    if (!reqs) return '';
-    return Object.entries(reqs).map(([key, val]) => {
-      // Formateo simple de claves snake_case a texto legible
-      const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      return `<span class="req-tag">${label}: ${val}</span>`;
-    }).join('');
-  }
-
-  _renderActiveStrategies(nation) {
-    if (!this.activeStrategiesContainer) return;
-
-    if (!this.activeStrategies || this.activeStrategies.length === 0) {
-      this.activeStrategiesContainer.innerHTML = '<div class="empty-state">No hay estrategias activas.</div>';
-      return;
-    }
-
-    // Necesitamos la configuración de las estrategias para mostrar nombres y detalles
-    // Asumimos que tenemos acceso a strategiesConfig globalmente o lo pasamos en update
-    // Para este ejemplo, buscamos en un global hipotético window.gameConfig.strategies
-    const strategiesDefs = window.gameConfig?.strategies || [];
-
-    this.activeStrategiesContainer.innerHTML = this.activeStrategies.map(strat => {
-      const def = strategiesDefs.find(s => s.id === strat.id) || {};
-      const progress = this._calculateStrategyProgress(strat, nation); // Lógica ficticia de progreso
-
-      return `
-        <div class="strategy-slot active">
-          <div class="slot-header">
-            <h4>${def.name || strat.id}</h4>
-            <span class="timer">⏳ ${strat.endTick - (nation.tick || 0)} ticks</span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill" style="width: ${progress}%"></div>
-          </div>
-          <div class="resource-allocation">
-            <label>Asignación de Recursos:</label>
-            <div class="slider-group">
-              <span>Budget</span>
-              <input type="range" min="0" max="100" value="50" disabled title="Requiere implementación backend para ajuste en tiempo real">
-            </div>
-          </div>
-          <div class="slot-actions">
-             <button class="btn-cancel" data-action="cancel-strategy" data-id="${strat.id}">Cancelar</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Listener cancelar estrategia
-    this.activeStrategiesContainer.querySelectorAll('[data-action="cancel-strategy"]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.dataset.id;
-        this._sendIntent('player_cancel_strategy', { strategyId: id });
-      });
-    });
-  }
-
-  _calculateStrategyProgress(strat, nation) {
-    // Simulación visual. El cálculo real debería venir del backend en el estado.
-    const total = strat.endTick - strat.startTick;
-    const current = (nation.tick || 0) - strat.startTick;
-    return Math.min(100, Math.max(0, (current / total) * 100));
-  }
-
-  _updateAIAdvice(nation, state) {
-    if (!this.aiAdviceContainer) return;
-
-    // Aquí se renderizarían los consejos recibidos por evento 'advisor_suggestion'
-    // O se generarían estáticos basados en el estado actual si no hay evento reciente
-
-    // Ejemplo estático temporal:
-    const stability = nation.stability || 50;
-    let advice = "La situación es estable. Considere expandir su influencia económica.";
-
-    if (stability < 40) {
-      advice = "⚠️ ALERTA: La estabilidad interna es crítica. Priorice estrategias de bienestar social antes de expandirse.";
-    } else if ((nation.budget || 0) < 50) {
-      advice = "💰 Sus reservas son bajas. Evite estrategias costosas como el rearme militar.";
-    }
-
-    this.aiAdviceContainer.innerHTML = `
-      <div class="ai-avatar">🤖</div>
-      <div class="ai-text">${advice}</div>
-      <div class="ai-meta">Análisis basado en tick ${state.meta?.tick || 0}</div>
-    `;
-  }
-
-  // ==========================================================================
-  // Manejadores de Eventos Internos
-  // ==========================================================================
-
-  _handleTabClick(e) {
-    const filter = e.target.dataset.filter;
-    this.currentFilter = filter;
-
-    // Actualizar clase activa en tabs
-    this.filterTabs.forEach(t => t.classList.remove('active'));
-    e.target.classList.add('active');
-
-    // Re-renderizar lista
-    const nation = window.gameClient?.lastState?.nations?.[this.playerNationId];
-    if (nation) this._renderObjectivesList(nation);
-  }
-
-  _handleObjectiveSelect(e) {
-    const objId = e.target.dataset.id;
-    if (!objId) return;
-
-    // Confirmación simple (podría ser un modal nativo o custom)
-    if (confirm(`¿Confirmar selección del objetivo estratégico?`)) {
-      this._sendIntent('player_set_objective', { objectiveId: objId });
+  _handleObjectiveSelectorChange(e) {
+    const objId = e.target.value;
+    if (objId) {
+      this._renderStrategiesFor(objId);
     }
   }
 
-  _handleStrategyActivate(e) {
-    // Este manejador se usaría si hubiera un selector de estrategias dentro de la tarjeta de objetivo
-    const stratId = e.target.dataset.stratId;
-    if (stratId) {
-      this._sendIntent('player_activate_strategy', { strategyId: stratId });
-    }
-  }
-
-  _handleResourceChange(e) {
-    // Para sliders de asignación de recursos en tiempo real
-    // Requiere debounce y envío de intent específico
-    console.log('Cambio de recurso detectado (pendiente implementación backend)', e.target.value);
+  _handleActivateStrategy() {
+    console.log('[StrategyCabinet] Activar estrategia clicked');
+    alert("Funcionalidad de activación específica pendiente de conectar con backend.");
   }
 
   _handleClose() {
     this.close();
   }
 
-  // ==========================================================================
-  // Comunicación con Backend
-  // ==========================================================================
-
-  /**
-   * Envía una intención al servidor usando el canal estándar del cliente.
-   * @param {string} type - Tipo de evento (ej: 'player_set_objective')
-   * @param {Object} payload - Datos de la acción
-   */
   _sendIntent(type, payload) {
-    if (window.gameClient && typeof window.gameClient.sendIntent === 'function') {
-      window.gameClient.sendIntent(type, payload);
-      console.log(`[StrategyCabinet] Intent enviado: ${type}`, payload);
+    if (typeof window.sendGameIntent === 'function') {
+      console.log(`[StrategyCabinet] Enviando intención: ${type}`, payload);
+      window.sendGameIntent(type, payload);
     } else {
-      console.warn('[StrategyCabinet] gameClient.sendIntent no disponible.');
-      // Fallback para debug si no está conectado
-      // window.dispatchEvent(new CustomEvent('intent_debug', { detail: { type, payload } }));
+      console.error('[StrategyCabinet] ERROR: window.sendGameIntent no está disponible.');
     }
   }
 }
-
-// Exportar instancia única o la clase según convención del proyecto
-// En app.js se haría: const cabinet = new StrategyCabinet(); cabinet.init();

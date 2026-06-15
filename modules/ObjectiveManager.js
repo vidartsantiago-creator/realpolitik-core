@@ -637,6 +637,15 @@ function checkPrerequisites(configItem, state, nationId) {
 }
 
 function calculateProgressPercentage(configObj, state, nationId) {
+
+  const flatMetrics = {
+    ...nation.metrics, // Asumiendo que están aquí
+    ...nation.state,   // O aquí
+    stability: nation.stability,
+    budget: nation.budget
+    // ... cualquier otra propiedad global que usen las condiciones
+  };
+
   if (!configObj.milestones || configObj.milestones.length === 0) return 0;
 
   let totalConditions = 0;
@@ -644,7 +653,7 @@ function calculateProgressPercentage(configObj, state, nationId) {
 
   configObj.milestones.forEach(ms => {
     totalConditions++;
-    if (evaluateCondition(ms.condition, state, nationId)) {
+    if (evaluateCondition(conditionString, flatMetrics)) {
       metConditions++;
     }
   });
@@ -652,33 +661,35 @@ function calculateProgressPercentage(configObj, state, nationId) {
   return Math.floor((metConditions / totalConditions) * 100);
 }
 
-function evaluateCondition(conditionStr, state, nationId) {
-  // Parser seguro básico para condiciones tipo "resources.energy >= 150"
-  // Reemplaza variables por valores reales
+/**
+ * Evalúa una cadena de condición utilizando las métricas de la nación como variables.
+ * @param {string} conditionStr - La cadena de condición (ej: "nuclear_program_progress >= 0.5")
+ * @param {Object} nationState - El objeto de estado/métricas de la nación.
+ */
+function evaluateCondition(conditionStr, nationState) {
   if (!conditionStr) return true;
 
   try {
-    // Mapeo de contextos
-    const nation = state.nations[nationId];
+    // 1. Extraer todas las claves del estado de la nación para usarlas como variables locales
+    // Esto crea un objeto { nuclear_program_progress: 0.2, stability: 50, ... }
+    const contextVars = nationState.metrics || nationState.state || nationState;
 
-    // Reemplazos simples (se puede expandir con Regex más complejo)
-    let evalStr = conditionStr
-      .replace(/resources\.(\w+)/g, (_, key) => nation.resources?.[key] || 0)
-      .replace(/diplomacy\.(\w+)/g, (_, key) => nation.diplomacy?.[key] || 0)
-      .replace(/factions\.(\w+)\.loyalty/g, (_, key) => nation.factions?.[key]?.loyalty || 50)
-      .replace(/(\w+)/g, (_, key) => {
-        if (['and', 'or', 'not', 'true', 'false'].includes(key)) return key;
-        if (nation[key] !== undefined) return nation[key];
-        return key; // Dejar tal cual si es operador o número
-      });
+    // 2. Crear una función dinámica que reciba estas variables como argumentos
+    // Obtenemos las claves (nombres de variables) y los valores
+    const keys = Object.keys(contextVars);
+    const values = Object.values(contextVars);
 
-    // Eval seguro (en entorno controlado)
-    // Nota: En producción estricta, evitar eval() y usar parser matemático.
-    // Aquí lo usamos para prototipado rápido de condiciones lógicas.
-    return eval(evalStr);
+    // 3. Ejecutar la condición dentro de una función con el contexto adecuado
+    // Creamos una función: function(nuclear_program_progress, stability, ...) { return ...condición... }
+    const evaluator = new Function(...keys, `return ${conditionStr};`);
+
+    return evaluator(...values);
+
   } catch (e) {
+    // Solo mostrar error si es un error de sintaxis real, no por variables faltantes (que deberían ser false)
+    // Pero para debug, mostramos el error completo como tenías antes
     console.error(`Error evaluando condición "${conditionStr}":`, e);
-    return false;
+    return false; // Si falla, asumimos que la condición no se cumple
   }
 }
 
