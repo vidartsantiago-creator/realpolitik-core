@@ -21,6 +21,10 @@
 import { on, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta } from '../core/StateManager.js';
 import { rng, rngInt } from '../core/Rng.js';
+import objectivesConfig from '../config/objectives.json' assert { type: 'json' };
+import strategiesConfig from '../config/strategies.json' assert { type: 'json' };
+import fs from 'fs';
+import path from 'path';
 
 // --- Estado Interno del Módulo ---
 let _state = {
@@ -698,6 +702,34 @@ function pickAICategory(personalitySeed) {
   if (personalitySeed === 0) return 'military';
   if (personalitySeed === 1) return 'diplomatic';
   return 'economic';
+}
+
+/**
+ * Devuelve el estado completo para el cliente (UI).
+ * Incluye configuraciones estáticas para que el frontend pueda renderizar nombres/descripciones.
+ */
+export function getClientState() {
+  // Cargar configuraciones si aún no están en memoria (por seguridad)
+  if (!_state.objectivesConfig || !_state.strategiesConfig) {
+    try {
+      _state.objectivesConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../config/objectives.json'), 'utf8'));
+      _state.strategiesConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../config/strategies.json'), 'utf8'));
+    } catch (e) {
+      console.error('[ObjectiveManager] Error cargando configs para cliente:', e);
+    }
+  }
+
+  return {
+    // 1. Configuración Estática (Definiciones desde JSONs)
+    categories: _state.objectivesConfig?.categories || [],
+    strategies: _state.strategiesConfig?.strategies || [],
+
+    // 2. Estado Dinámico (Estado actual del juego)
+    playerObjectives: Array.from(_state.playerObjectives.entries()),
+    nationObjectives: Array.from(_state.nationObjectives.entries()),
+    activeStrategies: Array.from(_state.activeStrategies.entries()),
+    legacyIndex: Array.from(_state.legacyIndex.entries())
+  };
 }
 
 // Exportar estado para guardado (serialize)

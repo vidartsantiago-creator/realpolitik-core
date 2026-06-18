@@ -25,7 +25,7 @@ import { processIntent } from '../modules/IntentProcessor.js';
 import * as ObjectiveManager from '../modules/ObjectiveManager.js';
 import objectivesConfig from '../config/objectives.json' with { type: 'json' };
 import strategiesConfig from '../config/strategies.json' with { type: 'json' };
-
+import { getClientState as getObjectiveState } from '../modules/ObjectiveManager.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
@@ -309,17 +309,26 @@ async function main() {
         // 7. Suscribirse al bucle de ticks (TimeEngine)
         // Usamos la función onTickStart exportada desde TimeEngine.js
         TimeEngine.onTickStart((tick) => {
-            // ---> INTEGRACIÓN DEL PARCHE: Vaciamos y aplicamos de forma atómica 
-            // los deltas que los jugadores enviaron por red durante este milisegundo.
+            // 1. Procesar deltas pendientes (Lógica existente)
             if (typeof StateManager.processPendingDeltas === 'function') {
                 StateManager.processPendingDeltas(tick);
             }
 
-            // Ahora el gameLoop se ejecuta con las acciones de los jugadores ya aplicadas en el estado
+            // 2. Ejecutar lógica de módulos
             gameLoop(tick);
 
+            // 3. Obtener estado base del juego
             const currentState = getState();
 
+            // 4. Inyectar estado completo de Objetivos y Estrategias <<<
+            // Esto añade la configuración estática (JSONs) y el estado dinámico (progreso, activos)
+            const objectiveSystemState = getObjectiveState();
+
+            // Fusionamos el estado de objetivos en el estado principal que verá el cliente
+            // Se usa 'objectiveManagerConfig' como clave para coincidir con lo que espera el frontend
+            currentState.objectiveManagerConfig = objectiveSystemState;
+
+            // 5. Construir payload
             const payload = {
                 type: 'state_update',
                 tick: tick,
@@ -327,6 +336,7 @@ async function main() {
                 timestamp: Date.now()
             };
 
+            // 6. Broadcast al cliente
             if (global.gameServer && typeof global.gameServer.broadcast === 'function') {
                 global.gameServer.broadcast(payload);
             }
