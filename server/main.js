@@ -21,8 +21,8 @@ import { init as initIntentParser, stopAdvisorCycle } from '../ai/IntentParser.j
 import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
-import { processIntent } from '../modules/IntentProcessor.js';
-import { init as initIntentProcessor } from '../modules/IntentProcessor.js';
+import { processIntent } from '../modules/IntelProcessor.js';
+import { init as initIntentProcessor } from '../modules/IntelProcessor.js';
 import * as ObjectiveManager from '../modules/ObjectiveManager.js';
 import objectivesConfig from '../config/objectives.json' with { type: 'json' };
 import strategiesConfig from '../config/strategies.json' with { type: 'json' };

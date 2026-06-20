@@ -4,7 +4,7 @@ import { on, off, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta, setInitialState } from '../core/StateManager.js';
 import { getCurrentTick } from '../core/TimeEngine.js';
 import validator from '../core/SchemaValidator.js';
-import { processIntent } from '../modules/IntentProcessor.js';
+import { processIntent } from '../modules/IntelProcessor.js';
 import schemaValidator from '../core/SchemaValidator.js';
 
 /**
