@@ -1399,22 +1399,20 @@
          * @param {object} payload - Datos de la acción (ej: { target_id: 'USA' })
          */
         window.sendIntent = (type, payload = {}) => {
-            if (app && app.syncClient && app.syncClient.ws && app.syncClient.ws.readyState === WebSocket.OPEN) {
-                const intent = {
-                    type: type,
-                    payload: payload,
-                    nation_id: app.currentPlayerNation || 'ARG',
-                    timestamp: Date.now()
-                };
-                
-                console.log('[Intent] Enviando:', intent);
-                app.syncClient.ws.send(JSON.stringify(intent));
-                return true;
-            } else {
-                console.error('[Intent] Error: No hay conexión WebSocket');
-                return false;
+            if (window.app?.syncClient?.sendIntent) {
+                console.log('[Intent] Enviando via SyncClient:', type, payload);
+                return window.app.syncClient.sendIntent(type, payload);
             }
+
+            if (app && app.syncClient && app.syncClient.ws && app.syncClient.ws.readyState === WebSocket.OPEN) {
+                return app.syncClient.sendIntent(type, payload);
+            }
+
+            console.error('[Intent] Error: No hay conexión WebSocket');
+            return false;
         };
+
+        window.sendGameIntent = window.sendIntent;
 
         // ============================================
         // INICIALIZACIÓN DE LA APLICACIÓN
@@ -1470,23 +1468,22 @@
 
                 // Handler unificado para enviar intenciones
                 sendIntent: (type, targetId, parameters = {}) => {
-                    const intent = {
-                        type: type,
-                        actor: window.app.currentPlayerNation || 'UNKNOWN',
-                        target: targetId,
-                        timestamp: Date.now(),
-                        parameters: parameters
-                    };
+                    const mergedParameters = (typeof targetId === 'object' && parameters && Object.keys(parameters).length === 0)
+                        ? targetId
+                        : { ...(parameters || {}), ...(targetId ? { target: targetId } : {}) };
 
-                    console.log(`[App] Enviando intención: ${type}`, intent);
+                    console.log(`[App] Enviando intención: ${type}`, mergedParameters);
 
-                    if (window.app.syncClient && window.app.syncClient.isConnected()) {
-                        window.app.syncClient.send('intent', intent);
-                        showNotification(`Orden enviada: ${type}`, "success");
-                    } else {
-                        console.error('❌ WebSocket no conectado. No se puede enviar la intención.');
-                        showNotification("Error de conexión", "error");
+                    if (window.app.syncClient?.sendIntent) {
+                        const ok = window.app.syncClient.sendIntent(type, mergedParameters);
+                        if (ok) showNotification(`Orden enviada: ${type}`, "success");
+                        else showNotification("Error de conexión", "error");
+                        return ok;
                     }
+
+                    console.error('❌ WebSocket no conectado. No se puede enviar la intención.');
+                    showNotification("Error de conexión", "error");
+                    return false;
                 },
 
                 // Handler global expuesto para botones HTML

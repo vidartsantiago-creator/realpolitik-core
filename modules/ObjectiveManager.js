@@ -244,7 +244,8 @@ function cleanupExpiredStrategies(tick) {
 
 function handlePlayerSetObjective({ objectiveId }) {
   const state = getState();
-  const maxObj = _state.config.global_settings.max_active_objectives_per_nation || 3;
+  const maxObj = _state.config?.global_settings?.max_active_objectives_per_nation || 3;
+  const playerNationId = state.playerNationId;
 
   if (_state.playerObjectives.size >= maxObj) {
     emit('ui_error', { message: `Máximo de ${maxObj} objetivos activos alcanzado.` });
@@ -255,18 +256,37 @@ function handlePlayerSetObjective({ objectiveId }) {
   if (!configObj) return;
 
   // Verificar prerrequisitos básicos
-  if (!checkPrerequisites(configObj, state, state.playerNationId)) {
+  if (!checkPrerequisites(configObj, state, playerNationId)) {
     emit('ui_error', { message: `No cumples los requisitos para: ${configObj.name}` });
     return;
   }
+
+  const currentTick = state.meta?.tick ?? state.tick ?? 0;
 
   _state.playerObjectives.set(objectiveId, {
     active: true,
     progress: 0,
     milestonesCompleted: [],
-    startTick: state.tick,
+    startTick: currentTick,
     configId: objectiveId
   });
+
+  const objectivesList = Array.from(_state.playerObjectives.entries())
+    .filter(([, data]) => data.active)
+    .map(([id, data]) => ({
+      id,
+      configId: data.configId || id,
+      progress: data.progress || 0,
+      startTick: data.startTick || currentTick
+    }));
+
+  applyDelta({
+    nations: {
+      [playerNationId]: {
+        objectives: objectivesList
+      }
+    }
+  }, 'objective_set');
 
   emit('objective_accepted', { objectiveId, name: configObj.name });
 }
@@ -709,7 +729,6 @@ function pickAICategory(personalitySeed) {
  * Incluye configuraciones estáticas para que el frontend pueda renderizar nombres/descripciones.
  */
 export function getClientState() {
-  // Cargar configuraciones si aún no están en memoria (por seguridad)
   if (!_state.objectivesConfig || !_state.strategiesConfig) {
     try {
       _state.objectivesConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../config/objectives.json'), 'utf8'));
@@ -719,10 +738,17 @@ export function getClientState() {
     }
   }
 
+  const categories = _state.config?.categories
+    || _state.objectivesConfig?.categories
+    || {};
+  const strategies = _state.config?.strategies
+    || _state.strategiesConfig?.strategies
+    || [];
+
   return {
     // 1. Configuración Estática (Definiciones desde JSONs)
-    categories: _state.objectivesConfig?.categories || [],
-    strategies: _state.strategiesConfig?.strategies || [],
+    categories,
+    strategies,
 
     // 2. Estado Dinámico (Estado actual del juego)
     playerObjectives: Array.from(_state.playerObjectives.entries()),

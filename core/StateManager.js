@@ -200,6 +200,15 @@ export function applyDelta(delta, source = 'system') {
             }
           }
         }
+
+        // 5. Objetivos estratégicos (reemplazo absoluto)
+        if (Array.isArray(nationDelta.objectives)) {
+          currentNation.objectives = structuredClone(nationDelta.objectives);
+        }
+
+        if (Array.isArray(nationDelta.activeStrategies)) {
+          currentNation.activeStrategies = structuredClone(nationDelta.activeStrategies);
+        }
       }
     }
 

@@ -20,6 +20,7 @@ let localState = null;
 
 // Nueva variable de módulo para la instancia
 const strategyCabinet = new StrategyCabinet();
+window.strategyCabinetInstance = strategyCabinet; // <-- AGREGAR ESTO
 
 /**
  * Inicializa la interfaz de usuario.
@@ -92,10 +93,37 @@ function setupDOM() {
   window.addEventListener('game-state-update', (event) => {
     const state = event.detail;
 
+    // --- DEBUG EXTREMO ---
+    // Descomenta esto SOLO si necesitas ver cada mensaje en consola
+    // console.log('[UI] Tick recibido. Tiene objectiveManagerConfig:', !!state.objectiveManagerConfig);
+
+    if (!state) {
+      console.error('[UI] Estado recibido es nulo o undefined');
+      return;
+    }
+
     // Actualizar el gabinete de estrategia
-    // CORRECCIÓN: Usar la variable local 'strategyCabinet' y corregir 'window'
     if (strategyCabinet) {
-      strategyCabinet.update(state);
+      try {
+        // Verificar si el config existe antes de pasar todo el estado
+        if (state.objectiveManagerConfig) {
+          strategyCabinet.update(state);
+          // Si el modal está abierto y acabamos de recibir datos por primera vez, forzar render
+          if (strategyCabinet.isOpen && !strategyCabinet.objConfig) {
+            // Nota: strategyCabinet.update ya asigna this.objConfig internamente,
+            // así que esta condición es solo si falló la asignación interna.
+            // Lo seguro es confiar en que update() hizo su trabajo.
+          }
+        } else {
+          // Si no hay config, igual llamamos a update para que maneje el fallback o espere
+          strategyCabinet.update(state);
+        }
+      } catch (e) {
+        console.error('[UI] Error CRÍTICO al actualizar StrategyCabinet:', e);
+        console.error('[UI] Estado causante:', state);
+      }
+    } else {
+      console.error('[UI] La instancia strategyCabinet es null o undefined');
     }
   });
   console.log('[UI] ✅ StrategyCabinet inicializado.');

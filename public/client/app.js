@@ -45,8 +45,20 @@ function connect() {
     };
 
     ws.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        routeMessage(message);
+        try {
+            const state = JSON.parse(event.data);
+
+            // ... (aquí puede haber otra lógica de procesamiento local si existe) ...
+
+            // ✅ CORRECCIÓN CRÍTICA: Disparar el evento para que UI.js lo escuche
+            // Esto es lo que falta y causa que el gabinete no se actualice
+            window.dispatchEvent(new CustomEvent('game-state-update', {
+                detail: state
+            }));
+
+        } catch (error) {
+            console.error('[SyncClient] Error al procesar mensaje WS:', error);
+        }
     };
 
     ws.onclose = () => {

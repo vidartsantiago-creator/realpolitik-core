@@ -281,12 +281,17 @@ async function main() {
         // 6. Inicializar WebSocketServer ADJUNTO al HTTP
         console.log('[main] Iniciando WebSocketServer adjunto a HTTP...');
 
+        const getPublicState = () => ({
+            ...getState(),
+            objectiveManagerConfig: getObjectiveState()
+        });
+
         // CORRECCIÓN CRÍTICA: Pasar httpServer como primer argumento
         // La clase debe esperar (server, config) o similar
         const wsServer = new GameWebSocketServer(
             httpServer,
             CONFIG,
-            getState,           // Función para leer el estado
+            getPublicState,   // Estado enriquecido para clientes
             { process: processIntent }, // Wrapper simple si processIntent es una función suelta
             TimeEngine          // Módulo completo de tiempo
         );
@@ -317,16 +322,11 @@ async function main() {
             // 2. Ejecutar lógica de módulos
             gameLoop(tick);
 
-            // 3. Obtener estado base del juego
-            const currentState = getState();
-
-            // 4. Inyectar estado completo de Objetivos y Estrategias <<<
-            // Esto añade la configuración estática (JSONs) y el estado dinámico (progreso, activos)
-            const objectiveSystemState = getObjectiveState();
-
-            // Fusionamos el estado de objetivos en el estado principal que verá el cliente
-            // Se usa 'objectiveManagerConfig' como clave para coincidir con lo que espera el frontend
-            currentState.objectiveManagerConfig = objectiveSystemState;
+            // 3. Obtener estado base del juego (clon mutable para el cliente)
+            const currentState = {
+                ...getState(),
+                objectiveManagerConfig: getObjectiveState()
+            };
 
             // 5. Construir payload
             const payload = {

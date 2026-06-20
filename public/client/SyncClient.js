@@ -71,8 +71,11 @@ export class SyncClient {
             this.reconnectAttempts = 0;
             this.isReconnecting = false;
 
-            // OPCIONAL: Si el servidor REQUIERE explícitamente un 'get_init' para enviarlo, descomenta esto:
-            // this.send('get_init', {}); 
+            const nationId = this.localState?.playerNationId || 'ARG';
+            this.send('register_player', {
+                playerId: 'player_1',
+                nationId
+            });
         };
 
         this.ws.onclose = (event) => {
@@ -309,9 +312,12 @@ export class SyncClient {
     sendIntent(actionType, parameters) {
         const intent = {
             type: actionType,
-            actor: this.localState?.playerNationId || 'UNKNOWN',
+            actionType,
+            actor: this.localState?.playerNationId || 'ARG',
+            nationId: this.localState?.playerNationId || 'ARG',
             timestamp: Date.now(),
-            parameters: parameters || {}
+            parameters: parameters || {},
+            payload: parameters || {}
         };
         return this.send('intent', { payload: intent });
     }
