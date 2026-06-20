@@ -21,8 +21,8 @@
 import { on, emit } from '../core/EventDispatcher.js';
 import { getState, applyDelta } from '../core/StateManager.js';
 import { rng, rngInt } from '../core/Rng.js';
-import objectivesConfig from '../config/objectives.json' assert { type: 'json' };
-import strategiesConfig from '../config/strategies.json' assert { type: 'json' };
+import objectivesConfig from '../config/objectives.json' with { type: 'json' };
+import strategiesConfig from '../config/strategies.json' with { type: 'json' };
 import fs from 'fs';
 import path from 'path';
 

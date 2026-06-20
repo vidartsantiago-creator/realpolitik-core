@@ -1,544 +1,241 @@
-import { getState } from '../core/StateManager.js';
-import { emit } from '../core/EventDispatcher.js';
+import http from 'http';
+import { WebSocketServer as WS, WebSocket } from 'ws';
+import { on, off, emit } from '../core/EventDispatcher.js';
+import { getState, applyDelta, setInitialState } from '../core/StateManager.js';
+import { getCurrentTick } from '../core/TimeEngine.js';
+import validator from '../core/SchemaValidator.js';
+import { processIntent } from '../modules/IntentProcessor.js';
+import schemaValidator from '../core/SchemaValidator.js';
 
 /**
- * @file IntentProcessor.js
- * @description Orquestador central de lógica de negocio.
- *              Recibe una intención validada (schema OK) y ejecuta la lógica específica.
- *              Genera Deltas atómicos o retorna Errores de Negocio.
+ * @file WebSocketServer.js
+ * @description Servidor WebSocket para comunicación en tiempo real con clientes.
+ *              Gestiona conexiones, validación de intenciones y sincronización de estado.
  * @version 1.0.1
  * @changelog
- * - v1.0.1: Corrección: consistencia en parámetros de handlers, exportación de processIntent
+ * - v1.0.1: Corrección: eliminar require() de 'ws', usar import ESM consistentemente
  */
 
-// Registro de Handlers
-const handlers = new Map();
+export class WebSocketServer {
+    /**
+     * @param {http.Server} httpServer - Servidor HTTP existente
+     * @param {Object} config - Configuración del juego
+     * @param {Function} getState - Función para obtener el estado actual
+     * @param {Object} intentProcessor - Objeto con método process
+     * @param {Object} timeEngine - Módulo de tiempo
+     */
+    constructor(httpServer, config, getState, intentProcessor, timeEngine) {
+        this.httpServer = httpServer;
+        this.config = config;
+        this.getState = getState;
+        this.intentProcessor = intentProcessor;
+        this.timeEngine = timeEngine;
 
-/**
- * Inicializa el procesador registrando los handlers disponibles.
- */
-export function init() {
-    console.log('[IntentProcessor] Inicializando handlers de negocio...');
+        this.wss = null;
+        this.clients = new Map(); // clientId -> { ws, playerId, nationId }
 
-    // Registrar handlers explícitamente
-    handlers.set('diplomacy', handleDiplomacy);
-    handlers.set('build_unit', handleBuildUnit);
-    handlers.set('move_unit', handleMoveUnit);
-
-    handlers.set('nation_select', handleNationSelect);
-    handlers.set('policy_propose', handlePolicyPropose);
-    handlers.set('crisis_trigger', handleCrisisTrigger);
-    handlers.set('intel_investigate', handleIntelInvestigate);
-    handlers.set('player_set_objective', handlePlayerSetObjective);
-    handlers.set('player_activate_strategy', handlePlayerActivateStrategy);
-
-    console.log('[IntentProcessor] Handlers registrados:', Array.from(handlers.keys()));
-}
-
-/**
- * Procesa una intención ya validada por SchemaValidator.
- * @param {Object} intent - La intención completa (con playerId, nationId, etc.)
- * @param {Object} state - El estado global actual
- * @returns {Object} Resultado: { success: boolean, deltas: Array, error: String|null }
- */
-export function processIntent(intent, state) {
-    const handler = handlers.get(intent.actionType || intent.type);
-
-    if (!handler) {
-        return {
-            success: false,
-            deltas: [],
-            error: `No hay lógica de negocio implementada para la acción: ${intent.actionType || intent.type}`
-        };
+        console.log('[WS Server] Constructor inicializado con dependencias.');
     }
 
-    try {
-        const currentState = state || getState();
-        // Ejecutar el handler específico pasando intención y estado (orden consistente)
-        const result = handler(intent, currentState);
+    start() {
+        // Crear servidor WebSocket adjunto al HTTP
+        this.wss = new WS({ noServer: true });
 
-        if (result.success && result.deltas && result.deltas.length > 0) {
-            // Emitir evento para que StateManager aplique los deltas
-            result.deltas.forEach(delta => {
-                // Opcional: Aplicar inmediatamente o delegar al EventDispatcher
-                // Aquí delegamos la aplicación al flujo estándar
-                emit('apply_delta', delta);
+        this.httpServer.on('upgrade', (request, socket, head) => {
+            this.wss.handleUpgrade(request, socket, head, (ws) => {
+                this.wss.emit('connection', ws, request);
+            });
+        });
+
+        this.wss.on('connection', (ws, req) => {
+            const clientId = this._generateClientId();
+            console.log(`[WS] Nuevo cliente conectado: ${clientId}`);
+
+            this.clients.set(clientId, {
+                ws,
+                playerId: null,
+                nationId: null,
+                connectedAt: Date.now()
+            });
+
+            ws.on('message', (data) => this._handleMessage(clientId, data));
+            ws.on('close', () => this._handleDisconnect(clientId));
+            ws.on('error', (err) => console.error(`[WS] Error cliente ${clientId}:`, err));
+
+            // Enviar handshake inicial
+            this.send(clientId, {
+                type: 'connected',
+                clientId,
+                message: 'Conectado a RealPolitik Core'
+            });
+        });
+
+        console.log(`[WS Server] Escuchando en puerto ${this.config.port || 'adjunto a HTTP'}`);
+    }
+
+    /**
+     * MÉTODO PÚBLICO CRÍTICO: Envía mensaje a un cliente específico.
+     * Este es el método que main.js intenta vincular.
+     */
+    send(clientId, message) {
+        const client = this.clients.get(clientId);
+        if (client && client.ws && client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify(message));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * MÉTODO PÚBLICO: Emite mensaje a todos los clientes conectados.
+     */
+    broadcast(message) {
+        const data = JSON.stringify(message);
+        this.wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(data);
+            }
+        });
+    }
+
+    // ... Mantén tus métodos existentes (_handleMessage, _handleRegister, etc.) ...
+    // Asegúrate de que dentro de _handleMessage uses this.send() en lugar de this._sendToClient() si quieres consistencia
+
+    _handleMessage(clientId, rawData) {
+        let message;
+        try {
+            message = JSON.parse(rawData.toString());
+        } catch (e) {
+            console.warn(`[WS] JSON inválido de ${clientId}`);
+            return;
+        }
+
+        const client = this.clients.get(clientId);
+        if (!client) return;
+
+        switch (message.type) {
+            case 'register_player':
+                this._handleRegister(clientId, message);
+                break;
+
+            case 'intent':
+                this._handleIntent(clientId, message);
+                break;
+
+            case 'ping':
+                this.send(clientId, { type: 'pong', serverTime: Date.now() });
+                break;
+
+            default:
+                console.warn(`[WS] Tipo de mensaje desconocido: ${message.type}`);
+        }
+    }
+
+    _handleRegister(clientId, message) {
+        const client = this.clients.get(clientId);
+        if (client) {
+            client.playerId = message.playerId || `Player_${clientId}`;
+            client.nationId = message.nationId;
+            console.log(`[WS] Cliente ${clientId} registrado como ${client.playerId} (${client.nationId})`);
+
+            if (this.getState) {
+                this.send(clientId, {
+                    type: 'init_state',
+                    state: this.getState()
+                });
+            }
+        }
+    }
+
+    async _handleIntent(clientId, message) {
+        const client = this.clients.get(clientId);
+        const payload = (message.payload && typeof message.payload === 'object') ? message.payload : {};
+
+        if (!client.playerId || !client.nationId) {
+            client.playerId = client.playerId || payload.actor || `Player_${clientId}`;
+            client.nationId = client.nationId || payload.nationId || message.nation_id || 'ARG';
+        }
+
+        const actionType = payload.actionType || payload.type || message.actionType;
+        if (!actionType) {
+            this.send(clientId, {
+                type: 'intent_rejected',
+                reason: 'Intención sin tipo de acción'
+            });
+            return;
+        }
+
+        // Normalización básica
+        const normalizedIntent = {
+            type: actionType,
+            actionType,
+            playerId: client.playerId,
+            nationId: client.nationId,
+            payload,
+            parameters: payload.parameters || payload,
+            receivedAt: Date.now(),
+            tick: this.timeEngine.getCurrentTick()
+        };
+
+        // Validación
+        const validation = schemaValidator.validateIntent(normalizedIntent);
+        if (!validation.valid) {
+            console.warn(`[WS] Intent inválido de ${clientId}:`, validation.errors);
+            this.send(clientId, {
+                type: 'intent_rejected',
+                reason: 'Datos inválidos',
+                details: validation.errors
+            });
+            return;
+        }
+
+        // Procesamiento
+        try {
+            const currentState = this.getState();
+            // Asumiendo que intentProcessor.process devuelve { success, stateDelta, feedback, error }
+            const result = this.intentProcessor.process(normalizedIntent, currentState);
+
+            if (result.success) {
+                // Aquí deberías aplicar el delta al estado global si tu arquitectura lo permite desde aquí
+                // O devolver el delta para que main.js lo aplique
+
+                this.send(clientId, {
+                    type: 'intent_accepted',
+                    tick: this.timeEngine.getCurrentTick(),
+                    payload: result.feedback || {}
+                });
+
+                // Si hay cambios de estado, se deberían broadcastear
+                if (result.stateDelta) {
+                    this.broadcast({
+                        type: 'state_update',
+                        delta: result.stateDelta,
+                        tick: this.timeEngine.getCurrentTick()
+                    });
+                }
+            } else {
+                this.send(clientId, {
+                    type: 'intent_rejected',
+                    reason: result.error || 'Procesamiento fallido'
+                });
+            }
+        } catch (error) {
+            console.error(`[WS] Error procesando intent de ${clientId}:`, error);
+            this.send(clientId, {
+                type: 'intent_rejected',
+                reason: 'Error interno del servidor'
             });
         }
+    }
 
-        return result;
-    } catch (err) {
-        console.error(`[IntentProcessor] Error crítico en ${intent.actionType || intent.type}:`, err);
-        return {
-            success: false,
-            deltas: [],
-            error: 'Error interno del servidor procesando la acción.'
-        };
+    _handleDisconnect(clientId) {
+        console.log(`[WS] Cliente desconectado: ${clientId}`);
+        this.clients.delete(clientId);
+    }
+
+    _generateClientId() {
+        return `client_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     }
 }
 
-// ==========================================
-// HANDLERS ESPECÍFICOS DE NEGOCIO
-// ==========================================
-
-/**
- * Handler: Diplomacia
- * Valida relaciones, existencia de naciones y calcula impacto.
- */
-function handleDiplomacy(intent, state) {
-    console.log('[DEBUG] Diplomacia - Intent:', intent);
-    console.log('[DEBUG] Diplomacia - State nations:', Object.keys(state.nations));
-    const { playerId, nationId, payload } = intent;
-
-    const actionData = intent.payload?.payload || intent.payload || {};
-    const { target, action } = actionData;
-
-    if (!target || !action) {
-        return { success: false, deltas: [], error: 'Datos de diplomacia incompletos (falta target o action).' };
-    }
-
-    // 1. Validaciones de existencia
-    if (!state.nations[nationId]) {
-        return { success: false, deltas: [], error: `Nación origen ${nationId} no existe.` };
-    }
-    if (!state.nations[target]) {
-        return { success: false, deltas: [], error: `Nación objetivo ${target} no existe.` };
-    }
-
-    // 2. Lógica específica por acción
-    let relationDeltaValue = 0;
-    let reason = '';
-
-    if (action === 'propose_alliance') {
-        // Ejemplo: Proponer alianza cuesta 50 de oro y mejora relación base en +10
-        const cost = 50;
-        const currentGold = state.nations[nationId].resources?.gold || 0;
-
-        if (currentGold < cost) {
-            return {
-                success: false,
-                deltas: [],
-                error: `Fondos insuficientes para proponer alianza. Se requiere ${cost} oro.`
-            };
-        }
-
-        // Verificar si ya son aliados o enemigos mortales (lógica simplificada)
-        const currentRelation = state.diplomacy?.relations?.[`${nationId}_${target}`] || 0;
-        if (currentRelation < -80) {
-            return { success: false, deltas: [], error: 'Relación demasiado hostil para proponer alianza.' };
-        }
-
-        relationDeltaValue = 10;
-        reason = 'alliance_proposal';
-
-        // Generar Deltas
-        const deltas = [
-            {
-                type: 'resource_update',
-                nationId: nationId,
-                changes: { gold: -cost },
-                reason: 'cost_alliance_proposal'
-            },
-            {
-                type: 'relation_change',
-                nationA: nationId,
-                nationB: target,
-                value: relationDeltaValue,
-                reason: reason
-            }
-        ];
-
-        return { success: true, deltas: deltas };
-    }
-
-    // Acciones no implementadas
-    return { success: false, deltas: [], error: `Acción diplomática '${action}' no implementada aún.` };
-}
-
-/**
- * Handler: Construcción de Unidades
- * Verifica recursos y genera deltas de resta de oro y creación de unidad.
- */
-function handleBuildUnit(intent, state) {
-    console.log('[DEBUG] Intent recibido:', JSON.stringify(intent, null, 2));
-    console.log('[DEBUG] Nación USA en estado:', state.nations['USA']);
-
-    // CORRECCIÓN: Acceder al payload interno correctamente
-    const { playerId, nationId, payload } = intent;
-    const actionData = intent.payload && typeof intent.payload === 'object' ? intent.payload : intent;
-    const { unitType } = actionData;
-    const finalUnitType = unitType || (intent.payload?.payload?.unitType);
-
-
-    if (!finalUnitType) {
-        return { success: false, deltas: [], error: 'Tipo de unidad no especificado.' };
-    }
-
-    // Verificar existencia de la nación
-    if (!state.nations[nationId]) {
-        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
-    }
-
-    const nation = state.nations[nationId];
-
-    // Definición de costos (puede moverse a una config)
-    const UNIT_COSTS = {
-        infantry: { gold: 50, food: 10 },
-        tank: { gold: 200, food: 50 },
-        ship: { gold: 300, food: 100 }
-    };
-
-    const cost = UNIT_COSTS[finalUnitType];
-    if (!cost) {
-        return { success: false, deltas: [], error: `Tipo de unidad desconocido: ${finalUnitType}` };
-    }
-
-    // Verificar recursos
-    const currentGold = nation.resources?.gold || 0;
-    const currentFood = nation.resources?.food || 0;
-
-    if (currentGold < cost.gold || currentFood < cost.food) {
-        return {
-            success: false,
-            deltas: [],
-            error: `Fondos insuficientes. Costo: ${cost.gold} oro, ${cost.food} comida. Disponible: ${currentGold} oro, ${currentFood} comida.`
-        };
-    }
-
-    // Generar nueva unidad
-    const newUnit = {
-        type: finalUnitType,
-        createdAt: Date.now(),
-        id: `${nationId}_${finalUnitType}_${Date.now()}` // ID único
-    };
-
-    const deltas = [
-        {
-            type: 'resource_update',
-            nations: {
-                [nationId]: {
-                    resources: {
-                        gold: -cost.gold,
-                        food: -cost.food
-                    }
-                }
-            },
-            reason: `Construcción de ${finalUnitType}`
-        },
-        {
-            type: 'unit_created',
-            nations: {
-                [nationId]: {
-                    units: [newUnit] // Asegurar que sea un array con un objeto dentro
-                }
-            },
-            reason: `Unidad ${finalUnitType} creada`
-        }
-    ];
-
-    console.log(`[IntentProcessor] Deltas generados para build_unit:`, JSON.stringify(deltas, null, 2));
-    return { success: true, deltas };
-}
-
-/**
- * Handler: Movimiento de Unidades (Placeholder básico)
- * ✅ CORRECCIÓN: Parámetros en orden consistente (intent, state)
- */
-function handleMoveUnit(intent, state) {
-    const { nationId, payload } = intent;
-    const { from, to } = payload;
-
-    // Validación básica de coordenadas (ejemplo)
-    if (!from || !to) {
-        return { success: false, deltas: [], error: 'Coordenadas de movimiento inválidas.' };
-    }
-
-    // En una implementación real, verificaría si la unidad existe en 'from' y si 'to' es accesible.
-
-    const deltas = [
-        {
-            type: 'unit_moved',
-            nationId: nationId,
-            from: from,
-            to: to,
-            reason: 'move_order'
-        }
-    ];
-
-    return { success: true, deltas: deltas };
-}
-
-/**
- * Handler: Selección de Nación
- * Asigna un jugador a una nación y actualiza el estado
- */
-function handleNationSelect(intent, state) {
-    const { playerId, nationId } = intent;
-
-    console.log(`[IntentProcessor] ${playerId} seleccionando nación ${nationId}`);
-
-    // Validar que la nación existe
-    if (!state.nations[nationId]) {
-        return {
-            success: false,
-            deltas: [],
-            error: `Nación ${nationId} no existe en el mapa.`
-        };
-    }
-
-    // Validar que la nación no esté ya ocupada por otro jugador
-    // (Esto requeriría un tracking de jugadores activos, simplificado aquí)
-
-    // Generar delta para registrar la selección
-    const deltas = [{
-        type: 'nation_selected',
-        playerId: playerId,
-        nationId: nationId,
-        reason: 'player_choice'
-    }];
-
-    console.log(`[IntentProcessor] ✅ Nación ${nationId} asignada a ${playerId}`);
-
-    return { success: true, deltas };
-}
-
-/**
- * Handler: Propuesta de Políticas
- * Valida recursos y aplica efectos de políticas internas
- */
-function handlePolicyPropose(intent, state) {
-    const { playerId, nationId, payload } = intent;
-    const policyData = payload?.payload || payload || {};
-    const { policyId } = policyData;
-
-    console.log(`[IntentProcessor] ${playerId} proponiendo política ${policyId} para ${nationId}`);
-
-    if (!policyId) {
-        return { success: false, deltas: [], error: 'ID de política no especificado.' };
-    }
-
-    if (!state.nations[nationId]) {
-        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
-    }
-
-    // Definición de políticas (puede moverse a config)
-    const POLICIES = {
-        'pol_econ_stimulus': { cost: 50, effects: { economy: 5 } },
-        'pol_mil_draft': { cost: 30, effects: { stability: -5, influence: 2 } },
-        'pol_dip_soft': { cost: 40, effects: { influence: 10 } }
-    };
-
-    const policy = POLICIES[policyId];
-    if (!policy) {
-        return { success: false, deltas: [], error: `Política ${policyId} no reconocida.` };
-    }
-
-    // Verificar recursos
-    const currentGold = state.nations[nationId].resources?.gold || 0;
-    if (currentGold < policy.cost) {
-        return {
-            success: false,
-            deltas: [],
-            error: `Fondos insuficientes. Se requiere ${policy.cost} oro.`
-        };
-    }
-
-    // Generar deltas
-    const deltas = [{
-        type: 'resource_update',
-        nations: {
-            [nationId]: {
-                resources: { gold: -policy.cost }
-            }
-        },
-        reason: `Implementación de ${policyId}`
-    }];
-
-    // Aplicar efectos de la política (simplificado: aplicar directamente al estado)
-    // En producción, esto debería ser otro delta específico
-    Object.entries(policy.effects).forEach(([stat, value]) => {
-        deltas.push({
-            type: 'stat_change',
-            nations: {
-                [nationId]: {
-                    [stat]: value
-                }
-            },
-            reason: `Efecto de ${policyId}`
-        });
-    });
-
-    console.log(`[IntentProcessor] ✅ Política ${policyId} propuesta con éxito`);
-
-    return { success: true, deltas };
-}
-
-/**
- * Handler: Activación de Crisis
- * Inicia una crisis geopolítica con naciones involucradas
- */
-function handleCrisisTrigger(intent, state) {
-    const { playerId, nationId, payload } = intent;
-    const crisisData = payload?.payload || payload || {};
-    const { crisisType, severity, involvedNations } = crisisData;
-
-    console.log(`[IntentProcessor] Crisis activada: ${crisisType} (${severity})`);
-
-    if (!crisisType || !severity) {
-        return { success: false, deltas: [], error: 'Datos de crisis incompletos.' };
-    }
-
-    // Validar naciones involucradas
-    if (!involvedNations || involvedNations.length === 0) {
-        return { success: false, deltas: [], error: 'Debe especificar naciones involucradas.' };
-    }
-
-    for (const natId of involvedNations) {
-        if (!state.nations[natId]) {
-            return { success: false, deltas: [], error: `Nación ${natId} no existe.` };
-        }
-    }
-
-    // Generar delta para activar crisis
-    const deltas = [{
-        type: 'crisis_activation',
-        crisisType: crisisType,
-        severity: severity,
-        involvedNations: involvedNations,
-        triggeredBy: playerId,
-        reason: 'crisis_trigger'
-    }];
-
-    console.log(`[IntentProcessor] ✅ Crisis ${crisisType} activada`);
-
-    return { success: true, deltas };
-}
-
-/**
- * Handler: Investigar Señal de Inteligencia
- * Descuenta $100k y revela información detallada con 100% de confianza
- */
-function handleIntelInvestigate(intent, state) {
-    const { playerId, nationId, payload } = intent;
-    const intelData = payload?.payload || payload || {};
-    const { signalId } = intelData;
-
-    console.log(`[IntentProcessor] ${playerId} investigando señal ${signalId}`);
-
-    if (!signalId) {
-        return { success: false, deltas: [], error: 'ID de señal no especificado.' };
-    }
-
-    if (!state.nations[nationId]) {
-        return { success: false, deltas: [], error: `Nación ${nationId} no existe.` };
-    }
-
-    const nation = state.nations[nationId];
-    const currentBudget = nation.stats?.budget || 0;
-    const investigationCost = 0.1; // $100k
-
-    if (currentBudget < investigationCost) {
-        return {
-            success: false,
-            deltas: [],
-            error: `Fondos insuficientes. Costo: $${investigationCost}M. Disponible: $${currentBudget}M.`
-        };
-    }
-
-    // Generar información detallada simulada
-    const detailedInfo = generateDetailedIntel(signalId, state);
-
-    // Generar deltas
-    const deltas = [
-        {
-            type: 'resource_update',
-            nationId: nationId,
-            changes: {
-                budget: -0.1  // $100k = 0.1M
-            },
-            reason: 'investigacion_inteligencia'
-        },
-        {
-            type: 'intel_updated',
-            signalId: signalId,
-            confidenceLevel: 100,
-            isInvestigated: true,
-            detailedInfo: detailedInfo,
-            reason: 'investigacion_completada'
-        }
-    ];
-
-    console.log(`[IntentProcessor] ✅ Señal ${signalId} investigada. Costo: $${investigationCost}M`);
-    console.log(`[IntentProcessor] Presupuesto antes: ${currentBudget}M`);
-    console.log(`[IntentProcessor] Costo investigación: 0.1M ($100k)`);
-    console.log(`[IntentProcessor] Deltas a emitir:`, JSON.stringify(deltas, null, 2));
-
-    return { success: true, deltas };
-}
-
-/**
- * Genera información detallada para una señal investigada
- * @param {string} signalId - ID de la señal
- * @param {Object} state - Estado actual del juego
- * @returns {Object} Información detallada
- */
-function generateDetailedIntel(signalId, state) {
-    // En producción, esto buscaría en una base de datos de señales
-    // Aquí generamos información contextual basada en el estado
-
-    const nationIds = Object.keys(state.nations);
-    const randomNation = nationIds[Math.floor(Math.random() * nationIds.length)];
-    const nation = state.nations[randomNation];
-
-    return {
-        originalSignal: 'Señal interceptada y verificada',
-        verifiedData: {
-            nationInvolved: nation?.name || 'Desconocida',
-            troopMovement: Math.floor(Math.random() * 10000) + 1000,
-            equipmentType: ['Blindados', 'Infantería', 'Aéreo', 'Naval'][Math.floor(Math.random() * 4)],
-            strategicIntent: ['Defensivo', 'Ofensivo', 'Disuasión', 'Ejercicios'][Math.floor(Math.random() * 4)],
-            timeFrame: 'Próximas 48-72 horas',
-            reliability: 'Confirmada por múltiples fuentes'
-        },
-        analysis: 'Análisis completado. La inteligencia ha sido verificada cruzando datos de satélite, interceptaciones y fuentes humanas.',
-        recommendations: [
-            'Monitorear movimientos en las próximas 24h',
-            'Considerar despliegue preventivo',
-            'Iniciar canales diplomáticos de emergencia'
-        ]
-    };
-}
-
-function handlePlayerSetObjective(intent) {
-    const objectiveId = intent.parameters?.objectiveId
-        || intent.payload?.objectiveId
-        || intent.payload?.parameters?.objectiveId;
-
-    if (!objectiveId) {
-        return { success: false, deltas: [], error: 'Falta objectiveId para asignar objetivo.' };
-    }
-
-    emit('player_set_objective', { objectiveId });
-    return {
-        success: true,
-        deltas: [],
-        feedback: { objectiveId, message: 'Objetivo solicitado correctamente.' }
-    };
-}
-
-function handlePlayerActivateStrategy(intent) {
-    const strategyId = intent.parameters?.strategyId
-        || intent.payload?.strategyId
-        || intent.payload?.parameters?.strategyId;
-
-    if (!strategyId) {
-        return { success: false, deltas: [], error: 'Falta strategyId para activar estrategia.' };
-    }
-
-    emit('player_activate_strategy', { strategyId });
-    return {
-        success: true,
-        deltas: [],
-        feedback: { strategyId, message: 'Estrategia solicitada correctamente.' }
-    };
-}
+export default WebSocketServer;

@@ -1,397 +1,486 @@
 /**
- * @file SyncClient.js
- * @description Cliente de sincronización robusto. 
- *              CORRECCIÓN: Ahora acepta el primer delta como estado inicial si es necesario.
- * @version 3.0.1
+ * @file StrategyCabinet.js
+ * @description Componente UI para la gestión de Objetivos Estratégicos.
  */
 
-const RECONNECT_DELAY = 1000;
-const RECONNECT_BACKOFF_MULTIPLIER = 1.5;
-const MAX_RECONNECT_DELAY = 10000;
+export class StrategyCabinet {
+  constructor() {
+    // --- Referencias al DOM (Se asignarán en init) ---
+    this.modal = null;
+    this.closeBtn = null;
 
-export class SyncClient {
-  constructor(wsUrl) {
-    this.wsUrl = wsUrl || `ws://${window.location.host}`;
-    this.ws = null;
-    this.localState = null;
-    this.isConnected = false;
+    // --- Contenedores Críticos ---
+    this.objectivesList = null;           // #active-objectives-list
+    this.strategiesContainer = null;      // #strategy-management-area
+    this.availableStrategiesList = null;  // #available-strategies-list
+    this.adviceContainer = null;          // #ai-report-content
 
-    // Cola de mensajes para deltas recibidos antes del init_state
-    this.messageQueue = [];
+    // --- Botones de Acción ---
+    this.btnSelectObjective = null;       // #btn-select-objective
+    this.btnActivateStrategy = null;      // #btn-activate-strategy
+    this.btnAiReport = null;              // #btn-ai-report-progress
+    this.btnAiRecommend = null;           // #btn-ai-recommendation
 
-    // Reconexión
-    this.reconnectAttempts = 0;
-    this.reconnectTimeoutId = null;
-    this.isReconnecting = false;
+    // --- Selectores ---
+    this.objectiveSelector = null;        // #strategy-objective-select
 
-    // Referencias externas
-    this.mapRenderer = null;
-    this.onStateUpdate = null; // Callback para la UI
+    // --- Estado Interno ---
+    this.currentFilter = 'all';
+    this.availableObjectives = [];
+    this.activePlayerObjectives = [];
+    this.activeStrategies = [];
+    this.playerNationId = null;
+    this.objConfig = null;
+    this.stratConfig = null;
+    this.selectedObjectiveId = null;
+    this.selectorModal = null;
+    this.selectorCatalog = null;
+    this.selectorScope = 'all';
 
-    // Bindings
-    this.connect = this.connect.bind(this);
-    // ---> INTEGRACIÓN DEL SPRINT 1: Control de estados para disparadores visuales
-    this._lastRenderedTick = -1;
+    // --- Bindings (CRÍTICO: Solo métodos que EXISTEN en esta clase) ---
+    this._handleClose = this._handleClose.bind(this);
+    this._handleSelectObjectiveBtn = this._handleSelectObjectiveBtn.bind(this);
+    this._handleObjectiveSelectorChange = this._handleObjectiveSelectorChange.bind(this);
+    this._handleActivateStrategy = this._handleActivateStrategy.bind(this);
+    this._handleCloseSelector = this._handleCloseSelector.bind(this);
+    this._handleScopeTabClick = this._handleScopeTabClick.bind(this);
+
+    // Handlers internos para eventos dinámicos
+    this._onObjectiveCardClick = this._onObjectiveCardClick.bind(this);
   }
 
-  setMapRenderer(renderer) {
-    this.mapRenderer = renderer;
-  }
+  init() {
+    console.log('[StrategyCabinet] Iniciando componente...');
 
-  connect() {
-    if (this.isReconnecting) {
-      console.log('[SyncClient] Reconexión en curso, ignorando llamada connect().');
+    if (!document.getElementById('strategy-cabinet-modal')) {
+      console.error('[StrategyCabinet] Modal no encontrado en el DOM.');
       return;
     }
 
-    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
-      return;
+    // 1. Asignar referencias DOM
+    this.modal = document.getElementById('strategy-cabinet-modal');
+    this.closeBtn = document.getElementById('btn-close-cabinet');
+
+    // Contenedores
+    this.objectivesList = document.getElementById('active-objectives-list');
+    this.strategiesContainer = document.getElementById('strategy-management-area');
+    this.availableStrategiesList = document.getElementById('available-strategies-list');
+    this.adviceContainer = document.getElementById('ai-report-content');
+
+    // Botones y Selectores
+    this.btnSelectObjective = document.getElementById('btn-select-objective');
+    this.btnActivateStrategy = document.getElementById('btn-activate-strategy');
+    this.objectiveSelector = document.getElementById('strategy-objective-select');
+
+    // 2. Adjuntar Listeners Estáticos
+
+    // Cerrar modal
+    if (this.closeBtn) {
+      this.closeBtn.addEventListener('click', this._handleClose);
     }
 
-    // Limpiar estado anterior
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-      this.ws = null;
+    // Click fuera del modal
+    window.addEventListener('click', (e) => {
+      if (e.target === this.modal) this.close();
+    });
+
+    // Listener para el botón "+ Asignar Nuevo Objetivo"
+    if (this.btnSelectObjective) {
+      this.btnSelectObjective.addEventListener('click', this._handleSelectObjectiveBtn);
+      console.log('[StrategyCabinet] Listener asignado a btn-select-objective');
+    } else {
+      console.warn('[StrategyCabinet] No se encontró btn-select-objective');
     }
 
-    console.log(`[SyncClient] Conectando a ${this.wsUrl}...`);
-
-    try {
-      this.ws = new WebSocket(this.wsUrl);
-    } catch (e) {
-      console.error('[SyncClient] Error fatal al crear WebSocket:', e);
-      this.scheduleReconnect();
-      return;
+    // Listener para cambiar de objetivo en el dropdown
+    if (this.objectiveSelector) {
+      this.objectiveSelector.addEventListener('change', this._handleObjectiveSelectorChange);
     }
 
-    this.ws.onopen = () => {
-      console.log('[SyncClient] ✅ Conectado correctamente.');
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-      this.isReconnecting = false;
+    // Listener para activar estrategia
+    if (this.btnActivateStrategy) {
+      this.btnActivateStrategy.addEventListener('click', this._handleActivateStrategy);
+    }
 
-      const nationId = this.localState?.playerNationId || 'ARG';
-      this.send('register_player', {
-        playerId: 'player_1',
-        nationId
+    this.selectorModal = document.getElementById('objective-selector-modal');
+    this.selectorCatalog = document.getElementById('objective-catalog');
+    const btnCloseSelector = document.getElementById('btn-close-selector');
+    if (btnCloseSelector) {
+      btnCloseSelector.addEventListener('click', this._handleCloseSelector);
+    }
+    document.querySelectorAll('#objective-selector-modal .scope-tabs .tab-btn').forEach((btn) => {
+      btn.addEventListener('click', this._handleScopeTabClick);
+    });
+    if (this.selectorModal) {
+      this.selectorModal.addEventListener('click', (e) => {
+        if (e.target === this.selectorModal) this._closeObjectiveSelector();
       });
-    };
+    }
 
-    this.ws.onclose = (event) => {
-      console.warn(`[SyncClient] ❌ Desconectado (Code: ${event.code}). Programando reconexión...`);
-      this.isConnected = false;
-      this.ws = null;
-      this.scheduleReconnect();
-    };
+    console.log('[StrategyCabinet] ✅ Inicialización completada y listeners activos.');
+  }
 
-    this.ws.onerror = (err) => {
-      console.error('[SyncClient] Error de WebSocket:', err);
-    };
+  update(state) {
+    if (!state || !state.nations) return;
 
-    this.ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        this.handleMessage(message);
-      } catch (e) {
-        console.error('[SyncClient] Error parseando JSON:', e, event.data);
+    this.playerNationId = state.playerNationId || 'ARG';
+
+    // Cargar catálogo antes de validar nación (evita botón bloqueado permanentemente)
+    if (state.objectiveManagerConfig) {
+      this.objConfig = state.objectiveManagerConfig;
+      this.stratConfig = state.objectiveManagerConfig.strategies || state.strategyConfig || null;
+
+      if (this.objConfig?.categories) {
+        this.availableObjectives = this._flattenObjectives(this.objConfig.categories);
       }
-    };
+
+      if (Array.isArray(this.objConfig?.playerObjectives)) {
+        this.activePlayerObjectives = this.objConfig.playerObjectives
+          .filter(([, data]) => data?.active !== false)
+          .map(([id, data]) => ({
+            id,
+            configId: data.configId || id,
+            progress: data.progress || 0,
+            ...data
+          }));
+      }
+    }
+
+    const nation = state.nations[this.playerNationId];
+    if (nation) {
+      if (Array.isArray(nation.objectives) && nation.objectives.length > 0) {
+        this.activePlayerObjectives = nation.objectives;
+      }
+      this.activeStrategies = nation.activeStrategies || [];
+    }
+
+    // Renderizar
+    this._renderObjectivesList();
+    this._updateObjectiveSelector();
+    this._updateAIAdvice(nation, state);
+
+    // Debug visual del contador
+    const countSpan = document.getElementById('obj-count');
+    if (countSpan) countSpan.textContent = this.activePlayerObjectives.length;
   }
 
-  scheduleReconnect() {
-    if (this.isReconnecting) return;
-
-    this.isReconnecting = true;
-    this.reconnectAttempts++;
-
-    const delay = Math.min(
-      RECONNECT_DELAY * Math.pow(RECONNECT_BACKOFF_MULTIPLIER, this.reconnectAttempts),
-      MAX_RECONNECT_DELAY
-    );
-
-    console.log(`[SyncClient] Reintento ${this.reconnectAttempts} en ${delay}ms`);
-
-    this.reconnectTimeoutId = setTimeout(() => {
-      this.reconnectTimeoutId = null;
-      this.isReconnecting = false;
-      this.connect();
-    }, delay);
+  open() {
+    if (this.modal) {
+      this.modal.style.display = 'flex';
+      this.modal.classList.remove('hidden');
+      console.log('[StrategyCabinet] Modal abierto.');
+    }
   }
 
-  handleMessage(message) {
-    if (!message.type) {
-      console.warn('[SyncClient] Mensaje sin tipo recibido:', message);
+  close() {
+    if (this.modal) {
+      this.modal.style.display = 'none';
+      this.modal.classList.add('hidden');
+    }
+  }
+
+  // --- Renderizado ---
+
+  _renderObjectivesList() {
+    if (!this.objectivesList) {
+      console.warn('[StrategyCabinet] objectivesList no encontrado en el DOM.');
       return;
     }
 
-    const type = message.type;
+    const maxObjectives = 2;
+    const currentCount = this.activePlayerObjectives.length;
+    const canAddMore = currentCount < maxObjectives;
 
-    // CORRECCIÓN: Estructura de extracción adaptativa más flexible
-    const payload = message.state || message.delta || message.payload || message.data || message;
+    // 1. Renderizar las tarjetas de objetivos activos
+    if (currentCount === 0) {
+      this.objectivesList.innerHTML = '<div style="color:#888; padding:15px; text-align:center;">No hay objetivos activos asignados.</div>';
+    } else {
+      this.objectivesList.innerHTML = this.activePlayerObjectives.map(obj => {
+        const config = this.availableObjectives.find(o => o.id === (obj.configId || obj.id)) || {};
+        const objId = config.id || obj.configId || obj.id;
 
-    switch (type) {
-      case 'connected':
-        console.log('[SyncClient] ID de sesión:', message.clientId);
-        break;
-
-      case 'init_state':
-        console.log('[SyncClient] 📥 Recibido estado inicial explícito.');
-        this.localState = payload;
-        this.processMessageQueue();
-        this.notifyUpdate();
-        break;
-
-      case 'state_update':
-      case 'delta':
-      case 'tick':
-        if (!this.localState) {
-          if (payload && payload.nations) {
-            console.log('[SyncClient] 🚀 Primer mensaje recibido tiene estructura completa. Usando como init_state.');
-            this.localState = JSON.parse(JSON.stringify(payload));
-            this.processMessageQueue();
-            this.notifyUpdate();
-            return;
-          } else {
-            console.warn('[SyncClient] Delta recibido antes de init_state. Encolando...');
-            if (this.messageQueue.length > 50) {
-              this.messageQueue.shift();
-            }
-            this.messageQueue.push(message);
-            return;
-          }
-        }
-        this.applyDelta(payload);
-        this.notifyUpdate();
-        break;
-
-      case 'intent_accepted':
-        console.log('[SyncClient] ⚡ Intención aceptada:', message.payload);
-        if (this.mapRenderer && typeof this.mapRenderer.playSound === 'function') {
-          this.mapRenderer.playSound('success');
-        }
-        break;
-
-      case 'intent_rejected':
-        console.warn('[SyncClient] 🚫 Intención rechazada:', message.reason);
-        if (this.mapRenderer && typeof this.mapRenderer.playSound === 'function') {
-          this.mapRenderer.playSound('error');
-        }
-        break;
-
-      // ==================================================================
-      // 🔓 NUEVOS CASOS: APERTURA DE COMPUERTAS PARA EVENTOS EN VIVO
-      // ==================================================================
-      case 'intel_signal':
-      case 'advisor_suggestion':
-      case 'relations_detail':
-      case 'relations_data':
-      case 'get_relations_detail_response':
-      case 'crisis_started':
-      case 'crisis_escalated':
-      case 'crisis_resolved':
-      case 'treaty_signed':
-      case 'treaty_expired':
-      case 'diplomacy_action_result':
-        console.log(`[SyncClient] 📡 Redireccionando evento calificado a UI: ${type}`);
-
-        // Ejecutamos tu función handleCustomEvent registrada en index.html
-        if (typeof this.onCustomEvent === 'function') {
-          this.onCustomEvent(message);
-        } else if (typeof window.handleCustomEvent === 'function') {
-          window.handleCustomEvent(message);
-        }
-        break;
-
-      default:
-        console.debug('[SyncClient] Mensaje desconocido:', type, message);
-
-        // Si el mensaje desconocido tiene pinta de evento, lo dejamos pasar de forma dinámica
-        if (typeof window.handleCustomEvent === 'function' || typeof this.onCustomEvent === 'function') {
-          console.log(`[SyncClient] Enrutando por fallback dinámico: ${type}`);
-          if (typeof this.onCustomEvent === 'function') this.onCustomEvent(message);
-          else window.handleCustomEvent(message);
-        } else if (!this.localState && message.nations) {
-          console.log('[SyncClient] Fallback: Usando mensaje desconocido como estado inicial.');
-          this.localState = message;
-          this.notifyUpdate();
-        }
+        return `
+          <div class="objective-card active" data-id="${objId}" style="cursor:pointer; border:1px solid #444; padding:10px; margin-bottom:10px; background:#222;">
+            <div class="card-header" style="display:flex; justify-content:space-between; margin-bottom:5px;">
+              <h4 style="margin:0; color:#fff;">${config.name || 'Objetivo Desconocido'}</h4>
+              <span class="badge" style="background:#555; padding:2px 6px; font-size:0.8em;">${config.difficulty || 'Normal'}</span>
+            </div>
+            <p style="font-size:0.85em; color:#aaa; margin:5px 0;">${config.description || 'Sin descripción disponible.'}</p>
+            <div class="progress-container" style="background:#333; height:6px; width:100%; margin-top:8px;">
+              <div style="width:${obj.progress || 0}%; background:#4caf50; height:100%; transition:width 0.3s;"></div>
+            </div>
+            <div style="text-align:right; font-size:0.75em; color:#888; margin-top:4px;">Progreso: ${obj.progress || 0}%</div>
+          </div>
+        `;
+      }).join('');
     }
-  }
 
-  processMessageQueue() {
-    if (this.messageQueue.length === 0) return;
-
-    console.log(`[SyncClient] Procesando ${this.messageQueue.length} mensajes pendientes...`);
-
-    while (this.messageQueue.length > 0) {
-      const pendingMsg = this.messageQueue.shift();
-      const payload = pendingMsg.state || pendingMsg.delta || pendingMsg.payload;
-      if (payload) {
-        this.applyDelta(payload);
+    // 2. Gestionar el botón "+ Asignar Nuevo Objetivo"
+    // CORRECCIÓN: Usar this.btnSelectObjective (nombre correcto del constructor)
+    if (this.btnSelectObjective) {
+      if (canAddMore && this.availableObjectives.length > 0) {
+        this.btnSelectObjective.disabled = false;
+        this.btnSelectObjective.textContent = '+ Asignar Nuevo Objetivo';
+        this.btnSelectObjective.style.opacity = '1';
+        this.btnSelectObjective.style.cursor = 'pointer';
+      } else if (!canAddMore) {
+        this.btnSelectObjective.disabled = true;
+        this.btnSelectObjective.textContent = 'Máximo de objetivos alcanzado (2/2)';
+        this.btnSelectObjective.style.opacity = '0.5';
+        this.btnSelectObjective.style.cursor = 'not-allowed';
+      } else {
+        this.btnSelectObjective.disabled = true;
+        this.btnSelectObjective.textContent = 'No hay objetivos disponibles';
+        this.btnSelectObjective.style.opacity = '0.5';
       }
     }
 
-    this.notifyUpdate();
-  }
+    // 3. Re-asignar Event Listeners (CRUCIAL: Se pierden al usar innerHTML)
 
-  applyDelta(delta) {
-    if (!this.localState || !delta) return;
+    // Listener para seleccionar un objetivo activo
+    this.objectivesList.querySelectorAll('.objective-card.active').forEach(card => {
+      // Remover listener previo si existe (opcional, pero buena práctica)
+      card.removeEventListener('click', this._onObjectiveCardClick);
+      card.addEventListener('click', this._onObjectiveCardClick);
+    });
 
-    // Fusión profunda simple
-    const merge = (target, source) => {
-      for (const key in source) {
-        if (source.hasOwnProperty(key)) {
-          const srcVal = source[key];
-          const tgtVal = target[key];
-
-          if (srcVal && typeof srcVal === 'object' && !Array.isArray(srcVal)) {
-            if (!tgtVal || typeof tgtVal !== 'object' || Array.isArray(tgtVal)) {
-              target[key] = {};
-            }
-            merge(target[key], srcVal);
-          } else {
-            target[key] = srcVal;
-          }
-        }
-      }
-    };
-
-    merge(this.localState, delta);
-  }
-
-  notifyUpdate() {
-    if (!this.localState) return;
-
-    // 1. Notificar a la UI general (si existe callback)
-    if (this.onStateUpdate) {
-      this.onStateUpdate(this.localState);
-    }
-
-    // 2. Notificar al Renderizador
-    if (this.mapRenderer) {
-      const playerId = this.localState.playerNationId || (this.localState.nations ? Object.keys(this.localState.nations)[0] : null);
-
-      // Cargar geometría si es la primera vez y el renderer lo soporta
-      if (this.mapRenderer.loadGeometry && (!this.mapRenderer.gameState || Object.keys(this.mapRenderer.gameState || {}).length === 0)) {
-        if (this.localState.nations) {
-          this.mapRenderer.loadGeometry(this.localState.nations);
-        }
-      }
-
-      // Actualizar renderer
-      this.mapRenderer.update(this.localState, playerId);
-    }
-
-    // 3. Notificar a componentes UI avanzados (StrategyCabinet, etc.)
-    // Disparamos un evento personalizado con el estado completo para que los componentes se suscriban
-    window.dispatchEvent(new CustomEvent('game-state-update', { detail: this.localState }));
-
-    // ---> INTEGRACIÓN DEL SPRINT 1: Lógica de Feedback Inmediato ("Fun Factor")
-    // Verificamos si avanzamos de tick para no saturar con el mismo paquete repetido
-    if (this.localState.tick !== undefined && this.localState.tick !== this._lastRenderedTick) {
-      this._lastRenderedTick = this.localState.tick;
-
-      // Disparador 1: Animación de la cuenta atrás (Tensión del turno)
-      this._triggerTurnProgressBar();
-
-      // Disparador 2: Escanear crisis/eventos para el feed narrativo
-      this._triggerGeopoliticalFeed();
-    }
-  }
-
-  send(type, payload = {}) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('[SyncClient] Offline: No se puede enviar', type);
-      return false;
-    }
-    this.ws.send(JSON.stringify({ type, ...payload }));
-    return true;
-  }
-
-  sendIntent(actionType, parameters) {
-    const intent = {
-      type: actionType,
-      actionType,
-      actor: this.localState?.playerNationId || 'ARG',
-      nationId: this.localState?.playerNationId || 'ARG',
-      timestamp: Date.now(),
-      parameters: parameters || {},
-      payload: parameters || {}
-    };
-    return this.send('intent', { payload: intent });
-  }
-
-
-
-  // ---> INTEGRACIÓN DEL SPRINT 1: Métodos auxiliares de UI del Cliente
-
-  /**
-   * Reinicia la barra de progreso de tiempo del turno para generar tensión visual.
-   * Busca un elemento HTML con el ID 'turn-progress-bar'.
-   */
-  _triggerTurnProgressBar() {
-    const bar = document.getElementById('turn-progress-bar');
-    if (!bar) return;
-
-    bar.style.transition = 'none'; // Desactivar la transición CSS para restablecer el ancho inmediatamente
-    bar.style.width = '100%';       // Llevar la barra al máximo
-
-    // Forzar un reflow en el motor de renderizado del navegador de Ubuntu (Chrome/Firefox V8)
-    void bar.offsetWidth;
-
-    bar.style.transition = 'width 1000s linear'; // Simulación visual continua (se ajusta dinámicamente con cada tick)
-    bar.style.width = '0%';
   }
 
   /**
-   * Revisa el estado de la simulación en busca de eventos críticos (como crisis activas)
-   * e inyecta alertas legibles y dinámicas en el feed de noticias lateral.
+   * Handler interno para click en tarjeta de objetivo
    */
-  _triggerGeopoliticalFeed() {
-    const feedContainer = document.getElementById('geopolitical-feed');
-    if (!feedContainer) return;
+  _onObjectiveCardClick(e) {
+    const card = e.currentTarget;
+    const id = card.dataset.id;
+    console.log(`[StrategyCabinet] Tarjeta clickeada: ${id}`);
+    this._onObjectiveSelected(id);
+  }
 
-    // Extraer si hay crisis activa en este tick
-    if (this.localState.crisis && this.localState.crisis.active) {
-      const currentPhase = this.localState.crisis.phase || 0;
-      const crisisType = this.localState.crisis.type || 'Inestabilidad Internacional';
+  /**
+   * Maneja la lógica cuando se selecciona un objetivo activo de la lista.
+   */
+  _onObjectiveSelected(objectiveId) {
+    console.log(`[StrategyCabinet] Preparando gestión para objetivo: ${objectiveId}`);
+    this.selectedObjectiveId = objectiveId;
 
-      const message = `🚨 ALERTA GLOBAL (Tick ${this.localState.tick}): Crisis de tipo [${crisisType}] escalada a Fase ${currentPhase}.`;
-      this._injectNewsItem(feedContainer, message);
+    // Visualmente marcar como seleccionado
+    this.objectivesList.querySelectorAll('.objective-card').forEach(c => c.style.border = '1px solid #444');
+    const selectedCard = this.objectivesList.querySelector(`.objective-card[data-id="${objectiveId}"]`);
+    if (selectedCard) selectedCard.style.border = '1px solid #4caf50';
+
+    // CORRECCIÓN: Usar this.strategiesContainer (nombre correcto)
+    if (this.strategiesContainer) {
+      this.strategiesContainer.classList.remove('hidden');
+      this.strategiesContainer.style.display = 'block';
+
+      // Actualizar el selector dropdown
+      if (this.objectiveSelector) {
+        this.objectiveSelector.value = objectiveId;
+        // Disparar cambio manualmente para cargar estrategias
+        this.objectiveSelector.dispatchEvent(new Event('change'));
+      }
     }
   }
 
   /**
-   * Añade un nodo de texto animado al inicio de la lista del feed HTML.
+   * Abre el modal de selección de objetivos disponibles.
    */
-  _injectNewsItem(container, text) {
-    const entry = document.createElement('div');
-    entry.className = 'feed-entry alert-flash'; // 'alert-flash' se encarga del parpadeo CSS
-    entry.style.padding = '8px';
-    entry.style.borderBottom = '1px solid #333';
-    entry.style.color = '#ff3333';
-    entry.style.fontFamily = 'monospace';
-    entry.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+  _openObjectiveSelector() {
+    const activeIds = new Set(this.activePlayerObjectives.map(o => o.configId || o.id));
+    const available = this.availableObjectives.filter(o => !activeIds.has(o.id));
 
-    container.insertBefore(entry, container.firstChild);
+    if (available.length === 0) {
+      this._notify('No hay más objetivos disponibles para asignar.', 'warning');
+      return;
+    }
 
-    // Mantener el buffer del DOM limpio (máximo 5 elementos históricos visibles)
-    while (container.children.length > 5) {
-      container.removeChild(container.lastChild);
+    if (!this.selectorModal || !this.selectorCatalog) {
+      this._notify('Selector de objetivos no disponible en la interfaz.', 'error');
+      return;
+    }
+
+    this._renderObjectiveCatalog(available);
+    this.selectorModal.classList.remove('hidden');
+    this.selectorModal.style.display = 'flex';
+  }
+
+  _closeObjectiveSelector() {
+    if (!this.selectorModal) return;
+    this.selectorModal.classList.add('hidden');
+    this.selectorModal.style.display = 'none';
+  }
+
+  _renderObjectiveCatalog(objectives) {
+    if (!this.selectorCatalog) return;
+
+    const filtered = this.selectorScope === 'all'
+      ? objectives
+      : objectives.filter((obj) => (obj.scope || obj.category) === this.selectorScope);
+
+    if (filtered.length === 0) {
+      this.selectorCatalog.innerHTML = '<div style="padding:16px;color:#888;">No hay objetivos en este ámbito.</div>';
+      return;
+    }
+
+    this.selectorCatalog.innerHTML = filtered.map((obj) => `
+      <button type="button" class="objective-card" data-objective-id="${obj.id}" style="text-align:left;">
+        <div class="card-header" style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <h4 style="margin:0;color:#fff;">${obj.name}</h4>
+          <span class="badge" style="background:#555;padding:2px 6px;font-size:0.8em;">${obj.difficulty || 'Normal'}</span>
+        </div>
+        <p style="font-size:0.85em;color:#aaa;margin:0;">${obj.description || 'Sin descripción.'}</p>
+      </button>
+    `).join('');
+
+    this.selectorCatalog.querySelectorAll('[data-objective-id]').forEach((card) => {
+      card.addEventListener('click', () => {
+        const objectiveId = card.dataset.objectiveId;
+        this._assignObjective(objectiveId);
+      });
+    });
+  }
+
+  _assignObjective(objectiveId) {
+    const config = this.availableObjectives.find((o) => o.id === objectiveId);
+    if (!config) return;
+
+    this._sendIntent('player_set_objective', { objectiveId });
+    this._closeObjectiveSelector();
+    this._notify(`Solicitando objetivo: ${config.name}`, 'info');
+  }
+
+  _handleCloseSelector() {
+    this._closeObjectiveSelector();
+  }
+
+  _handleScopeTabClick(event) {
+    const btn = event.currentTarget;
+    const scope = btn.dataset.scope || 'all';
+    this.selectorScope = scope;
+
+    document.querySelectorAll('#objective-selector-modal .scope-tabs .tab-btn').forEach((tab) => {
+      tab.classList.toggle('active', tab === btn);
+    });
+
+    const activeIds = new Set(this.activePlayerObjectives.map(o => o.configId || o.id));
+    const available = this.availableObjectives.filter(o => !activeIds.has(o.id));
+    this._renderObjectiveCatalog(available);
+  }
+
+  _updateObjectiveSelector() {
+    if (!this.objectiveSelector) return;
+
+    const currentVal = this.objectiveSelector.value;
+    let options = '<option value="" disabled selected>Seleccione un objetivo activo...</option>';
+
+    this.activePlayerObjectives.forEach(obj => {
+      const config = this.availableObjectives.find(o => o.id === obj.configId || o.id === obj.id) || obj;
+      const isSelected = (obj.id === currentVal || obj.configId === currentVal) ? 'selected' : '';
+      options += `<option value="${config.id}" ${isSelected}>${config.name}</option>`;
+    });
+
+    this.objectiveSelector.innerHTML = options;
+
+    if (currentVal && this.activePlayerObjectives.some(o => o.id === currentVal || o.configId === currentVal)) {
+      this._renderStrategiesFor(currentVal);
+    } else {
+      if (this.strategiesContainer) this.strategiesContainer.classList.add('hidden');
     }
   }
 
-  disconnect() {
-    if (this.reconnectTimeoutId) clearTimeout(this.reconnectTimeoutId);
-    this.isReconnecting = false;
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+  _renderStrategiesFor(objectiveId) {
+    if (!this.strategiesContainer || !this.availableStrategiesList) return;
+
+    this.strategiesContainer.classList.remove('hidden');
+
+    // Simulación de estrategias disponibles
+    const relevantStrategies = this.stratConfig || [];
+
+    if (relevantStrategies.length === 0) {
+      this.availableStrategiesList.innerHTML = '<div style="padding:10px; color:#888;">Cargando estrategias o ninguna disponible para este objetivo.</div>';
+      return;
     }
-    this.isConnected = false;
-    console.log('[SyncClient] Desconectado manualmente.');
+
+    this.availableStrategiesList.innerHTML = relevantStrategies.map(strat => `
+      <div class="strategy-card" style="background:#2a2a2a; padding:10px; margin-bottom:5px; border:1px solid #444;">
+        <h4>${strat.name || strat.id}</h4>
+        <p style="font-size:0.85em; color:#aaa;">${strat.description || 'Estrategia táctica'}</p>
+        <div style="margin-top:5px; font-size:0.8em; color:#ff9800;">Costo: ${strat.cost || 'Medio'} | Riesgo: ${strat.risk || 'Bajo'}</div>
+        <button class="btn-sm" style="margin-top:5px;" onclick="console.log('Activar ${strat.id}')">Activar</button>
+      </div>
+    `).join('');
+  }
+
+  _updateAIAdvice(nation, state) {
+    if (!this.adviceContainer) return;
+    const stability = nation.stability || 50;
+    const msg = stability < 40
+      ? "⚠️ ALERTA: Estabilidad crítica. Priorice bienestar social."
+      : "La situación es estable. Considere expandir influencia económica.";
+
+    this.adviceContainer.innerHTML = `<p>${msg}</p><small>Tick: ${state.meta?.tick || 0}</small>`;
+  }
+
+  _flattenObjectives(categories) {
+    let all = [];
+    for (const cat of Object.values(categories)) {
+      if (cat.objectives) {
+        all = [...all, ...cat.objectives.map(o => ({ ...o, category: cat.id }))];
+      }
+    }
+    return all;
+  }
+
+  // --- Handlers ---
+
+  _handleSelectObjectiveBtn() {
+    console.log('[StrategyCabinet] Click en "Asignar Nuevo Objetivo" (Handler Principal)');
+    this._openObjectiveSelector();
+  }
+
+  _handleObjectiveSelectorChange(e) {
+    const objId = e.target.value;
+    if (objId) {
+      this._renderStrategiesFor(objId);
+    }
+  }
+
+  _handleActivateStrategy() {
+    console.log('[StrategyCabinet] Activar estrategia clicked');
+    alert("Funcionalidad de activación específica pendiente de conectar con backend.");
+  }
+
+  _handleClose() {
+    this.close();
+  }
+
+  _sendIntent(type, payload) {
+    console.log(`[StrategyCabinet] Enviando intención: ${type}`, payload);
+
+    if (window.app?.syncClient?.sendIntent) {
+      window.app.syncClient.sendIntent(type, payload);
+      return;
+    }
+
+    if (typeof window.sendGameIntent === 'function') {
+      window.sendGameIntent(type, payload);
+      return;
+    }
+
+    if (typeof window.sendIntent === 'function') {
+      window.sendIntent(type, payload);
+      return;
+    }
+
+    console.error('[StrategyCabinet] ERROR: No hay canal disponible para enviar intenciones.');
+    this._notify('No se pudo enviar la orden al servidor.', 'error');
+  }
+
+  _notify(message, type = 'info') {
+    if (typeof window.showNotification === 'function') {
+      window.showNotification(message, type);
+    } else {
+      alert(message);
+    }
   }
 }
-
-export default SyncClient;

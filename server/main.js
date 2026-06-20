@@ -22,6 +22,7 @@ import { init as initIntelGenerator } from '../modules/IntelGenerator.js';
 import { init as initDiplomacyEngine } from '../modules/diplomacy/core/DiplomacyEngine.js';
 import { init as initDiplomacyAI } from '../modules/diplomacy/ai/DiplomacyAI.js';
 import { processIntent } from '../modules/IntentProcessor.js';
+import { init as initIntentProcessor } from '../modules/IntentProcessor.js';
 import * as ObjectiveManager from '../modules/ObjectiveManager.js';
 import objectivesConfig from '../config/objectives.json' with { type: 'json' };
 import strategiesConfig from '../config/strategies.json' with { type: 'json' };
@@ -101,12 +102,12 @@ async function registerModules() {
         }
     }
 
-    try {
-        await IntentProcessor.init();
-        console.log('[main] ✅ Módulo \'IntentProcessor\' inicializado correctamente.');
-    } catch (error) {
-        console.error('[main] ❌ ERROR crítico inicializando IntentProcessor:', error.message);
-    }
+    // try {
+    //     await IntentProcessor.init();
+    //     console.log('[main] ✅ Módulo \'IntentProcessor\' inicializado correctamente.');
+    // } catch (error) {
+    //     console.error('[main] ❌ ERROR crítico inicializando IntentProcessor:', error.message);
+    // }
 }
 
 // ============================================
@@ -208,6 +209,15 @@ async function main() {
         } catch (error) {
             console.error('[main] ❌ ERROR crítico inicializando ObjectiveManager:', error);
             // No detenemos el servidor, pero el sistema de objetivos no funcionará
+        }
+
+        try {
+            console.log('[main] Inicializando IntentProcessor...');
+            initIntentProcessor(); // Llama a la función que registra los handlers
+            console.log('[main] ✅ IntentProcessor inicializado correctamente.');
+        } catch (error) {
+            console.error('[main] ❌ ERROR crítico inicializando IntentProcessor:', error);
+            // No detenemos el servidor, pero las acciones del jugador fallarán
         }
 
         // Inicializar subsistemas de diplomacia explícitamente

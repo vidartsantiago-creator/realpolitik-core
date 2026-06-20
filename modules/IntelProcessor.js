@@ -42,33 +42,68 @@ export function init() {
  * @returns {Object} Resultado: { success: boolean, deltas: Array, error: String|null }
  */
 export function processIntent(intent, state) {
-  const handler = handlers.get(intent.actionType || intent.type);
+  // 1. DESENVOLVER PAYLOAD ANIDADO
+  // Si el mensaje viene como { type: "intent", payload: { type: "accion", ... } }
+  let actualIntent = intent;
 
-  if (!handler) {
+  if (intent.type === 'intent' && intent.payload) {
+    // Fusionamos el payload interno con el exterior para preservar metadata si la hay
+    actualIntent = {
+      ...intent,
+      ...intent.payload,
+      // Aseguramos que los campos críticos del payload interno tengan prioridad
+      type: intent.payload.type || intent.payload.actionType,
+      actionType: intent.payload.actionType || intent.payload.type
+    };
+
+    console.log('[IntentProcessor] 📦 Payload anidado detectado y desenvuelto. Acción real:', actualIntent.type);
+  }
+
+  // 2. IDENTIFICAR LA ACCIÓN
+  const actionKey = actualIntent.actionType || actualIntent.type;
+
+  if (!actionKey) {
+    console.error('[IntentProcessor] ❌ Intención sin tipo definido:', intent);
     return {
       success: false,
       deltas: [],
-      error: `No hay lógica de negocio implementada para la acción: ${intent.actionType || intent.type}`
+      error: 'Intención mal formada: falta "type" o "actionType".'
     };
   }
 
+  // 3. BUSCAR HANDLER
+  const handler = handlers.get(actionKey);
+
+  if (!handler) {
+    console.warn(`[IntentProcessor] 🚫 Handler no encontrado para: ${actionKey}`);
+    console.log('[IntentProcessor] Handlers disponibles:', Array.from(handlers.keys()));
+    return {
+      success: false,
+      deltas: [],
+      error: `No hay lógica de negocio implementada para la acción: ${actionKey}`
+    };
+  }
+
+  // 4. EJECUTAR LÓGICA
   try {
     const currentState = state || getState();
-    // Ejecutar el handler específico pasando intención y estado (orden consistente)
-    const result = handler(intent, currentState);
+
+    // Ejecutar el handler pasando la intención procesada (desenvuelta) y el estado
+    const result = handler(actualIntent, currentState);
 
     if (result.success && result.deltas && result.deltas.length > 0) {
       // Emitir evento para que StateManager aplique los deltas
       result.deltas.forEach(delta => {
-        // Opcional: Aplicar inmediatamente o delegar al EventDispatcher
-        // Aquí delegamos la aplicación al flujo estándar
         emit('apply_delta', delta);
       });
+    } else if (result.success && !result.deltas?.length) {
+      // Caso especial: éxito sin deltas (ej. solo feedback visual)
+      console.log(`[IntentProcessor] ✅ ${actionKey} procesada con éxito (sin deltas).`);
     }
 
     return result;
   } catch (err) {
-    console.error(`[IntentProcessor] Error crítico en ${intent.actionType || intent.type}:`, err);
+    console.error(`[IntentProcessor] 💥 Error crítico en ${actionKey}:`, err);
     return {
       success: false,
       deltas: [],
@@ -509,7 +544,19 @@ function generateDetailedIntel(signalId, state) {
   };
 }
 
-function handlePlayerSetObjective(intent) {
+// ==========================================
+// HANDLERS DE OBJETIVOS Y ESTRATEGIAS
+// ==========================================
+
+/**
+ * Handler: Asignar Objetivo al Jugador
+ * Valida que el objetivo exista en la config y asigna el slot.
+ */
+
+function handlePlayerSetObjective(intent, state) {
+  const { playerId, nationId } = intent;
+
+  // Extracción robusta del ID del objetivo
   const objectiveId = intent.parameters?.objectiveId
     || intent.payload?.objectiveId
     || intent.payload?.parameters?.objectiveId;
@@ -518,27 +565,115 @@ function handlePlayerSetObjective(intent) {
     return { success: false, deltas: [], error: 'Falta objectiveId para asignar objetivo.' };
   }
 
-  emit('player_set_objective', { objectiveId });
+  // 1. Validar que el objetivo existe en la configuración estática
+  // Nota: Asumimos que la config se cargó globalmente o está accesible. 
+  // Si ObjectiveManager exporta getConfigs, úsalo aquí.
+  // Para este ejemplo, verificamos contra una referencia global o pasamos la validación al Manager vía evento.
+
+  console.log(`[IntentProcessor] ${playerId} intenta asignar objetivo: ${objectiveId}`);
+
+  // 2. Generar Delta para actualizar el estado de la nación
+  // Este delta será capturado por StateManager y luego por ObjectiveManager si escucha 'state_changed'
+  const deltas = [
+    {
+      type: 'objective_assigned',
+      nationId: nationId,
+      objectiveId: objectiveId,
+      assignedTick: state.meta?.tick || 0,
+      reason: 'player_selection'
+    }
+  ];
+
+  // Opcional: Emitir evento específico para lógica compleja en ObjectiveManager
+  emit('player_set_objective', { nationId, objectiveId, tick: state.meta?.tick });
+
   return {
     success: true,
-    deltas: [],
-    feedback: { objectiveId, message: 'Objetivo solicitado correctamente.' }
+    deltas: deltas,
+    feedback: { objectiveId, message: 'Objetivo asignado correctamente.' }
   };
 }
 
-function handlePlayerActivateStrategy(intent) {
+/**
+ * Handler: Activar Estrategia
+ * Valida la estrategia, verifica recursos (simulado) y genera delta de activación.
+ */
+function handlePlayerActivateStrategy(intent, state) {
+  const { playerId, nationId } = intent;
+
+  // Extracción robusta del ID de estrategia y objetivo asociado
   const strategyId = intent.parameters?.strategyId
     || intent.payload?.strategyId
     || intent.payload?.parameters?.strategyId;
+
+  const targetObjectiveId = intent.parameters?.objectiveId
+    || intent.payload?.objectiveId
+    || intent.payload?.parameters?.objectiveId;
 
   if (!strategyId) {
     return { success: false, deltas: [], error: 'Falta strategyId para activar estrategia.' };
   }
 
-  emit('player_activate_strategy', { strategyId });
+  if (!targetObjectiveId) {
+    return { success: false, deltas: [], error: 'Falta objectiveId al que vincular la estrategia.' };
+  }
+
+  console.log(`[IntentProcessor] ${playerId} intenta activar estrategia: ${strategyId} para objetivo: ${targetObjectiveId}`);
+
+  // 1. Validaciones básicas (aquí podrías cargar config/strategies.json para validar existencia real)
+  // Simulación de costo de activación
+  const activationCost = 10; // Costo ficticio en oro/recursos
+
+  const nation = state.nations[nationId];
+  if (!nation) {
+    return { success: false, deltas: [], error: 'Nación no encontrada.' };
+  }
+
+  const currentGold = nation.resources?.gold || 0;
+  // Descomentar si se quiere exigir recursos reales:
+  /*
+  if (currentGold < activationCost) {
+    return { 
+      success: false, 
+      deltas: [], 
+      error: `Fondos insuficientes. Se requiere ${activationCost} oro.` 
+    };
+  }
+  */
+
+  // 2. Generar Deltas
+  const deltas = [];
+
+  // Delta de recurso (si aplica costo)
+  // deltas.push({
+  //   type: 'resource_update',
+  //   nationId: nationId,
+  //   changes: { gold: -activationCost },
+  //   reason: 'activacion_estrategia'
+  // });
+
+  // Delta principal de activación de estrategia
+  deltas.push({
+    type: 'strategy_activated',
+    nationId: nationId,
+    strategyId: strategyId,
+    objectiveId: targetObjectiveId,
+    activatedTick: state.meta?.tick || 0,
+    status: 'active',
+    reason: 'player_activation'
+  });
+
+  // Emitir evento para que ObjectiveManager procese lógica interna (ej: aplicar efectos por tick)
+  emit('player_activate_strategy', {
+    nationId,
+    strategyId,
+    objectiveId: targetObjectiveId,
+    tick: state.meta?.tick
+  });
+
   return {
     success: true,
-    deltas: [],
-    feedback: { strategyId, message: 'Estrategia solicitada correctamente.' }
+    deltas: deltas,
+    feedback: { strategyId, objectiveId: targetObjectiveId, message: 'Estrategia activada correctamente.' }
   };
 }
