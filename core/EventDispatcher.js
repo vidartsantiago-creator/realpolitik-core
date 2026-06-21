@@ -92,7 +92,7 @@ export function emit(event, payload) {
   const errors = [];
 
   if (!eventRegistry.has(event)) {
-    return { success: true, errors }; // No hay listeners, pero no es error
+    return { success: true, errors };
   }
 
   const handlers = eventRegistry.get(event);
@@ -101,9 +101,14 @@ export function emit(event, payload) {
     try {
       handler(payload);
     } catch (error) {
-      const errorMsg = `[EventDispatcher] Error en handler '${event}' (priority:${priority}): ${error.message}`;
-      console.error(errorMsg);
-      errors.push(errorMsg);
+      // MEJORA: Imprimir el stack trace completo para ver el archivo y línea exacta
+      console.error(`[EventDispatcher] ERROR CRÍTICO en '${event}' (priority:${priority}): ${error.message}`);
+      console.error(error.stack);
+
+      errors.push({
+        message: error.message,
+        stack: error.stack
+      });
     }
   }
 

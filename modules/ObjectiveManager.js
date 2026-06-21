@@ -24,7 +24,13 @@ import { rng, rngInt } from '../core/Rng.js';
 import objectivesConfig from '../config/objectives.json' with { type: 'json' };
 import strategiesConfig from '../config/strategies.json' with { type: 'json' };
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import path from 'path';
+
+let clientConfigCache = null;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // --- Estado Interno del Módulo ---
 let _state = {
@@ -76,6 +82,8 @@ export function init(config) {
   on('player_activate_strategy', handlePlayerActivateStrategy);
   on('game_load', resetModuleState); // Limpieza al cargar partida
 
+  clientConfigCache = config; // Guardar en memoria
+  console.log('[ObjectiveManager] Configuración cargada en memoria para el cliente.');
   _state.initialized = true;
   console.log('[ObjectiveManager] Inicializado correctamente.');
 }
@@ -661,14 +669,39 @@ function checkPrerequisites(configItem, state, nationId) {
 }
 
 function calculateProgressPercentage(configObj, state, nationId) {
+  // 1. Obtener la nación
+  const nation = state.nations ? state.nations[nationId] : null;
 
-  const flatMetrics = {
-    ...nation.metrics, // Asumiendo que están aquí
-    ...nation.state,   // O aquí
-    stability: nation.stability,
-    budget: nation.budget
-    // ... cualquier otra propiedad global que usen las condiciones
+  if (!nation) {
+    console.warn(`[ObjectiveManager] Nación '${nationId}' no encontrada.`);
+    return 0;
+  }
+
+  // 2. Construir un contexto PLANO para el eval()
+  // Las condiciones esperan cosas como "resources.energy >= 150" o "stability > 50".
+  // El eval() necesita que 'resources' sea un objeto accesible directamente en el scope.
+
+  const evaluationContext = {
+    // Propiedades directas de la nación
+    stability: nation.stability || 0,
+    economy: nation.economy || 0,
+    influence: nation.influence || 0,
+    budget: nation.budget || 0,
+
+    // Objetos anidados (CRÍTICO: Deben existir como objetos en el contexto)
+    resources: nation.resources || { gold: 0, food: 0, energy: 0 },
+    diplomacy: nation.diplomacy || { trade_agreements: 0, trade_partners: 0 },
+    stats: nation.stats || {},
+    metrics: nation.metrics || {},
+    state: nation.state || {}
   };
+
+  // Opcional: Si tus condiciones usan variables sueltas como "gold" en vez de "resources.gold",
+  // descomenta esto para exponerlas también:
+  // if (evaluationContext.resources) {
+  //   evaluationContext.gold = evaluationContext.resources.gold;
+  //   evaluationContext.energy = evaluationContext.resources.energy;
+  // }
 
   if (!configObj.milestones || configObj.milestones.length === 0) return 0;
 
@@ -677,12 +710,28 @@ function calculateProgressPercentage(configObj, state, nationId) {
 
   configObj.milestones.forEach(ms => {
     totalConditions++;
-    if (evaluateCondition(conditionString, flatMetrics)) {
+
+    // Asegurar que tenemos la cadena de condición
+    const conditionString = ms.condition || ms.targetCondition || "";
+
+    if (!conditionString) {
+      // Si no hay condición, asumimos que se cumple o se salta
       metConditions++;
+      return;
+    }
+
+    try {
+      // Pasar el contexto completo a evaluateCondition
+      if (evaluateCondition(conditionString, evaluationContext)) {
+        metConditions++;
+      }
+    } catch (err) {
+      console.error(`Error evaluando condición "${conditionString}":`, err.message);
+      // No sumar al contador si falla, o tratarlo como no cumplido
     }
   });
 
-  return Math.floor((metConditions / totalConditions) * 100);
+  return totalConditions === 0 ? 0 : Math.floor((metConditions / totalConditions) * 100);
 }
 
 /**
@@ -691,29 +740,69 @@ function calculateProgressPercentage(configObj, state, nationId) {
  * @param {Object} nationState - El objeto de estado/métricas de la nación.
  */
 function evaluateCondition(conditionStr, nationState) {
-  if (!conditionStr) return true;
+  if (!conditionStr || conditionStr.trim() === '') return true;
 
   try {
-    // 1. Extraer todas las claves del estado de la nación para usarlas como variables locales
-    // Esto crea un objeto { nuclear_program_progress: 0.2, stability: 50, ... }
-    const contextVars = nationState.metrics || nationState.state || nationState;
+    // 1. Función auxiliar para aplanar objetos anidados
+    // Convierte { stats: { tech: 5 } } en { tech: 5 } además de mantener { stats: { tech: 5 } }
+    const flatten = (obj, prefix = '') => {
+      let result = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          const val = obj[key];
+          const newKey = prefix ? `${prefix}.${key}` : key;
 
-    // 2. Crear una función dinámica que reciba estas variables como argumentos
-    // Obtenemos las claves (nombres de variables) y los valores
-    const keys = Object.keys(contextVars);
-    const values = Object.values(contextVars);
+          // Guardamos la referencia al objeto completo (ej: 'resources')
+          result[key] = val;
 
-    // 3. Ejecutar la condición dentro de una función con el contexto adecuado
-    // Creamos una función: function(nuclear_program_progress, stability, ...) { return ...condición... }
+          // Si es un objeto puro (no array, no null), lo aplanamos recursivamente
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const flattenedNested = flatten(val, key);
+            // Fusionamos las propiedades internas (ej: 'energy' de 'resources.energy')
+            // Pero cuidado de no sobrescribir la clave padre si coincide. 
+            // Aquí hacemos una fusión simple: las hojas suben.
+            for (const nestedKey in flattenedNested) {
+              if (!result.hasOwnProperty(nestedKey)) {
+                result[nestedKey] = flattenedNested[nestedKey];
+              }
+            }
+          }
+        }
+      }
+      return result;
+    };
+
+    // 2. Construir el contexto completo
+    const baseState = nationState.metrics || nationState.state || nationState;
+    const flatContext = flatten(baseState);
+
+    // Asegurar explícitamente objetos clave por si la condición usa "obj.prop"
+    if (!flatContext.resources) flatContext.resources = baseState.resources || {};
+    if (!flatContext.diplomacy) flatContext.diplomacy = baseState.diplomacy || {};
+    if (!flatContext.stats) flatContext.stats = baseState.stats || {};
+    if (!flatContext.military) flatContext.military = baseState.military || {};
+
+    // 3. Extraer claves y valores
+    const keys = Object.keys(flatContext);
+    const values = Object.values(flatContext);
+
+    // 4. Crear la función evaluadora
+    // new Function('a', 'b', 'return a + b')
     const evaluator = new Function(...keys, `return ${conditionStr};`);
 
     return evaluator(...values);
 
   } catch (e) {
-    // Solo mostrar error si es un error de sintaxis real, no por variables faltantes (que deberían ser false)
-    // Pero para debug, mostramos el error completo como tenías antes
-    console.error(`Error evaluando condición "${conditionStr}":`, e);
-    return false; // Si falla, asumimos que la condición no se cumple
+    // Si es ReferenceError, significa que la condición pide una variable que no existe en el estado.
+    // En lógica de juegos, "variable no existente" suele equivaler a "condición no cumplida" (false).
+    if (e instanceof ReferenceError) {
+      // Opcional: loguear solo en modo debug para no spamear la consola
+      // console.warn(`Condición no cumplida (variable faltante): ${conditionStr}`);
+      return false;
+    }
+
+    console.error(`Error de sintaxis en condición "${conditionStr}":`, e);
+    return false;
   }
 }
 
@@ -728,29 +817,42 @@ function pickAICategory(personalitySeed) {
  * Devuelve el estado completo para el cliente (UI).
  * Incluye configuraciones estáticas para que el frontend pueda renderizar nombres/descripciones.
  */
+let _staticConfigCache = null;
+
 export function getClientState() {
-  if (!_state.objectivesConfig || !_state.strategiesConfig) {
+  // 1. Cargar configuración estática solo una vez (Lazy Loading)
+  if (!_staticConfigCache) {
     try {
-      _state.objectivesConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../config/objectives.json'), 'utf8'));
-      _state.strategiesConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../config/strategies.json'), 'utf8'));
+      const objectivesPath = path.join(__dirname, '../config/objectives.json');
+      const strategiesPath = path.join(__dirname, '../config/strategies.json');
+
+      const objectivesData = JSON.parse(fs.readFileSync(objectivesPath, 'utf8'));
+      const strategiesData = JSON.parse(fs.readFileSync(strategiesPath, 'utf8'));
+
+      _staticConfigCache = {
+        categories: objectivesData.categories || {},
+        strategies: strategiesData.strategies || [],
+        global_settings: {
+          ...(objectivesData.global_settings || {}),
+          ...(strategiesData.global_settings || {})
+        }
+      };
+      console.log('[ObjectiveManager] Configuración estática cargada en caché.');
     } catch (e) {
-      console.error('[ObjectiveManager] Error cargando configs para cliente:', e);
+      console.error('[ObjectiveManager] Error crítico cargando configs estáticas:', e.message);
+      // Retornar estructura vacía segura si falla la lectura
+      _staticConfigCache = { categories: {}, strategies: [], global_settings: {} };
     }
   }
 
-  const categories = _state.config?.categories
-    || _state.objectivesConfig?.categories
-    || {};
-  const strategies = _state.config?.strategies
-    || _state.strategiesConfig?.strategies
-    || [];
-
+  // 2. Construir el estado dinámico actual
   return {
-    // 1. Configuración Estática (Definiciones desde JSONs)
-    categories,
-    strategies,
+    // Configuración Estática (Desde caché)
+    categories: _staticConfigCache.categories,
+    strategies: _staticConfigCache.strategies,
+    global_settings: _staticConfigCache.global_settings,
 
-    // 2. Estado Dinámico (Estado actual del juego)
+    // Estado Dinámico (En tiempo real desde _state)
     playerObjectives: Array.from(_state.playerObjectives.entries()),
     nationObjectives: Array.from(_state.nationObjectives.entries()),
     activeStrategies: Array.from(_state.activeStrategies.entries()),

@@ -1140,12 +1140,13 @@
     </div>
 
     <!-- Script Principal Corregido -->
-    <script type="module">
+    <script type="module" src="./client/main.js">
         // Importación correcta de módulos
         import { SyncClient } from './client/SyncClient.js';
         import { MapRenderer } from './client/MapRenderer.js';
         import { CountryActionPanel } from './client/components/CountryActionPanel.js';
         import { initUI } from './client/UI.js';
+        import { StrategyCabinet } from './components/StrategyCabinet.js';
         // Si existe NetworkOverlay, descomentar la siguiente línea
         // import { NetworkOverlay } from './client/NetworkOverlay.js';
 
@@ -1319,6 +1320,54 @@
             }
         };
 
+        // ============================================
+        // INICIALIZACIÓN
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+        console.log('[Client] Iniciando aplicación...');
+        
+        // Inicializar UI básica
+        if (typeof initUI === 'function') {
+            initUI();
+        }
+
+        // Inicializar SyncClient
+        const syncClient = new SyncClient();
+        window.client = syncClient; // Exponer globalmente como 'client' o 'app.syncClient'
+        
+        if (!window.app) window.app = {};
+        window.app.syncClient = syncClient;
+
+        // Inicializar MapRenderer
+        const mapRenderer = new MapRenderer(document.getElementById('game-map'));
+        window.mapRenderer = mapRenderer;
+        syncClient.setMapRenderer(mapRenderer);
+
+        // Inicializar StrategyCabinet
+        const strategyCabinet = new StrategyCabinet();
+        strategyCabinet.init();
+        window.app.strategyCabinet = strategyCabinet;
+
+        // Conectar actualizaciones de estado a la UI del gabinete
+        syncClient.onStateUpdate = (state) => {
+            window.gameState = state;
+            strategyCabinet.update(state);
+            // El mapRenderer también se actualiza dentro de syncClient.notifyUpdate()
+        };
+
+        // Conectar eventos personalizados si existen
+        syncClient.onCustomEvent = (event) => {
+            console.log('[Client] Evento personalizado recibido:', event.type);
+            // Aquí podrías disparar actualizaciones específicas de UI si fuera necesario
+        };
+
+        // Iniciar conexión
+        syncClient.connect();
+
+        console.log('[Client] ✅ Aplicación iniciada correctamente.');
+    });
+
+
         /**
          * Actualiza el panel visual de estado diplomático debajo del Asesor IA
          * @param {Object} state - El estado completo del juego
@@ -1427,6 +1476,8 @@
 
             // Referencias base
             const canvas = document.getElementById('game-map');
+            canvas.width = 1024;
+            canvas.height = 768;
             if (!canvas) {
                 console.error("❌ CRÍTICO: No se encontró el elemento canvas #game-map");
                 return;
