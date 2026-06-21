@@ -116,7 +116,7 @@ export class MapRenderer {
         this.setupAnimationLoop();
         this.setupInteraction();
         this.resize();
-        
+
         // Cargar SVG
         this.loadSVGMap();
 
@@ -130,7 +130,7 @@ export class MapRenderer {
     setupAnimationLoop() {
         const render = () => {
             this.frameId = requestAnimationFrame(render);
-            
+
             if (!this.ctx || !this.canvas) {
                 return;
             }
@@ -175,7 +175,7 @@ export class MapRenderer {
             if (hoveredId && hoveredId !== selectedId) {
                 this.drawCountryHighlight(hoveredId, 'rgba(0, 212, 255, 0.3)');
             }
-            
+
             if (selectedId) {
                 this.drawCountryHighlight(selectedId, 'rgba(0, 212, 255, 0.6)');
                 this.drawCountryBorder(selectedId, '#00d4ff', 2);
@@ -183,7 +183,7 @@ export class MapRenderer {
 
             // Partículas
             this.updateAndDrawParticles();
-            
+
         } catch (error) {
             // Registrar error sin romper el loop de animación
             console.warn('[MapRenderer] Error en redraw (recuperado):', error);
@@ -193,8 +193,8 @@ export class MapRenderer {
 
     markDirty() {
         this.dirty = true;
-    }   
-    
+    }
+
     cleanup() {
         if (this.frameId) {
             cancelAnimationFrame(this.frameId);
@@ -231,7 +231,7 @@ export class MapRenderer {
                 color: color,
                 size: 2 + Math.random() * 3
             });
-        
+
             this.markDirty();
         }
     }
@@ -242,7 +242,7 @@ export class MapRenderer {
     updateAndDrawParticles() {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
-            
+
             p.x += p.vx;
             p.y += p.vy;
             p.life -= p.decay;
@@ -268,10 +268,10 @@ export class MapRenderer {
      */
     drawCountryPath(id, pathData) {
         this.ctx.save();
-        
+
         this.ctx.fillStyle = '#2a2a4e';
         this.ctx.strokeStyle = this.config.borderColor;
-        
+
         // 🔥 FIX: Aplicar lineWidth ANTES de scale para no distorsionar
         this.ctx.lineWidth = 1;
 
@@ -308,7 +308,7 @@ export class MapRenderer {
         this.ctx.save();
         this.ctx.globalAlpha = 0.6;
         this.ctx.fillStyle = colorFill;
-        
+
         if (pathData instanceof Path2D) {
             this.ctx.fill(pathData);
         } else if (typeof pathData === 'string') {
@@ -324,7 +324,7 @@ export class MapRenderer {
             this.ctx.closePath();
             this.ctx.fill();
         }
-        
+
         this.ctx.restore();
     }
 
@@ -337,11 +337,11 @@ export class MapRenderer {
 
         this.ctx.save();
         this.ctx.strokeStyle = colorStroke;
-        
+
         // 🔥 FIX: Aplicar lineWidth ANTES de cualquier transformación
         this.ctx.lineWidth = width;
         this.ctx.lineJoin = 'round';
-        
+
         if (pathData instanceof Path2D) {
             this.ctx.stroke(pathData);
         } else if (typeof pathData === 'string') {
@@ -421,7 +421,7 @@ export class MapRenderer {
                     this.svgViewBox.height = parseFloat(attrHeight);
                 }
                 */
-               //
+                //
             }
 
             // FIX: Usar namespace-aware matching para soportar ns0:path, ns0:polygon, etc.
@@ -438,7 +438,7 @@ export class MapRenderer {
                 if (!id) return;
 
                 let path2D = null;
-                
+
                 // FIX: Extraer nombre local sin namespace para comparación
                 const tagName = element.tagName.toLowerCase();
                 const localName = tagName.includes(':') ? tagName.split(':')[1] : tagName;
@@ -450,7 +450,7 @@ export class MapRenderer {
                         path2D = new Path2D(d);
                     }
                 }
-                
+
                 // Soporte para <polygon> con atributo 'points'
                 if (localName === 'polygon') {
                     const points = element.getAttribute('points');
@@ -467,15 +467,15 @@ export class MapRenderer {
                     this.countryPaths.set(id, path2D);
 
                     // Calcular bounds - FIX: usar localName en lugar de tagName
-                    const boundsData = localName === 'path' 
+                    const boundsData = localName === 'path'
                         ? element.getAttribute('d')
                         : this.polygonPointsToBounds(element.getAttribute('points'));
-                    
+
                     if (boundsData) {
                         const bounds = localName === 'path'
                             ? this.calculatePathBounds(boundsData)
                             : this.calculatePolygonBounds(boundsData);
-                        
+
                         if (bounds) {
                             this.countryBounds.set(id, bounds);
                         }
@@ -586,7 +586,7 @@ export class MapRenderer {
         // 1. Calcular escala uniforme para mantener aspecto (Fit-to-screen)
         const scaleX = this.canvas.width / this.svgViewBox.width;
         const scaleY = this.canvas.height / this.svgViewBox.height;
-        
+
         // Usamos la menor escala para que todo el mapa quepa en el canvas
         this.transform.scale = Math.min(scaleX, scaleY);
 
@@ -637,10 +637,10 @@ export class MapRenderer {
         if (!this.ctx || this.countryPaths.size === 0) return null;
 
         this.ctx.save();
-        
+
         let foundCountryId = null;
         const pathIds = Array.from(this.countryPaths.keys()).reverse();
-        
+
         for (const id of pathIds) {
             const path = this.countryPaths.get(id);
             if (this.ctx.isPointInPath(path, canvasX, canvasY)) {
@@ -669,19 +669,19 @@ export class MapRenderer {
      */
     handleMouseMove(e) {
         // --- INICIO LOGS DE DIAGNÓSTICO (Versión Segura) ---
-        
+
         // 1. Obtener coordenadas del ratón relativas al Canvas (Pantalla)
         const rect = this.canvas.getBoundingClientRect();
-        const x = e.offsetX; 
+        const x = e.offsetX;
         const y = e.offsetY;
 
         const countryId = this.findCountryAtPoint(x, y);
         // 2. Inversión de la transformación de la cámara
         // Fórmula: World = (Screen - Offset) / Scale + ViewBoxOrigin
-        
-        
 
- 
+
+
+
 
         // C. COMPENSAR EL ORIGEN DEL VIEWBOX (La pieza faltante)
         // Si el SVG original empieza en coordenadas negativas (ej: -169, -58),
@@ -697,7 +697,7 @@ export class MapRenderer {
 
         if (foundCountryId !== prevId) {
             const nation = this.state?.nations?.[foundCountryId];
-            
+
             this.hoveredCountry = foundCountryId ? {
                 id: foundCountryId,
                 name: nation?.name || foundCountryId,
@@ -711,7 +711,7 @@ export class MapRenderer {
         // 5. Actualizar Tooltip (Usa coordenadas de pantalla para seguir al ratón visualmente)
         if (this.hoveredCountry) {
             this.tooltip.visible = true;
-            this.tooltip.x = screenX + 15; 
+            this.tooltip.x = screenX + 15;
             this.tooltip.y = screenY - 10;
             this.tooltip.content = this.getTooltipContent(this.hoveredCountry);
         } else {
@@ -769,11 +769,16 @@ export class MapRenderer {
     resize() {
         if (!this.canvas) return;
         const parent = this.canvas.parentElement;
-        const displayWidth = parent.clientWidth;
-        const displayHeight = parent.clientHeight;
-        
-        this.canvas.width = parent.clientWidth;
-        this.canvas.height = parent.clientHeight;
+        const displayWidth = parent ? parent.clientWidth : 1024;
+        const displayHeight = parent ? parent.clientHeight : 768;
+
+        const minValidWidth = Math.max(displayWidth, 800);
+        const minValidHeight = Math.max(displayHeight, 600);
+
+        this.canvas.width = minValidWidth;
+        this.canvas.height = minValidHeight;
+
+        console.log(`[MapRenderer] Canvas redimensionado: ${minValidWidth}x${minValidHeight}`);
 
         this.calculateTransform();
         this.dirty = true;
@@ -796,11 +801,24 @@ export class MapRenderer {
         this.state = state;
         this.playerNationId = playerNationId;
 
+        this.gameState = state
+
         if (!this.mapLoaded || !this.countryPaths.size) {
             return;
         }
 
         this.dirty = true;
+    }
+
+    /**
+     * Método de compatibilidad para SyncClient (legacy)
+     * @deprecated - Ahora la geometría se carga automáticamente con loadSVGMap()
+     */
+    loadGeometry(nations) {
+        // No-op: La geometría ya está cargada desde el SVG
+        // Este método existe solo para compatibilidad con código legacy
+        console.log('[MapRenderer] loadGeometry llamado (no-op, geometría ya cargada desde SVG)');
+        return true;
     }
 
     /**
@@ -952,11 +970,11 @@ export class MapRenderer {
             }
 
             this.ctx.save();
-            
+
             // 🔥 FIX: Aplicar lineWidth ANTES de las transformaciones
             this.ctx.lineWidth = lineWidth;
             this.ctx.strokeStyle = strokeColor;
-            
+
             this.ctx.translate(this.transform.offsetX, this.transform.offsetY);
             this.ctx.scale(this.transform.scale, this.transform.scale);
 
@@ -986,7 +1004,7 @@ export class MapRenderer {
      */
     renderCountryEffects() {
         if (!this.ctx || !this.state) return;
-        
+
         const currentTime = Date.now();
 
         if (this.state.crisis && this.state.crisis.active && this.state.crisis.affected_nations) {
@@ -999,7 +1017,7 @@ export class MapRenderer {
                         bounds.maxX - bounds.minX,
                         bounds.maxY - bounds.minY
                     ) / 2;
-                    
+
                     const pulse = Math.sin(currentTime * 0.005) * 0.4 + 0.6;
                     this.drawGlowEffectCircle(
                         centerX,

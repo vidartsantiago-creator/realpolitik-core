@@ -120,7 +120,7 @@
             max-height: 200px;
             overflow-y: auto;
         }
-        
+
 
         .panel-header {
             font-weight: bold;
@@ -144,11 +144,11 @@
 
         .status-row .flag { font-weight: bold; width: 40px; }
         .status-row .name { flex-grow: 1; text-align: left; padding-left: 8px; color: #a0a0a0; }
-        .status-row .badge { 
-            font-size: 9px; 
-            padding: 2px 6px; 
-            border-radius: 2px; 
-            font-weight: bold; 
+        .status-row .badge {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-weight: bold;
             text-transform: uppercase;
         }
 
@@ -397,6 +397,15 @@
             position: relative;
             background: var(--bg-primary);
             overflow: hidden;
+            width: 100%;
+            height: 100%;
+            min-height: 600px;
+        }
+
+        #game-map {
+            display: block;
+            width: 100%;
+            height: 100%;
         }
 
         canvas {
@@ -816,9 +825,9 @@
             background: rgba(0, 170, 255, 0.2);
             color: var(--accent-secondary);
         }
-         
-    /*   ========================================================================== 
-         PARCHE SPRINT 1: ESTILOS PARA FEEDBACK VISUAL INMEDIATO 
+
+    /*   ==========================================================================
+         PARCHE SPRINT 1: ESTILOS PARA FEEDBACK VISUAL INMEDIATO
          ========================================================================== -->
     */
 
@@ -886,7 +895,7 @@
         }
 
     </style>
-    
+
 
 </head>
 <body>
@@ -996,9 +1005,9 @@
                 <div id="advisor-actions"></div>
 
                 <div id="diplomatic-status-panel" style="
-                    background: #1a1a1a; 
-                    border: 1px solid #333; 
-                    margin-top: 10px; 
+                    background: #1a1a1a;
+                    border: 1px solid #333;
+                    margin-top: 10px;
                     padding: 10px;
                     font-family: 'Courier New', monospace;
                     color: #d0d0d0;
@@ -1039,7 +1048,7 @@
     <!-- ============================================ -->
     <div id="strategy-cabinet-modal" class="modal-overlay hidden">
     <div class="modal-content strategy-cabinet">
-        
+
         <!-- Cabecera -->
         <header class="cabinet-header">
         <h2>🏛️ Gabinete de Estrategia Nacional</h2>
@@ -1056,7 +1065,7 @@
             <div class="card-header">...</div>
             <div class="progress-bar">...</div>
             <div class="card-footer">...</div>
-            </div> 
+            </div>
             -->
         </div>
         <button id="btn-select-objective" class="btn-primary" disabled>+ Asignar Nuevo Objetivo</button>
@@ -1065,7 +1074,7 @@
         <!-- Sección 2: Gestión de Estrategias (Por objetivo seleccionado) -->
         <section class="cabinet-section strategies-panel">
         <h3>⚙️ Implementación Estratégica</h3>
-        
+
         <!-- Selector de objetivo para gestionar estrategias -->
         <div class="strategy-context-selector">
             <label>Gestionar estrategias para:</label>
@@ -1076,7 +1085,7 @@
 
         <div id="strategy-management-area" class="hidden">
             <!-- Panel Dinámico: Se llena al seleccionar un objetivo -->
-            
+
             <!-- 2.1 Lista de Estrategias Disponibles (Filtradas por ámbito) -->
             <div class="strategies-available">
             <h4>Estrategias Disponibles</h4>
@@ -1124,7 +1133,7 @@
         <h3>Seleccionar Nuevo Objetivo Estratégico</h3>
         <button id="btn-close-selector" class="btn-icon">&times;</button>
         </header>
-        
+
         <!-- Pestañas de Ámbito -->
         <div class="scope-tabs">
         <button class="tab-btn active" data-scope="global">Global 🌍</button>
@@ -1139,956 +1148,120 @@
     </div>
     </div>
 
-    <!-- Script Principal Corregido -->
-    <script type="module" src="./client/main.js">
-        // Importación correcta de módulos
-        import { SyncClient } from './client/SyncClient.js';
-        import { MapRenderer } from './client/MapRenderer.js';
-        import { CountryActionPanel } from './client/components/CountryActionPanel.js';
-        import { initUI } from './client/UI.js';
-        import { StrategyCabinet } from './components/StrategyCabinet.js';
-        // Si existe NetworkOverlay, descomentar la siguiente línea
-        // import { NetworkOverlay } from './client/NetworkOverlay.js';
+    <!-- ============================================ -->
+    <!-- INTERFAZ DE USUARIO: GABINETE DE ESTRATEGIA  -->
+    <!-- ============================================ -->
+    <div id="ui-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+        
+        <!-- Botón Flotante para Abrir/Cerrar -->
+        <button id="btn-toggle-cabinet" 
+                style="position: absolute; top: 20px; right: 20px; pointer-events: auto; 
+                    background: #1a1a1a; color: #00ff00; border: 1px solid #00ff00; 
+                    padding: 10px 20px; cursor: pointer; font-family: monospace; text-transform: uppercase;
+                    box-shadow: 0 0 10px rgba(0, 255, 0, 0.2); z-index: 1000;">
+            🏛️ Gabinete
+        </button>
 
-        // Exponer clases globalmente para debugging y acceso desde HTML
-        window.SyncClient = SyncClient;
-        window.MapRenderer = MapRenderer;
-        // window.NetworkOverlay = NetworkOverlay;
+        <!-- Panel del Gabinete (Oculto por defecto) -->
+        <div id="strategy-cabinet" class="cabinet-panel" 
+            style="display: none; position: absolute; top: 70px; right: 20px; 
+                    width: 350px; max-height: 80vh; overflow-y: auto;
+                    background: rgba(10, 15, 20, 0.95); border: 1px solid #333; 
+                    border-left: 4px solid #00ff00; color: #eee; 
+                    font-family: 'Courier New', monospace; padding: 20px;
+                    box-shadow: 0 0 20px rgba(0, 0, 0, 0.8); pointer-events: auto; z-index: 999;">
+            
+            <h3 style="margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; color: #00ff00;">
+                GABINETE DE ESTRATEGIA
+            </h3>
 
-        // Variables globales de estado
-        window.gameState = null;
-        window.mapRenderer = null;
-        window.client = null;
-
-        // ============================================
-        // SISTEMA DE NOTIFICACIONES TOAST MEJORADO
-        // ============================================
-        window.showNotification = (message, type = 'info') => {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-
-            let icon = 'ℹ️';
-            if (type === 'error') icon = '❌';
-            if (type === 'success') icon = '✅';
-            if (type === 'warning') icon = '⚠️';
-
-            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
-            container.appendChild(toast);
-
-            setTimeout(() => {
-                toast.style.animation = 'fadeOut 0.5s ease-in forwards';
-                setTimeout(() => toast.remove(), 500);
-            }, 4000);
-        };
-
-        // ============================================
-        // LÓGICA DE CRISIS UI MEJORADA
-        // ============================================
-        window.updateCrisisUI = (data) => {
-            if (!data || !data.active) {
-                window.hideCrisisPanel();
-                return;
-            }
-
-            const panel = document.getElementById('crisis-panel');
-            panel.classList.add('active');
-            panel.style.display = 'block';
-
-            document.getElementById('crisis-type').textContent = data.type ? data.type.toUpperCase() : 'DESCONOCIDO';
-            document.getElementById('crisis-epicenter').textContent = data.epicenter || 'Global';
-
-            const badge = document.getElementById('crisis-phase-badge');
-            const phase = data.phase ? data.phase.toLowerCase() : 'latent';
-            badge.textContent = data.phase || 'Latente';
-            badge.className = `crisis-phase-badge phase-${phase}`;
-
-            const intensity = data.intensity || 0;
-            document.getElementById('crisis-intensity-bar').style.width = `${intensity}%`;
-
-            const list = document.getElementById('crisis-treaty-list');
-            list.innerHTML = '';
-            if (data.treaties && data.treaties.length > 0) {
-                data.treaties.forEach(t => {
-                    const li = document.createElement('li');
-                    li.className = 'treaty-item';
-                    li.innerHTML = `<span>${t.name || t}</span> <span class="treaty-status">Activo</span>`;
-                    list.appendChild(li);
-                });
-            } else {
-                list.innerHTML = '<li style="color: var(--text-muted); font-size: 10px;">Ninguno</li>';
-            }
-
-            // Notificación toast si es crisis aguda o sistémica
-            if (phase === 'acute' || phase === 'systemic') {
-                window.showNotification(`⚠️ CRISIS EN FASE ${data.phase?.toUpperCase()}`, 'error');
-            }
-        };
-
-        window.hideCrisisPanel = () => {
-            const panel = document.getElementById('crisis-panel');
-            panel.classList.remove('active');
-            panel.style.display = 'none';
-        };
-
-        // ============================================
-        // ACTUALIZACIÓN DE MÉTRICAS NACIONALES
-        // ============================================
-        window.updateMetricsUI = (state, playerId) => {
-            const metricsContainer = document.getElementById('metrics-container');
-            if (!state || !state.nations) {
-                metricsContainer.innerHTML = '<div class="metric-row"><span>Esperando datos...</span></div>';
-                return;
-            }
-
-            // Buscar nación del jugador
-            let playerNation = null;
-            for (const [nationId, nation] of Object.entries(state.nations)) {
-                if (nation.isPlayer || nationId === playerId) {
-                    playerNation = nation;
-                    break;
-                }
-            }
-
-            // Si no hay nación del jugador, usar la primera disponible
-            if (!playerNation) {
-                const firstNationId = Object.keys(state.nations)[0];
-                playerNation = state.nations[firstNationId];
-            }
-
-            if (!playerNation) {
-                metricsContainer.innerHTML = '<div class="metric-row"><span>Sin datos disponibles</span></div>';
-                return;
-            }
-
-            const stats = playerNation.stats || {};
-            const stability = stats.stability ?? 0;
-            const budget = stats.budget ?? 0;
-            const gdp = stats.gdp ?? 0;
-            const military = stats.military ?? 0;
-
-            // Determinar clases según valores
-            const stabilityClass = stability < 30 ? 'negative' : stability > 70 ? 'info' : '';
-            const budgetClass = budget < 0 ? 'negative' : budget > 500 ? 'info' : '';
-
-            metricsContainer.innerHTML = `
-                <div class="metric-row">
-                    <span class="metric-label">💰 Presupuesto</span>
-                    <span class="metric-val ${budgetClass}">$${budget.toLocaleString()}M</span>
+            <!-- Sección: Recursos -->
+            <div class="cabinet-section">
+                <h4 style="color: #ffd700; margin-bottom: 5px;">💰 Recursos Nacionales</h4>
+                <div id="cabinet-resources" style="font-size: 0.9em; line-height: 1.6;">
+                    <em style="color: #666;">Esperando datos...</em>
                 </div>
-                <div class="metric-row">
-                    <span class="metric-label">📊 GDP</span>
-                    <span class="metric-val">$${gdp.toLocaleString()}M</span>
+            </div>
+
+            <!-- Sección: Objetivos -->
+            <div class="cabinet-section" style="margin-top: 20px;">
+                <h4 style="color: #00bfff; margin-bottom: 5px;">🎯 Objetivos Actuales</h4>
+                <ul id="cabinet-objectives" style="padding-left: 20px; font-size: 0.9em; color: #ccc;">
+                    <li><em style="color: #666;">Sin objetivos activos</em></li>
+                </ul>
+            </div>
+
+            <!-- Sección: Estadísticas / Alertas -->
+            <div class="cabinet-section" style="margin-top: 20px;">
+                <h4 style="color: #ff4444; margin-bottom: 5px;">⚠️ Situación</h4>
+                <div id="cabinet-status" style="font-size: 0.9em;">
+                    <span style="color: #00ff00;">● Estable</span>
                 </div>
-                <div class="metric-row">
-                    <span class="metric-label">🛡️ Estabilidad</span>
-                    <span class="metric-val ${stabilityClass}">${stability}%</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">⚔️ Militar</span>
-                    <span class="metric-val">${military}</span>
-                </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar ${stability < 30 ? 'critical' : stability < 50 ? 'warning' : ''}" style="width: ${Math.max(0, Math.min(100, stability))}%"></div>
-                </div>
-            `;
-        };
+            </div>
+        </div>
+    </div>
 
-        // ============================================
-        // LOG DE EVENTOS MEJORADO
-        // ============================================
-        window.addLogEntry = (message, type = 'info') => {
-            const logFeed = document.getElementById('log-feed');
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-
-            const now = new Date();
-            const timeStr = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
-
-            const messageClass = type === 'crisis' ? 'crisis' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
-
-            entry.innerHTML = `
-                <span class="log-time">${timeStr}</span>
-                <span class="log-message ${messageClass}">${message}</span>
-            `;
-
-            logFeed.insertBefore(entry, logFeed.firstChild);
-
-            // Mantener máximo 50 eventos
-            while (logFeed.children.length > 50) {
-                logFeed.removeChild(logFeed.lastChild);
-            }
-        };
-
-        // ============================================
-        // INICIALIZACIÓN
-        // ============================================
+    <!-- Script de Lógica de UI para el Gabinete (Inline para asegurar carga) -->
+    <script>
+        // Lógica simple para toggle del gabinete
         document.addEventListener('DOMContentLoaded', () => {
-        console.log('[Client] Iniciando aplicación...');
-        
-        // Inicializar UI básica
-        if (typeof initUI === 'function') {
-            initUI();
-        }
-
-        // Inicializar SyncClient
-        const syncClient = new SyncClient();
-        window.client = syncClient; // Exponer globalmente como 'client' o 'app.syncClient'
-        
-        if (!window.app) window.app = {};
-        window.app.syncClient = syncClient;
-
-        // Inicializar MapRenderer
-        const mapRenderer = new MapRenderer(document.getElementById('game-map'));
-        window.mapRenderer = mapRenderer;
-        syncClient.setMapRenderer(mapRenderer);
-
-        // Inicializar StrategyCabinet
-        const strategyCabinet = new StrategyCabinet();
-        strategyCabinet.init();
-        window.app.strategyCabinet = strategyCabinet;
-
-        // Conectar actualizaciones de estado a la UI del gabinete
-        syncClient.onStateUpdate = (state) => {
-            window.gameState = state;
-            strategyCabinet.update(state);
-            // El mapRenderer también se actualiza dentro de syncClient.notifyUpdate()
-        };
-
-        // Conectar eventos personalizados si existen
-        syncClient.onCustomEvent = (event) => {
-            console.log('[Client] Evento personalizado recibido:', event.type);
-            // Aquí podrías disparar actualizaciones específicas de UI si fuera necesario
-        };
-
-        // Iniciar conexión
-        syncClient.connect();
-
-        console.log('[Client] ✅ Aplicación iniciada correctamente.');
-    });
-
-
-        /**
-         * Actualiza el panel visual de estado diplomático debajo del Asesor IA
-         * @param {Object} state - El estado completo del juego
-         * @param {String} playerNationId - El ID de la nación del jugador (ej: "ARG")
-         */
-        function updateDiplomaticStatus(state, playerNationId) {
-            const panel = document.getElementById('diplomatic-status-panel');
-            if (!panel) return; // Si el panel no existe en el HTML, salir
-
-            // Limpiar contenido previo
-            panel.innerHTML = '<div class="panel-header">ESTADO DIPLOMÁTICO</div>';
+            const btn = document.getElementById('btn-toggle-cabinet');
+            const panel = document.getElementById('strategy-cabinet');
             
-            if (!state || !state.nations || !playerNationId) {
-                panel.innerHTML += '<div class="status-item muted">Esperando datos...</div>';
-                return;
-            }
-
-            const nations = state.nations;
-            const playerNation = nations[playerNationId];
-            
-            // Obtener listas de relaciones (ajusta según tu estructura real de state.diplomacy)
-            // Asumiendo una estructura común, si no, adaptar a tu schema real
-            let allies = [];
-            let hostiles = [];
-            
-            // Lógica de ejemplo para extraer relaciones (AJUSTAR SEGÚN TU STATE REAL)
-            if (state.diplomacy && state.diplomacy.relations) {
-                Object.entries(state.diplomacy.relations).forEach(([key, relation]) => {
-                    if (key.includes(playerNationId)) {
-                        const targetId = key.replace(`${playerNationId}-`, '').replace(`-${playerNationId}`, '');
-                        if (relation.value > 50) allies.push(targetId);
-                        if (relation.value < -50) hostiles.push(targetId);
+            if(btn && panel) {
+                btn.addEventListener('click', () => {
+                    const isHidden = panel.style.display === 'none' || panel.style.display === '';
+                    panel.style.display = isHidden ? 'block' : 'none';
+                    btn.innerHTML = isHidden ? '❌ Cerrar' : '🏛️ Gabinete';
+                    
+                    // Si se abre, refrescar datos si hay cliente
+                    if(isHidden && window.client && window.client.localState) {
+                        window.updateCabinetUI(window.client.localState);
                     }
                 });
             }
+        });
 
-            // Renderizar lista
-            const createItem = (id, type, color) => {
-                const nation = nations[id];
-                const name = nation ? nation.name : id;
-                return `<div class="status-row" style="border-left: 3px solid ${color}">
-                            <span class="flag">${id}</span>
-                            <span class="name">${name}</span>
-                            <span class="badge" style="background:${color}20; color:${color}">${type}</span>
-                        </div>`;
-            };
+        // Función global para actualizar la UI desde main.js o SyncClient
+        window.updateCabinetUI = (state) => {
+            const panel = document.getElementById('strategy-cabinet');
+            if (!panel || panel.style.display === 'none') return; // Solo actualizar si es visible
 
-            // Tu nación
-            panel.innerHTML += createItem(playerNationId, 'TÚ NACIÓN', '#00ff00');
-            
-            // Aliados (máximo 5 para no saturar)
-            allies.slice(0, 5).forEach(id => {
-                panel.innerHTML += createItem(id, 'ALIADO', '#00aaff');
-            });
-            
-            // Hostiles (máximo 5)
-            hostiles.slice(0, 5).forEach(id => {
-                panel.innerHTML += createItem(id, 'HOSTIL', '#ff3333');
-            });
-
-            if (allies.length === 0 && hostiles.length === 0) {
-                panel.innerHTML += '<div class="status-item muted">Sin relaciones activas</div>';
-            }
-        }
-
-        // ============================================
-        // VARIABLES GLOBALES
-        // ============================================
-        window.app = {
-            mapRenderer: null,
-            client: null,
-            currentPlayerNation: null
-        };
-
-        /**
-         * Envía una intención de jugador al servidor
-         * @param {string} type - Tipo de acción (ej: 'improve_relations')
-         * @param {object} payload - Datos de la acción (ej: { target_id: 'USA' })
-         */
-        window.sendIntent = (type, payload = {}) => {
-            if (window.app?.syncClient?.sendIntent) {
-                console.log('[Intent] Enviando via SyncClient:', type, payload);
-                return window.app.syncClient.sendIntent(type, payload);
-            }
-
-            if (app && app.syncClient && app.syncClient.ws && app.syncClient.ws.readyState === WebSocket.OPEN) {
-                return app.syncClient.sendIntent(type, payload);
-            }
-
-            console.error('[Intent] Error: No hay conexión WebSocket');
-            return false;
-        };
-
-        window.sendGameIntent = window.sendIntent;
-
-        // ============================================
-        // INICIALIZACIÓN DE LA APLICACIÓN
-        // ============================================
-        function initApp() {
-            console.log("🚀 Iniciando interfaz de usuario unificada...");
-
-            // 1. CONFIGURACIÓN INICIAL Y REFERENCIAS GLOBALES
-            const wsUrl = `ws://localhost:8080`;
-            const syncClient = new SyncClient(wsUrl);
-            syncClient.onCustomEvent = handleCustomEvent; 
-
-            // Referencias base
-            const canvas = document.getElementById('game-map');
-            canvas.width = 1024;
-            canvas.height = 768;
-            if (!canvas) {
-                console.error("❌ CRÍTICO: No se encontró el elemento canvas #game-map");
-                return;
-            }
-
-            // Ajuste inicial de tamaño seguro
-            const parent = canvas.parentElement;
-            if (parent) {
-                canvas.width = parent.clientWidth;
-                canvas.height = parent.clientHeight;
-            }
-
-            // 2. INSTANCIAS ÚNICAS (Singletons por sesión)
-            // Evitamos duplicados si la función se llama por error múltiples veces
-            if (window.app && window.app.initialized) {
-                console.warn("⚠️ App ya estaba inicializada. Limpiando estado anterior...");
-                if (window.app.syncClient) window.app.syncClient.disconnect();
-                if (window.app.mapRenderer) window.app.mapRenderer.cleanup();
-            }
-
-            // Instanciar Renderizador
-            const mapRenderer = new MapRenderer(canvas);
-            console.log("✅ MapRenderer instanciado.");
-
-            // Instanciar Panel de Acciones
-            const countryActionPanel = new CountryActionPanel('country-action-panel-container');
-
-
-
-            // 3. ESTADO GLOBAL DE LA APP
-            window.app = {
-                mapRenderer: mapRenderer,
-                syncClient: syncClient,
-                actionPanel: countryActionPanel,
-                currentPlayerNation: null, // Se establecerá con el primer estado
-                selectedCountryId: null,
-                gameState: null,
-                initialized: true,
-
-                // Handler unificado para enviar intenciones
-                sendIntent: (type, targetId, parameters = {}) => {
-                    const mergedParameters = (typeof targetId === 'object' && parameters && Object.keys(parameters).length === 0)
-                        ? targetId
-                        : { ...(parameters || {}), ...(targetId ? { target: targetId } : {}) };
-
-                    console.log(`[App] Enviando intención: ${type}`, mergedParameters);
-
-                    if (window.app.syncClient?.sendIntent) {
-                        const ok = window.app.syncClient.sendIntent(type, mergedParameters);
-                        if (ok) showNotification(`Orden enviada: ${type}`, "success");
-                        else showNotification("Error de conexión", "error");
-                        return ok;
+            // 1. Actualizar Recursos
+            const resContainer = document.getElementById('cabinet-resources');
+            if (state.resources) {
+                let html = '';
+                for (const [key, val] of Object.entries(state.resources)) {
+                    html += `<div><strong>${key.toUpperCase()}:</strong> ${val}</div>`;
+                }
+                resContainer.innerHTML = html || '<em>Sin recursos</em>';
+            } else if (state.nations) {
+                // Intentar obtener recursos de la nación del jugador
+                const playerNationId = state.playerNationId || Object.keys(state.nations)[0];
+                const nation = state.nations[playerNationId];
+                if (nation && nation.resources) {
+                    let html = `<div style="color:#00ff00">${nation.name || playerNationId}:</div>`;
+                    for (const [key, val] of Object.entries(nation.resources)) {
+                        html += `<div>&nbsp;&nbsp;${key}: ${val}</div>`;
                     }
-
-                    console.error('❌ WebSocket no conectado. No se puede enviar la intención.');
-                    showNotification("Error de conexión", "error");
-                    return false;
-                },
-
-                // Handler global expuesto para botones HTML
-                handleGlobalAction: (actionType) => {
-                    if (!window.app.actionPanel || !window.app.actionPanel.currentNationId) {
-                        console.warn("No hay nación seleccionada para la acción.");
-                        return;
-                    }
-                    const target = window.app.actionPanel.currentNationId;
-                    window.app.sendIntent(actionType, target);
-                }
-            };
-
-            // Exponer handler específico para el panel de acciones (como usabas antes)
-            window.handleCountryAction = (actionType) => {
-                window.app.handleGlobalAction(actionType);
-            };
-
-            // 4. LÓGICA CENTRALIZADA DE ACTUALIZACIÓN DE ESTADO
-            syncClient.onStateUpdate = (newState) => {
-                 // A. Sincronización de la barra de progreso (Parche previo)
-                if (newState.tick !== undefined) {
-                    const progressBar = document.getElementById('turn-progress-bar');
-                    if (progressBar) {
-                        const hourFactor = (newState.tick % 24) / 24;
-                        progressBar.style.width = `${hourFactor * 100}%`;
-                    }
-                }
-
-                // ==================================================================
-                // 🛠️ PARCHE: ESCÁNER PASIVO DE EVENTOS INTERNOS DEL TICK
-                // ==================================================================
-                // Si el servidor envía un evento efímero o un log en este tick, lo capturamos
-                if (newState.lastEvent) {
-                    handleCustomEvent(newState.lastEvent);
-                }
-                
-                // Si tu motor de diplomacia guarda logs dentro del estado de la crisis o diplomacia:
-                if (newState.diplomacy?.lastAction) {
-                    handleCustomEvent({
-                        type: 'diplomacy_action_result',
-                        ...newState.diplomacy.lastAction
-                    });
-                }
-
-                // ==================================================================
-                // PARCHE SPRINT 1: PROGRESO TEMPORAL (INSERCIÓN)
-                // ==================================================================
-                if (newState.timeEngine) {
-                    const progressBar = document.getElementById('turn-progress-bar');
-                    if (progressBar) {
-                        // Calcula el porcentaje si tu servidor maneja la acumulación de sub-ticks
-                        const progress = (newState.timeEngine.currentSubTick / newState.timeEngine.subTicksPerTick) * 100;
-                        progressBar.style.width = `${progress}%`;
-                    }
-                } else if (newState.tick) {
-                    // Fallback adaptativo: Destello rápido por cada tick recibido si no viene estructura anidada
-                    const progressBar = document.getElementById('turn-progress-bar');
-                    if (progressBar) {
-                        progressBar.style.width = '100%';
-                        setTimeout(() => { progressBar.style.width = '0%'; }, 150);
-                    }
-                }
-                // ==================================================================
-
-                // A. Guardar estado global
-                window.gameState = newState;
-                window.app.gameState = newState;
-
-                // B. Actualizar Nación del Jugador si cambia
-                if (newState.playerNationId && newState.playerNationId !== window.app.currentPlayerNation) {
-                    window.app.currentPlayerNation = newState.playerNationId;
-                    console.log(`👤 Jugador ahora controla: ${newState.playerNationId}`);
-                }
-
-                // C. Actualizar Mapa (Solo si hay renderer y nación válida)
-                const pId = window.app.currentPlayerNation || (newState.nations ? Object.keys(newState.nations)[0] : null);
-                if (mapRenderer && pId) {
-                    // Usamos update que internamente llamará a markDirty si es necesario
-                    mapRenderer.update(newState, pId);
-                }
-
-                // D. Actualizar Panel de Acciones (Si hay país seleccionado)
-                if (window.app.actionPanel && window.app.selectedCountryId) {
-                    const countryData = newState.nations ? newState.nations[window.app.selectedCountryId] : null;
-                    
-                    if (countryData) {
-                        window.app.actionPanel.update(window.app.selectedCountryId, countryData);
-                    } else {
-                        // El país seleccionado ya no existe
-                        window.app.actionPanel.hide();
-                        window.app.selectedCountryId = null;
-                    }
-                }
-
-                // E. Actualizar UI General (Métricas, Advisor, etc.)
-                if (typeof updateMetrics === 'function') {
-                    updateMetrics(newState);
-                }
-
-                // Actualizar Mensaje del Asesor
-                const advisorEl = document.getElementById('advisor-message');
-                if (advisorEl) {
-                    let msg = "Esperando datos...";
-                    if (newState.advisor?.advisorMessage) {
-                        msg = newState.advisor.advisorMessage;
-                    } else if (newState.advisorMessage) {
-                        msg = newState.advisorMessage;
-                    } else if (newState.turnInfo) {
-                        msg = `Turno ${newState.turnInfo.currentTurn} | Año: ${newState.turnInfo.year}`;
-                    }
-                    advisorEl.textContent = msg;
-                }
-
-                // Actualizar Panel Diplomático (si existe la función)
-                if (typeof updateDiplomaticStatus === 'function' && window.app.currentPlayerNation) {
-                    updateDiplomaticStatus(newState, window.app.currentPlayerNation);
-                }
-
-                console.log(`[UI] Estado sincronizado (Tick: ${newState.tick})`);
-            };
-
-            // Handlers auxiliares del cliente
-            syncClient.onLog = (msg) => addLog(msg);
-            syncClient.onIntelSignal = (signal) => addIntelSignal(signal);
-            syncClient.onCustomEvent = (event) => handleCustomEvent(event);
-
-            // 5. LISTENERS DE UI Y BOTONES
-            setupEventListeners();
-
-            // 6. CONEXIÓN FINAL
-            syncClient.connect();
-
-            console.log("✅ Interfaz inicializada correctamente y conectando...");
-
-            // --- FUNCIONES AUXILIARES INTERNAS ---
-
-            function setupEventListeners() {
-                // Botón Guardar
-                const btnSave = document.getElementById('btn-save');
-                if (btnSave) btnSave.onclick = () => syncClient.saveGame();
-
-                // Botón Cargar (Trigger input file)
-                const btnLoad = document.getElementById('btn-load');
-                if (btnLoad) {
-                    btnLoad.onclick = () => {
-                        const fileInput = document.getElementById('file-input');
-                        if (fileInput) fileInput.click();
-                    };
-                }
-
-                // Input File Oculto (Creación única)
-                let fileInput = document.getElementById('file-input');
-                if (!fileInput) {
-                    fileInput = document.createElement('input');
-                    fileInput.id = 'file-input';
-                    fileInput.type = 'file';
-                    fileInput.style.display = 'none';
-                    fileInput.accept = '.dat,.json';
-                    fileInput.onchange = (e) => {
-                        const file = e.target.files[0];
-                        if (file && syncClient) syncClient.loadGame(file);
-                    };
-                    document.body.appendChild(fileInput);
-                }
-
-                // Botón Diplomacia
-                const btnDiplo = document.getElementById('btn-diplomacy');
-                if (btnDiplo) {
-                    btnDiplo.onclick = () => {
-                        showNotification("🌍 Módulo de Diplomacia: Abriendo panel...", "info");
-                        loadRelationsDetail();
-                    };
-                }
-
-                // Botón Mercado de Inteligencia
-                const btnIntel = document.getElementById('btn-intel-market');
-                if (btnIntel) {
-                    btnIntel.onclick = () => {
-                        showNotification("🕵️ Mercado de Inteligencia: Próximamente", "info");
-                    };
-                }
-
-                // Listener de Selección de País en el Mapa
-                mapRenderer.onCountrySelect = (countryId) => {
-                    const currentState = window.app.gameState || {};
-                    const countryData = currentState.nations?.[countryId] || {};
-                    
-                    window.app.selectedCountryId = countryId;
-                    
-                    if (window.app.actionPanel) {
-                        window.app.actionPanel.show(countryId, countryData);
-                    }
-                    
-                    console.log(`🗺️ País seleccionado: ${countryId}`);
-                };
-            }
-
-            /**
-             * Solicita relaciones bilaterales detalladas al servidor
-             */
-            function loadRelationsDetail() {
-                if (!syncClient || !syncClient.isConnected) {
-                    showNotification("❌ No conectado al servidor", "error");
-                    return;
-                }
-
-                const state = syncClient.localState;
-                const nationId = state?.playerNationId || window.app.currentPlayerNation || 'ARG';
-                const requestId = Date.now();
-
-                console.log(`[UI] 📊 Solicitando relaciones para ${nationId} (req: ${requestId})`);
-
-                syncClient.send('get_relations_detail', {
-                    nationId,
-                    requestId
-                });
-
-                showModal('Relaciones Bilaterales', '<div style="text-align:center;padding:20px;">Cargando datos diplomáticos...</div>');
-            }
-
-            /**
-             * Muestra un modal genérico
-             */
-            function showModal(title, htmlContent) {
-                const modal = document.getElementById('modal-generic');
-                const titleEl = document.getElementById('modal-title');
-                const bodyEl = document.getElementById('modal-body');
-                
-                if (modal && titleEl && bodyEl) {
-                    titleEl.textContent = title;
-                    bodyEl.innerHTML = htmlContent;
-                    modal.style.display = 'flex';
+                    resContainer.innerHTML = html;
                 } else {
-                    console.warn("Elementos del modal no encontrados en el DOM");
-                    alert(`${title}: ${htmlContent.replace(/<[^>]*>?/gm, '')}`);
+                    resContainer.innerHTML = '<em>Datos de recursos no disponibles</em>';
                 }
             }
-        }
-        // Manejo de Eventos Personalizados (CRISIS, DIPLOMACIA, etc.)
-        function handleCustomEvent(event) {
-            console.log("📨 Evento recibido:", event);
 
-            // Estructura defensiva: extraer datos planos o anidados
-            const data = event.data || event;
-            const feedContainer = document.getElementById('geopolitical-feed');
-
-            // Diccionario de traducción: Código Técnico ➔ Narrativa Inmersiva
-            const accionesDiplomaticas = {
-                'aid_humanitarian': 'Ayuda Humanitaria',
-                'investment_cultural': 'Inversión Cultural',
-                'improve_relations': 'Mejora de Relaciones',
-                'covert_ops': 'Operación Encubierta',
-                'trade_treaty': 'Tratado Comercial'
-            };
-
-            // Auxiliar único y centralizado para inyectar datos en el feed geopolítico
-            const appendToGeopoliticalFeed = (headline, content, borderHexColor = null) => {
-                if (feedContainer) {
-                    const entry = document.createElement('div');
-                    entry.className = 'feed-entry';
-                    
-                    const time = new Date();
-                    const timestamp = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
-                    
-                    if (borderHexColor) {
-                        entry.style.borderLeft = `3px solid ${borderHexColor}`;
-                    }
-                    
-                    entry.innerHTML = `<strong>[${timestamp}] ${headline.toUpperCase()}:</strong> ${content}`;
-                    feedContainer.insertBefore(entry, feedContainer.firstChild);
-                    
-                    // Recorte preventivo de desbordamiento en DOM (Mantiene últimas 15)
-                    if (feedContainer.children.length > 15) {
-                        feedContainer.removeChild(feedContainer.lastChild);
-                    }
-                }
-            };
-
-            // ==================================================================
-            // SWITCH CENTRAL: UN SOLO FLUJO POR EVENTO (EVITA DUPLICADOS)
-            // ==================================================================
-            switch(event.type) {
-                
-                case 'geopolitical_alert':
-                case 'news_broadcast':
-                    appendToGeopoliticalFeed(
-                        data.headline || 'ALERTA URGENTE', 
-                        data.content || data.message || 'Despliegue internacional detectado.'
-                    );
-                    break;
-
-                case 'crisis_started':
-                    window.showNotification(`⚠️ CRISIS INICIADA: ${data.type} en fase ${data.phase}`, 'warning');
-                    window.updateCrisisUI(data);
-                    
-                    appendToGeopoliticalFeed('🚨 CRISIS DETECTADA', `Iniciada crisis de tipo ${data.type} (Fase ${data.phase})`, '#ffaa00');
-                    break;
-
-                case 'crisis_escalated':
-                    window.showNotification(`🔥 Crisis escalada a fase ${data.phase}`, 'error');
-                    window.updateCrisisUI(data);
-                    
-                    appendToGeopoliticalFeed('🔥 ESCALADA DE CRISIS', `La tensión global ha subido a Fase ${data.phase}`, '#ff3333');
-                    break;
-
-                case 'crisis_resolved':
-                    window.showNotification(`¼️ Crisis resuelta: ${data.reason}`, 'success');
-                    window.hideCrisisPanel();
-                    
-                    appendToGeopoliticalFeed('✅ CRISIS RESUELTA', `Resolución: ${data.reason || 'Acuerdo diplomático'}`, '#00ffcc');
-                    break;
-
-                case 'treaty_signed':
-                    window.showNotification(`✅ Tratado '${data.treatyName || data.id}' firmado`, 'success');
-                    if(window.gameState && window.gameState.crisis) {
-                        window.updateCrisisUI(window.gameState.crisis);
-                    }
-                    
-                    appendToGeopoliticalFeed(
-                        '📜 TRATADO ACORDADO', 
-                        `Firmado exitosamente el tratado internacional: '${data.treatyName || data.id}'`, 
-                        '#00ffcc'
-                    );
-                    break;
-
-                case 'treaty_expired':
-                    window.showNotification(`⏳ Tratado '${data.treatyName || data.id}' vencido`, 'info');
-                    
-                    appendToGeopoliticalFeed(
-                        '⏳ TRATADO EXPIRADO', 
-                        `Ha caducado la vigencia del tratado: '${data.treatyName || data.id}'`, 
-                        '#707070'
-                    );
-                    break;
-
-                case 'diplomacy_action_result':
-                    // 1. Traducir el ID técnico usando nuestro diccionario narrativo
-                    const rawAction = data.actionName || data.actionId || 'Acción';
-                    const cleanActionName = accionesDiplomaticas[rawAction] || rawAction;
-                    
-                    const actorName = data.actor || 'Una nación';
-                    const targetName = data.target ? ` hacia ${data.target}` : '';
-                    const motivoError = data.reason || data.error || 'Condiciones geopolíticas inestables';
-
-                    // 2. Desplegar Toasts y Feeds de forma emparejada y limpia
-                    if(data.success) {
-                        window.showNotification(`✅ ${cleanActionName} exitosa`, 'success');
-                        
-                        appendToGeopoliticalFeed(
-                            '🌍 DIPLOMACIA', 
-                            `${actorName} ejecutó con éxito la iniciativa: **${cleanActionName}**${targetName}.`, 
-                            '#00aaff'
-                        );
-                    } else {
-                        window.showNotification(`❌ ${cleanActionName} fallida: ${motivoError}`, 'error');
-                        
-                        appendToGeopoliticalFeed(
-                            '⚠️ DISPUTA DIPLOMÁTICA', 
-                            `Fallo en la propuesta de **${cleanActionName}** de ${actorName}${targetName}. Motivo: ${motivoError}`, 
-                            '#ff3333'
-                        );
-                    }
-                    break;
-
-                case 'intel_signal':
-                    // Soporte nativo para reportes de espionaje del SyncClient
-                    const signalData = data.signal || data;
-                    const textoIntel = signalData.signalText || 'Actividad sospechosa en las fronteras.';
-                    appendToGeopoliticalFeed('🛰️ INTEL SEÑAL', textoIntel, '#ffaa00');
-                    break;
-
-                case 'advisor_suggestion':
-                    if(data.suggestion) {
-                        const advisorEl = document.getElementById('advisor-text');
-                        if (advisorEl) {
-                            advisorEl.textContent = data.suggestion.title || "Sugerencia recibida";
-                        }
-                    }
-                    break;
-
-                case 'relations_detail':
-                    if (data.requestId && data.requestId === window._lastProcessedRelationsRequest) {
-                        console.log(`[UI] ⏭️ Ignorando duplicado de relations_detail (ID: ${data.requestId})`);
-                        return;
-                    }
-
-                    const payload = (data.data && data.data.treaties !== undefined) ? data.data : data;
-
-                    if (!payload || !payload.nationId) {
-                        console.error('[UI] ❌ Datos inválidos o incompletos:', data);
-                        return;
-                    }
-
-                    window._lastProcessedRelationsRequest = data.requestId;
-                    renderRelationsModal(payload);
-                    break;
-            }
-        }
-        /**
-         * Renderiza el contenido del modal con los datos de relaciones
-         * @param {Object} relationsData - Datos de relaciones del servidor
-         */
-        function renderRelationsModal(data) {
-            console.log('[UI] 🎨 Renderizando modal de relaciones...', data);
-
-            const modal = document.getElementById('modal-generic');
-            const content = document.getElementById('modal-body');
-            const title = document.getElementById('modal-title'); // Asumiendo que existe, si no, lo creamos
-
-            if (!modal || !content) {
-                console.error('[UI] ❌ Elementos del DOM no encontrados');
-                return;
-            }
-
-            // Asegurar que el modal sea visible
-            modal.style.display = 'flex';
-            modal.style.visibility = 'visible';
-            modal.style.opacity = '1';
-
-            // Construir contenido
-            let html = `<div style="padding: 20px; font-family: sans-serif;">`;
-            html += `<h2 style="margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
-                        Relaciones Bilaterales: ${data.nationId}
-                    </h2>`;
-
-            // Sección: Tratados Activos
-            html += `<h3>📜 Tratados Activos (${data.totalTreaties || data.treaties?.length || 0})</h3>`;
-            if (!data.treaties || data.treaties.length === 0) {
-                html += `<p style="color: #666; font-style: italic;">No hay tratados activos registrados.</p>`;
+            // 2. Actualizar Objetivos
+            const objList = document.getElementById('cabinet-objectives');
+            if (state.objectives && state.objectives.length > 0) {
+                objList.innerHTML = state.objectives.map(obj => 
+                    `<li style="color: ${obj.completed ? '#00ff00' : '#fff'}">${obj.description || obj.name} ${obj.completed ? '(✅)' : ''}</li>`
+                ).join('');
             } else {
-                html += `<ul style="list-style: none; padding: 0;">`;
-                data.treaties.forEach(t => {
-                    html += `<li style="background: #f4f4f4; margin: 5px 0; padding: 10px; border-radius: 4px;">
-                                <strong>${t.name}</strong> (${t.type}) con ${t.partner}
-                            </li>`;
-                });
-                html += `</ul>`;
+                objList.innerHTML = '<li><em>Sin objetivos activos</em></li>';
             }
-
-            // Sección: Historial Reciente (Opcional)
-            if (data.history && data.history.length > 0) {
-                html += `<h3 style="margin-top: 20px;">🕒 Historial Reciente</h3><ul>`;
-                data.history.slice(0, 5).forEach(h => {
-                    html += `<li>${h.date || 'Reciente'}: ${h.description}</li>`;
-                });
-                html += `</ul>`;
-            }
-
-            html += `</div>`;
-
-            document.getElementById('modal-body').innerHTML = html;
-
-            // Forzar reflow para asegurar visibilidad si hay transiciones CSS
-            void modal.offsetWidth;
-
-            console.log('[UI] ✅ Modal renderizado exitosamente.');
-        }
-
-        // Helpers de UI - ACTUALIZADOS CON NUEVO TEMA VISUAL
-        function updateMetrics(state) {
-            if(!state || !state.nations) return;
-
-            // Intentar encontrar la nación del jugador, o usar la primera por defecto
-            const playerNationId = state.playerNationId || Object.keys(state.nations)[0];
-            const player = state.nations[playerNationId];
-
-            if (!player) return;
-
-            const container = document.getElementById('metrics-container');
-
-            document.getElementById('tick-display').textContent = state.meta?.tick || state.tick || 0;
-            document.getElementById('day-display').textContent = Math.floor((state.meta?.tick || state.tick || 0) / 24) + 1;
-
-            // Ajustar según la estructura real de tus datos (budget vs gold, etc)
-            const budget = player.budget || player.resources?.gold || 0;
-            const stability = player.stability || player.stats?.stability || 0;
-            const reputation = player.reputation || player.stats?.influence || 0;
-            const influence = player.influence || player.stats?.influence || 0;
-
-            // Determinar clases según valores
-            const stabilityClass = stability < 30 ? 'negative' : stability > 70 ? 'info' : '';
-            const budgetClass = budget < 0 ? 'negative' : budget > 500 ? 'info' : '';
-
-            container.innerHTML = `
-                <div class="metric-row">
-                    <span class="metric-label">💰 Presupuesto</span>
-                    <span class="metric-val ${budgetClass}">$${budget}M</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">🛡️ Estabilidad</span>
-                    <span class="metric-val ${stabilityClass}">${stability}%</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">🌍 Reputación</span>
-                    <span class="metric-val info">${reputation}</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">🤝 Influencia</span>
-                    <span class="metric-val">${influence}</span>
-                </div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar ${stability < 30 ? 'critical' : stability < 50 ? 'warning' : ''}" style="width: ${Math.max(0, Math.min(100, stability))}%"></div>
-                </div>
-            `;
-        }
-
-        function addLog(msg, type = 'info') {
-            const feed = document.getElementById('log-feed');
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            const time = new Date().toLocaleTimeString();
-
-            const msgClass = msg.toLowerCase().includes('crisis') ? 'crisis' :
-                            msg.toLowerCase().includes('éxito') || msg.toLowerCase().includes('exitoso') ? 'success' :
-                            msg.toLowerCase().includes('advertencia') ? 'warning' : 'info';
-
-            div.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-message ${msgClass}">${msg}</span>`;
-            feed.prepend(div);
-            if(feed.children.length > 50) feed.lastChild.remove();
-        }
-
-        function addIntelSignal(signal) {
-            const feed = document.getElementById('intel-feed');
-            // Limpiar mensaje de "esperando" si es el primero
-            if(feed.children.length === 1 && feed.children[0].innerText.includes('Esperando')) {
-                feed.innerHTML = '';
-            }
-
-            const card = document.createElement('div');
-            card.className = 'intel-card';
-            card.innerHTML = `
-                <div class="intel-card-title">${signal.type}</div>
-                <div class="intel-card-summary">${signal.summary || 'Sin resumen'}</div>
-                <div style="font-size:9px; color:var(--text-muted); margin-top:6px;">Costo investigación: $100k</div>
-            `;
-            card.onclick = () => {
-                if(window.client) window.client.investigateSignal(signal.id);
-                card.classList.add('investigated');
-                card.style.pointerEvents = 'none';
-                card.innerHTML += `<div style="font-size:8px; color:var(--accent-primary); margin-top:6px;">✅ Investigado</div>`;
-            };
-            feed.prepend(card);
-        }
-
-        // Esperar a que el DOM esté completamente cargado
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initApp);
-        } else {
-            initApp();
-        }
-        // Inicializar la interfaz de usuario
-        initUI();
+        };
     </script>
-    <div id="country-action-panel-container"></div>
+
+    <script type="module" src="./client/main.js"></script>
 </body>
 </html>

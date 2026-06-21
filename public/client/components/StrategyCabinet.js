@@ -47,6 +47,7 @@ export class StrategyCabinet {
 
     // Handlers internos para eventos dinámicos
     this._onObjectiveCardClick = this._onObjectiveCardClick.bind(this);
+    this._onStrategyCardActivateClick = this._onStrategyCardActivateClick.bind(this); // Nuevo binding
   }
 
   init() {
@@ -97,7 +98,7 @@ export class StrategyCabinet {
       this.objectiveSelector.addEventListener('change', this._handleObjectiveSelectorChange);
     }
 
-    // Listener para activar estrategia
+    // Listener para activar estrategia (si aún se necesita, aunque ahora se manejan dinámicamente)
     if (this.btnActivateStrategy) {
       this.btnActivateStrategy.addEventListener('click', this._handleActivateStrategy);
     }
@@ -388,28 +389,105 @@ export class StrategyCabinet {
     }
   }
 
+  /**
+   * Renderiza las estrategias disponibles para un objetivo específico usando DocumentFragment para mejor rendimiento.
+   * @param {string} objectiveId - ID del objetivo seleccionado.
+   */
   _renderStrategiesFor(objectiveId) {
     if (!this.strategiesContainer || !this.availableStrategiesList) return;
 
     this.strategiesContainer.classList.remove('hidden');
 
-    // Simulación de estrategias disponibles
-    const relevantStrategies = this.stratConfig || [];
+    // Limpiar contenedor
+    this.availableStrategiesList.innerHTML = '';
+
+    // Buscar estrategias específicas para el objetivo, sino usar genéricas
+    let relevantStrategies = [];
+    if (this.stratConfig && typeof this.stratConfig === 'object') {
+      // Si stratConfig es un objeto indexado por objetivoId
+      if (this.stratConfig[objectiveId] && Array.isArray(this.stratConfig[objectiveId])) {
+        relevantStrategies = this.stratConfig[objectiveId];
+      } else if (Array.isArray(this.stratConfig)) {
+        // Si es solo un array genérico
+        relevantStrategies = this.stratConfig;
+      }
+    }
 
     if (relevantStrategies.length === 0) {
       this.availableStrategiesList.innerHTML = '<div style="padding:10px; color:#888;">Cargando estrategias o ninguna disponible para este objetivo.</div>';
       return;
     }
 
-    this.availableStrategiesList.innerHTML = relevantStrategies.map(strat => `
-      <div class="strategy-card" style="background:#2a2a2a; padding:10px; margin-bottom:5px; border:1px solid #444;">
-        <h4>${strat.name || strat.id}</h4>
-        <p style="font-size:0.85em; color:#aaa;">${strat.description || 'Estrategia táctica'}</p>
-        <div style="margin-top:5px; font-size:0.8em; color:#ff9800;">Costo: ${strat.cost || 'Medio'} | Riesgo: ${strat.risk || 'Bajo'}</div>
-        <button class="btn-sm" style="margin-top:5px;" onclick="console.log('Activar ${strat.id}')">Activar</button>
-      </div>
-    `).join('');
+    const fragment = document.createDocumentFragment();
+
+    relevantStrategies.forEach(strat => {
+      const card = document.createElement('div');
+      card.className = 'strategy-card';
+      card.style.cssText = 'background:#2a2a2a; padding:10px; margin-bottom:5px; border:1px solid #444; transition: box-shadow 0.2s ease;'; // Añadido hover smooth
+
+      // Colores dinámicos para el riesgo
+      let riskColor = '#4CAF50'; // Verde por defecto
+      if (strat.risk && strat.risk.toLowerCase().includes('alto')) riskColor = '#F44336'; // Rojo
+      else if (strat.risk && strat.risk.toLowerCase().includes('medio')) riskColor = '#FF9800'; // Naranja
+
+      card.innerHTML = `
+        <h4 style="margin:0 0 5px 0; color:#fff;">${strat.name || strat.id}</h4>
+        <p style="font-size:0.85em; color:#aaa; margin: 0 0 5px 0;">${strat.description || 'Estrategia táctica'}</p>
+        <div style="margin-bottom:8px; font-size:0.8em; color:#ff9800;">Costo: ${strat.cost || 'Medio'} | Riesgo: <span style="color: ${riskColor};">${strat.risk || 'Bajo'}</span></div>
+      `;
+
+      const button = document.createElement('button');
+      button.className = 'btn-sm';
+      button.style.cssText = 'margin-top:5px; cursor: pointer; padding: 4px 8px; font-size: 0.8em; background-color: #2196F3; color: white; border: none; border-radius: 3px;'; // Estilo base
+      button.textContent = 'Activar Directiva';
+      button.setAttribute('data-strategy-id', strat.id);
+      button.setAttribute('data-objective-id', objectiveId); // Pasar también el objetivo
+      button.addEventListener('click', this._onStrategyCardActivateClick); // Usar el nuevo handler
+
+      card.appendChild(button);
+      fragment.appendChild(card);
+    });
+
+    this.availableStrategiesList.appendChild(fragment);
   }
+
+
+  /**
+   * Handler para el click en el botón "Activar" de una tarjeta de estrategia.
+   * @param {Event} event - Evento de click.
+   */
+  _onStrategyCardActivateClick(event) {
+    const button = event.currentTarget;
+    const strategyId = button.getAttribute('data-strategy-id');
+    const objectiveId = button.getAttribute('data-objective-id'); // Asegúrate de pasar este dato
+
+    if (!strategyId || !objectiveId) {
+      console.error('[StrategyCabinet] ID de estrategia u objetivo faltante en botón de activación.');
+      return;
+    }
+
+    // Feedback visual inmediato
+    const originalText = button.textContent;
+    button.textContent = 'PROCESANDO...';
+    button.disabled = true;
+    button.style.backgroundColor = '#9E9E9E'; // Gris para indicar estado deshabilitado
+
+    console.log(`[StrategyCabinet] Activando estrategia "${strategyId}" para objetivo "${objectiveId}"`);
+
+    // Enviar intención al servidor
+    this._sendIntent('player_activate_strategy', {
+      strategyId: strategyId,
+      objectiveId: objectiveId // Incluir objetivo si el backend lo requiere
+    });
+
+    // Opcional: Restaurar botón después de un tiempo si no hay confirmación real-time
+    // setTimeout(() => {
+    //   button.textContent = originalText;
+    //   button.disabled = false;
+    //   button.style.backgroundColor = '#2196F3';
+    // }, 2000);
+  }
+
 
   _updateAIAdvice(nation, state) {
     if (!this.adviceContainer) return;
@@ -446,8 +524,10 @@ export class StrategyCabinet {
   }
 
   _handleActivateStrategy() {
-    console.log('[StrategyCabinet] Activar estrategia clicked');
-    alert("Funcionalidad de activación específica pendiente de conectar con backend.");
+    // Este handler ya no es necesario si cada tarjeta tiene su propio botón.
+    // Se mantiene por compatibilidad si se llega a necesitar un botón general.
+    console.log('[StrategyCabinet] Activar estrategia clicked (Handler General)');
+    alert("Funcionalidad de activación general pendiente o ya delegada a botones individuales.");
   }
 
   _handleClose() {
