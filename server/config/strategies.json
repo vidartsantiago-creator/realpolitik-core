@@ -1,0 +1,184 @@
+{
+  "meta": {
+    "version": "2.0",
+    "description": "Definición de estrategias con presupuestos dinámicos y curvas de eficiencia.",
+    "currency": "MUSD" 
+  },
+  "strategies": [
+    {
+      "id": "welfare_state_expansion",
+      "name": "Expansión del Estado de Bienestar",
+      "category": "social",
+      "description": "Ampliación de subsidios y servicios públicos para reducir la pobreza y aumentar la estabilidad.",
+      
+      "budget_range": {
+        "min": 50,
+        "max": 800,
+        "step": 10,
+        "default": 200
+      },
+      
+      "efficiency_curve": {
+        "type": "logarithmic",
+        "coefficients": {
+          "a": 0.8,
+          "b": 0.15
+        },
+        "description": "Rendimientos decrecientes rápidos. Los primeros 200 MUSD solucionan el 60% del problema."
+      },
+      
+      "tick_effects": {
+        "base": {
+          "stability": 0.5,
+          "popularity": 0.8,
+          "treasury": -1.0 
+        },
+        "scaled_by_budget": {
+          "poverty_reduction": 1.2,
+          "inequality_reduction": 0.9
+        }
+      },
+      
+      "risk_profile": {
+        "base_risk": 0.05,
+        "risk_scaling": {
+          "type": "linear",
+          "factor": 0.0005,
+          "description": "Cada 1 MUSD extra aumenta un 0.05% la chance de escándalo de corrupción."
+        },
+        "events": [
+          {
+            "id": "corruption_scandal",
+            "trigger_threshold": 0.15,
+            "impact": { "popularity": -15, "stability": -5 }
+          },
+          {
+            "id": "fiscal_deficit_alert",
+            "trigger_threshold": 0.25,
+            "impact": { "credit_rating": -1 }
+          }
+        ]
+      },
+      
+      "constraints": {
+        "incompatible_with": ["austerity_measures", "tax_cuts_corporate"],
+        "min_treasury_required": 1000
+      }
+    },
+    
+    {
+      "id": "cyber_warfare_offensive",
+      "name": "Ofensiva Cibernética Encubierta",
+      "category": "military",
+      "description": "Despliegue de unidades de hacker estatales para sabotear infraestructura crítica enemiga.",
+      
+      "budget_range": {
+        "min": 100,
+        "max": 2000,
+        "step": 50,
+        "default": 500
+      },
+      
+      "efficiency_curve": {
+        "type": "exponential",
+        "coefficients": {
+          "growth_rate": 0.004,
+          "threshold": 800
+        },
+        "description": "Ineficaz con poco presupuesto. Solo supera el 50% de efectividad si se invierte >800 MUSD."
+      },
+      
+      "tick_effects": {
+        "base": {
+          "geopolitical_tension": 2.0,
+          "intel_gathering": 1.5
+        },
+        "scaled_by_budget": {
+          "enemy_infrastructure_damage": 0.05,
+          "detection_evasion": -0.02 
+        }
+      },
+      
+      "risk_profile": {
+        "base_risk": 0.10,
+        "risk_scaling": {
+          "type": "exponential",
+          "factor": 0.0001,
+          "description": "El riesgo de ser descubierto crece exponencialmente con la intensidad del ataque."
+        },
+        "events": [
+          {
+            "id": "operation_exposed",
+            "trigger_threshold": 0.20,
+            "impact": { "international_reputation": -30, "sanctions_probability": 0.8 }
+          },
+          {
+            "id": "retaliatory_strike",
+            "trigger_threshold": 0.40,
+            "impact": { "critical_infrastructure_damage": "high" }
+          }
+        ]
+      },
+      
+      "constraints": {
+        "requires_tech": ["quantum_encryption", "botnet_network"],
+        "diplomatic_cost": "high"
+      }
+    },
+    
+    {
+      "id": "green_energy_transition",
+      "name": "Transición Energética Verde",
+      "category": "economic",
+      "description": "Subsidios masivos para reemplazar combustibles fósiles por renovables.",
+      
+      "budget_range": {
+        "min": 200,
+        "max": 5000,
+        "step": 100,
+        "default": 1000
+      },
+      
+      "efficiency_curve": {
+        "type": "sigmoid",
+        "coefficients": {
+          "steepness": 0.005,
+          "midpoint": 2500
+        },
+        "description": "Curva en S. Lento al inicio (infraestructura), crecimiento rápido en medio, saturación al final."
+      },
+      
+      "tick_effects": {
+        "base": {
+          "pollution_level": -0.5,
+          "long_term_gdp_growth": 0.1
+        },
+        "scaled_by_budget": {
+          "energy_independence": 0.08,
+          "short_term_inflation": 0.03 
+        }
+      },
+      
+      "risk_profile": {
+        "base_risk": 0.02,
+        "risk_scaling": {
+          "type": "linear",
+          "factor": 0.0001,
+          "description": "Riesgo bajo, principalmente relacionado con inflación短期."
+        },
+        "events": [
+          {
+            "id": "industry_backlash",
+            "trigger_threshold": 0.10,
+            "impact": { "unemployment_fossil_sector": 5000 }
+          }
+        ]
+      },
+      
+      "constraints": {
+        "time_to_effect": 10,
+        "cancellation_penalty": 0.5 
+      }
+    }
+  ]
+}

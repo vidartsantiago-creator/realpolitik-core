@@ -397,58 +397,228 @@ export class StrategyCabinet {
     if (!this.strategiesContainer || !this.availableStrategiesList) return;
 
     this.strategiesContainer.classList.remove('hidden');
+    this.availableStrategiesList.innerHTML = ''; // Limpiar contenedor
 
-    // Limpiar contenedor
-    this.availableStrategiesList.innerHTML = '';
-
-    // Buscar estrategias específicas para el objetivo, sino usar genéricas
+    // Obtener estrategias (lógica existente)
     let relevantStrategies = [];
     if (this.stratConfig && typeof this.stratConfig === 'object') {
-      // Si stratConfig es un objeto indexado por objetivoId
       if (this.stratConfig[objectiveId] && Array.isArray(this.stratConfig[objectiveId])) {
         relevantStrategies = this.stratConfig[objectiveId];
       } else if (Array.isArray(this.stratConfig)) {
-        // Si es solo un array genérico
         relevantStrategies = this.stratConfig;
       }
     }
 
     if (relevantStrategies.length === 0) {
-      this.availableStrategiesList.innerHTML = '<div style="padding:10px; color:#888;">Cargando estrategias o ninguna disponible para este objetivo.</div>';
+      this.availableStrategiesList.innerHTML = '<div style="padding:10px; color:#888;">No hay estrategias disponibles.</div>';
       return;
     }
 
     const fragment = document.createDocumentFragment();
 
     relevantStrategies.forEach(strat => {
+      // Crear contenedor principal de la estrategia
       const card = document.createElement('div');
       card.className = 'strategy-card';
-      card.style.cssText = 'background:#2a2a2a; padding:10px; margin-bottom:5px; border:1px solid #444; transition: box-shadow 0.2s ease;'; // Añadido hover smooth
+      card.style.cssText = 'background:#2a2a2a; padding:15px; margin-bottom:15px; border:1px solid #444; border-radius:4px;';
 
-      // Colores dinámicos para el riesgo
-      let riskColor = '#4CAF50'; // Verde por defecto
-      if (strat.risk && strat.risk.toLowerCase().includes('alto')) riskColor = '#F44336'; // Rojo
-      else if (strat.risk && strat.risk.toLowerCase().includes('medio')) riskColor = '#FF9800'; // Naranja
+      // --- HEADER: Nombre y Categoría ---
+      const header = document.createElement('div');
+      header.innerHTML = `<h4 style="margin:0 0 5px 0; color:#fff;">${strat.name}</h4><small style="color:#888;">${strat.category?.toUpperCase() || 'GENERAL'}</small>`;
+      card.appendChild(header);
 
-      card.innerHTML = `
-        <h4 style="margin:0 0 5px 0; color:#fff;">${strat.name || strat.id}</h4>
-        <p style="font-size:0.85em; color:#aaa; margin: 0 0 5px 0;">${strat.description || 'Estrategia táctica'}</p>
-        <div style="margin-bottom:8px; font-size:0.8em; color:#ff9800;">Costo: ${strat.cost || 'Medio'} | Riesgo: <span style="color: ${riskColor};">${strat.risk || 'Bajo'}</span></div>
-      `;
+      // --- CUERPO: Controles de Presupuesto (SOLO si tiene budget_range) ---
+      if (strat.budget_range) {
+        const budgetSection = document.createElement('div');
+        budgetSection.style.marginTop = '10px';
+        budgetSection.style.padding = '10px';
+        budgetSection.style.background = '#222';
+        budgetSection.style.borderRadius = '4px';
 
-      const button = document.createElement('button');
-      button.className = 'btn-sm';
-      button.style.cssText = 'margin-top:5px; cursor: pointer; padding: 4px 8px; font-size: 0.8em; background-color: #2196F3; color: white; border: none; border-radius: 3px;'; // Estilo base
-      button.textContent = 'Activar Directiva';
-      button.setAttribute('data-strategy-id', strat.id);
-      button.setAttribute('data-objective-id', objectiveId); // Pasar también el objetivo
-      button.addEventListener('click', this._onStrategyCardActivateClick); // Usar el nuevo handler
+        // Label dinámico
+        const budgetLabel = document.createElement('div');
+        budgetLabel.style.display = 'flex';
+        budgetLabel.style.justifyContent = 'space-between';
+        budgetLabel.style.marginBottom = '5px';
+        budgetLabel.style.fontSize = '0.85em';
+        budgetLabel.style.color = '#ccc';
 
-      card.appendChild(button);
+        const currentBudget = strat.budget_range.default || strat.budget_range.min;
+        budgetLabel.innerHTML = `
+          <span>Asignación Presupuestaria:</span>
+          <span id="budget-val-${strat.id}" style="color:#4caf50; font-weight:bold;">${currentBudget} MUSD</span>
+        `;
+        budgetSection.appendChild(budgetLabel);
+
+        // Slider Input
+        const rangeInput = document.createElement('input');
+        rangeInput.type = 'range';
+        rangeInput.min = strat.budget_range.min;
+        rangeInput.max = strat.budget_range.max;
+        rangeInput.step = strat.budget_range.step || 10;
+        rangeInput.value = currentBudget;
+        rangeInput.style.width = '100%';
+        rangeInput.style.cursor = 'pointer';
+        rangeInput.dataset.strategyId = strat.id; // Para identificar el evento
+
+        // Listener para actualización en tiempo real
+        rangeInput.addEventListener('input', (e) => {
+          const newBudget = parseInt(e.target.value);
+          document.getElementById(`budget-val-${strat.id}`).textContent = `${newBudget} MUSD`;
+          this._updateStrategyPreview(strat.id, newBudget); // Actualizar métricas visuales
+        });
+
+        budgetSection.appendChild(rangeInput);
+
+        // --- PREVIEW DE MÉTRICAS (Eficiencia vs Riesgo) ---
+        const previewRow = document.createElement('div');
+        previewRow.style.display = 'flex';
+        previewRow.style.justifyContent = 'space-between';
+        previewRow.style.marginTop = '10px';
+        previewRow.style.fontSize = '0.75em';
+
+        // Barras simuladas (se actualizarán vía _updateStrategyPreview)
+        previewRow.innerHTML = `
+          <div style="width:48%;">
+            <div style="color:#aaa;">Eficiencia Est.</div>
+            <div style="background:#333; height:4px; margin-top:2px;"><div id="eff-bar-${strat.id}" style="width:50%; background:#4caf50; height:100%;"></div></div>
+          </div>
+          <div style="width:48%; text-align:right;">
+            <div style="color:#aaa;">Riesgo Prob.</div>
+            <div style="background:#333; height:4px; margin-top:2px;"><div id="risk-bar-${strat.id}" style="width:10%; background:#f44336; height:100%;"></div></div>
+          </div>
+        `;
+        budgetSection.appendChild(previewRow);
+
+        card.appendChild(budgetSection);
+
+        // Inicializar preview
+        setTimeout(() => this._updateStrategyPreview(strat.id, currentBudget), 0);
+      }
+
+      // --- FOOTER: Botón de Activación ---
+      const actionRow = document.createElement('div');
+      actionRow.style.marginTop = '15px';
+      actionRow.style.display = 'flex';
+      actionRow.style.justifyContent = 'flex-end';
+
+      const activateBtn = document.createElement('button');
+      activateBtn.className = 'btn-activate-strategy';
+      activateBtn.textContent = 'Autorizar Directiva';
+      activateBtn.style.cssText = 'background:#2196F3; color:white; border:none; padding:8px 16px; border-radius:3px; cursor:pointer; font-weight:bold;';
+
+      // Datos ocultos para el envío
+      activateBtn.dataset.strategyId = strat.id;
+      activateBtn.dataset.objectiveId = objectiveId;
+      // El presupuesto se leerá dinámicamente al hacer click
+
+      activateBtn.addEventListener('click', () => {
+        const budgetInput = card.querySelector('input[type="range"]');
+        const finalBudget = budgetInput ? parseInt(budgetInput.value) : (strat.budget_range?.default || 0);
+        this._activateStrategyWithBudget(strat.id, objectiveId, finalBudget);
+      });
+
+      actionRow.appendChild(activateBtn);
+      card.appendChild(actionRow);
+
       fragment.appendChild(card);
     });
 
     this.availableStrategiesList.appendChild(fragment);
+  }
+
+  /**
+ * Actualiza las barras visuales de eficiencia y riesgo según el presupuesto seleccionado.
+ * Implementa una lógica simplificada de las curvas para el frontend.
+ */
+  _updateStrategyPreview(strategyId, budget) {
+    const strat = this._getStrategyConfigById(strategyId); // Helper necesario para buscar la config
+    if (!strat || !strat.efficiency_curve || !strat.risk_profile) return;
+
+    // 1. Calcular Eficiencia (Normalizado 0-100%)
+    let efficiency = 0;
+    const curve = strat.efficiency_curve;
+    const minB = strat.budget_range.min;
+    const maxB = strat.budget_range.max;
+
+    // Lógica simplificada de curvas (debería coincidir con StrategyMath.js del server)
+    if (curve.type === 'logarithmic') {
+      // Ejemplo: a * ln(b * budget + 1)
+      efficiency = Math.min(100, (curve.coefficients.a * Math.log(curve.coefficients.b * budget + 1)) * 100);
+    } else if (curve.type === 'linear') {
+      efficiency = ((budget - minB) / (maxB - minB)) * 100;
+    } else if (curve.type === 'exponential') {
+      // Crecimiento lento al inicio
+      efficiency = Math.min(100, Math.pow(budget / maxB, 2) * 100);
+    } else {
+      efficiency = 50; // Default
+    }
+
+    // 2. Calcular Riesgo (Normalizado 0-100%)
+    let risk = strat.risk_profile.base_risk * 100; // Base en %
+    if (strat.risk_profile.risk_scaling) {
+      const scaling = strat.risk_profile.risk_scaling;
+      if (scaling.type === 'linear') {
+        risk += (budget * scaling.factor) * 100;
+      } else if (scaling.type === 'exponential') {
+        risk += (Math.exp(budget * scaling.factor) - 1) * 100;
+      }
+    }
+    risk = Math.min(100, Math.max(0, risk));
+
+    // 3. Actualizar DOM
+    const effBar = document.getElementById(`eff-bar-${strategyId}`);
+    const riskBar = document.getElementById(`risk-bar-${strategyId}`);
+
+    if (effBar) {
+      effBar.style.width = `${efficiency}%`;
+      // Cambiar color según eficiencia (verde -> amarillo)
+      effBar.style.background = efficiency > 80 ? '#4caf50' : (efficiency > 50 ? '#ff9800' : '#f44336');
+    }
+    if (riskBar) {
+      riskBar.style.width = `${risk}%`;
+      // Color rojo intenso si es alto
+      riskBar.style.background = risk > 60 ? '#d32f2f' : '#f44336';
+    }
+  }
+
+  // Helper interno para encontrar la config completa (necesario si no está en scope directo)
+  _getStrategyConfigById(id) {
+    if (!this.stratConfig) return null;
+    if (Array.isArray(this.stratConfig)) return this.stratConfig.find(s => s.id === id);
+    // Si es objeto anidado, buscar recursivamente o en todas las propiedades
+    for (const key in this.stratConfig) {
+      const found = Array.isArray(this.stratConfig[key]) ? this.stratConfig[key].find(s => s.id === id) : null;
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /**
+ * Envía la intención de activar estrategia con el presupuesto asignado.
+ */
+  _activateStrategyWithBudget(strategyId, objectiveId, budget) {
+    console.log(`[StrategyCabinet] Activando "${strategyId}" con presupuesto: ${budget} MUSD`);
+
+    // Validaciones básicas de cliente
+    const strat = this._getStrategyConfigById(strategyId);
+    if (strat && strat.constraints?.min_treasury_required) {
+      // Nota: Deberías tener acceso al tesoro actual del jugador en this.currentState
+      const currentTreasury = this.currentState?.nations?.[this.playerNationId]?.resources?.treasury || 0;
+      if (currentTreasury < strat.constraints.min_treasury_required) {
+        this._notify(`Fondos insuficientes. Se requiere mínimo ${strat.constraints.min_treasury_required} MUSD en tesorería.`, 'error');
+        return;
+      }
+    }
+
+    this._sendIntent('player_activate_strategy', {
+      strategyId: strategyId,
+      objectiveId: objectiveId,
+      budget: budget, // CAMBIO CRÍTICO: Enviar presupuesto
+      currency: 'MUSD'
+    });
+
+    this._notify(`Directiva enviada a ejecución. Asignación: ${budget} MUSD`, 'success');
   }
 
 

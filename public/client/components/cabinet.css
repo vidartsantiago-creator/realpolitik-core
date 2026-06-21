@@ -6,16 +6,17 @@
 
 /* --- Contenedor Principal del Modal --- */
 .strategy-cabinet-modal {
-  display: none; /* Oculto por defecto, se activa con clase .active */
+  display: none;
   position: fixed;
   z-index: 2000;
   left: 0;
   top: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(15, 23, 42, 0.85); /* Fondo oscuro semitransparente */
+  background-color: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(4px);
-  overflow-y: auto;
+  /* CLAVE: El scroll lo maneja el contenido interno, no el overlay */
+  overflow: hidden; 
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -28,7 +29,7 @@
 
 /* --- Panel Central --- */
 .cabinet-content {
-  background: #1e293b; /* Slate 800 */
+  background: #1e293b;
   border: 1px solid #334155;
   border-radius: 8px;
   width: 90%;
@@ -36,8 +37,11 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  /* CLAVE: Altura máxima relativa al viewport */
+  max-height: 85vh; 
   animation: slideDown 0.3s ease-out;
+  /* Asegura que el contenido no desborde el panel */
+  overflow: hidden; 
 }
 
 @keyframes slideDown {
@@ -87,6 +91,9 @@
   padding: 24px;
   overflow-y: auto;
   flex-grow: 1;
+
+  /* Asegurar que tenga espacio para scrollear si el contenido es largo */
+  min-height: 0; /* Truco de Flexbox para permitir scroll interno */
 }
 
 /* Responsive: Columna única en móviles */
@@ -150,18 +157,51 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
-  max-height: 400px;
+  /* Ajuste: Un poco más de altura máxima para acomodar tarjetas grandes */
+  max-height: 450px; 
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 8px; /* Espacio para la barra de scroll sin cortar contenido */
+  padding-bottom: 10px;
 }
 
-/* Scrollbar personalizado */
-.objectives-list::-webkit-scrollbar {
-  width: 6px;
+/* ============================================================================
+   SCROLLBARS PERSONALIZADOS (ALTO CONTRASTE)
+   ============================================================================ */
+
+/* Ancho de la barra */
+.cabinet-body::-webkit-scrollbar,
+.objectives-list::-webkit-scrollbar,
+.strategy-cabinet-modal::-webkit-scrollbar {
+  width: 12px; /* Más ancho para facilitar verla */
 }
+
+/* Fondo del track */
+.cabinet-body::-webkit-scrollbar-track,
+.objectives-list::-webkit-scrollbar-track {
+  background: #0f172a; /* Fondo muy oscuro (Slate 900) */
+  border-left: 1px solid #334155; /* Línea separadora visible */
+  border-radius: 0;
+}
+
+/* La barra móvil (Thumb) */
+.cabinet-body::-webkit-scrollbar-thumb,
 .objectives-list::-webkit-scrollbar-thumb {
-  background-color: #475569;
-  border-radius: 3px;
+  background-color: #475569; /* Gris medio visible */
+  border: 2px solid #0f172a; /* Borde grueso para efecto "flotante" */
+  border-radius: 6px;
+}
+
+/* Hover: Color Neón para confirmar interacción */
+.cabinet-body::-webkit-scrollbar-thumb:hover,
+.objectives-list::-webkit-scrollbar-thumb:hover {
+  background-color: #3b82f6; /* Azul brillante */
+  border-color: #1e293b;
+}
+
+/* Forzar visualización incluso en Firefox */
+.cabinet-body, .objectives-list {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #0f172a;
 }
 
 /* --- Tarjeta de Objetivo --- */
@@ -593,4 +633,159 @@
 .btn-cabinet-open .label-sub {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+/* ============================================================================
+   NUEVOS ESTILOS: PRESUPUESTO DINÁMICO Y CURVAS (Sprint 2)
+   ============================================================================ */
+
+/* Contenedor de la tarjeta de estrategia expandida */
+.strategy-card-extended {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 10px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Slider de Presupuesto Personalizado */
+.budget-slider-container {
+  margin: 15px 0;
+}
+
+.budget-slider-label {
+  display: flex;
+  justify-content: space-between;
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.budget-value-display {
+  color: #3b82f6;
+  font-family: 'Courier New', monospace;
+}
+
+input[type=range].budget-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type=range].budget-slider:focus {
+  outline: none;
+}
+
+/* Track (la línea de fondo) */
+input[type=range].budget-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  cursor: pointer;
+  background: #334155;
+  border-radius: 3px;
+}
+
+/* Thumb (el botón deslizante) */
+input[type=range].budget-slider::-webkit-slider-thumb {
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  -webkit-appearance: none;
+  margin-top: -5px; /* Centrar en el track */
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  transition: transform 0.1s;
+}
+
+input[type=range].budget-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #60a5fa;
+}
+
+/* Visualización de Métricas (Eficiencia / Riesgo) */
+.metric-preview {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #1e293b;
+}
+
+.metric-box {
+  flex: 1;
+  background: #1e293b;
+  padding: 8px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #334155;
+}
+
+.metric-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.metric-value {
+  font-size: 0.9rem;
+  font-weight: bold;
+  font-family: 'Courier New', monospace;
+}
+
+.metric-value.efficiency { color: #10b981; }
+.metric-value.risk { color: #ef4444; }
+
+/* Barra de riesgo dinámica dentro de la tarjeta */
+.risk-bar-container {
+  height: 4px;
+  background: #334155;
+  border-radius: 2px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: #ef4444;
+  transition: width 0.3s ease, background-color 0.3s;
+}
+
+/* Botón de activar con presupuesto */
+.btn-activate-budget {
+  width: 100%;
+  padding: 10px;
+  margin-top: 15px;
+  background: linear-gradient(90deg, #059669, #047857);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+
+.btn-activate-budget:hover {
+  background: linear-gradient(90deg, #047857, #065f46);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.btn-activate-budget:disabled {
+  background: #334155;
+  cursor: not-allowed;
+  color: #64748b;
+  box-shadow: none;
 }

@@ -26,6 +26,7 @@ import strategiesConfig from '../config/strategies.json' with { type: 'json' };
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { StrategyMath } from '../server/utils/StrategyMath.js';
 
 let clientConfigCache = null;
 
@@ -163,47 +164,98 @@ function onTickEnd({ tick }) {
 // ============================================================================
 
 function processActiveStrategies(state, tick) {
+  // Iterar sobre todas las naciones y sus estrategias activas
   for (const [nationId, strategies] of _state.activeStrategies.entries()) {
+    // Filtramos estrategias canceladas o finalizadas al inicio del loop si fuera necesario,
+    // pero aquí procesamos las que están activas en este tick.
+
     for (const strat of strategies) {
-      if (tick > strat.endTick) continue; // Se limpia en onTickEnd
+      if (tick > strat.endTick) continue;
+      if (strat.cancelled) continue;
 
+      // 1. Obtener configuración estática del JSON
       const configStrat = _state.config.strategies.find(s => s.id === strat.id);
-      if (!configStrat) continue;
+      if (!configStrat) {
+        console.warn(`[ObjectiveManager] Estrategia ${strat.id} sin configuración.`);
+        continue;
+      }
 
-      // Aplicar costos por tick
-      if (configStrat.resource_cost_per_tick) {
+      // 2. OBTENER PRESUPUESTO ASIGNADO (Nuevo)
+      // Si no existe (legacy), usar el default o min del rango
+      const budgetRange = configStrat.budget_range || { default: 100, min: 0 };
+      const assignedBudget = strat.assignedBudget ?? budgetRange.default;
+
+      // 3. CALCULAR EFICIENCIA Y RIESGO DINÁMICO (Nuevo)
+      const efficiencyMultiplier = StrategyMath.calculateEfficiency(
+        assignedBudget,
+        configStrat.efficiency_curve,
+        budgetRange
+      );
+
+      const currentRiskProbability = StrategyMath.calculateRiskProbability(
+        configStrat.risk_profile?.base_risk || 0,
+        assignedBudget,
+        configStrat.risk_profile?.risk_scaling
+      );
+
+      // Guardamos estos valores calculados en el estado de la estrategia para UI/Debug
+      strat.currentEfficiency = efficiencyMultiplier;
+      strat.currentRisk = currentRiskProbability;
+
+      // 4. APLICAR COSTOS POR TICK (Escalados por presupuesto)
+      if (configStrat.tick_effects?.base || configStrat.resource_cost_per_tick) {
         const costs = {};
         let canAfford = true;
 
-        // Verificar y acumular costos
-        for (const [res, amount] of Object.entries(configStrat.resource_cost_per_tick)) {
-          if (res === 'stability' || res === 'international_relations') {
-            // Los costos negativos son penalties directos, no requieren "saldo"
-            continue;
-          }
+        // A. Costos de Recursos (Tesorería, etc.)
+        // Escalamos el costo base proporcionalmente al presupuesto asignado vs el default
+        const costScaleFactor = assignedBudget / (budgetRange.default || assignedBudget);
 
-          const currentVal = getNationResource(state, nationId, res);
-          if (currentVal < amount) canAfford = false;
-          costs[res] = -amount;
+        if (configStrat.resource_cost_per_tick) {
+          for (const [res, baseAmount] of Object.entries(configStrat.resource_cost_per_tick)) {
+            // Si es estabilidad/relaciones, son penalties directos (no requieren saldo)
+            if (res === 'stability' || res === 'international_relations') continue;
+
+            const scaledCost = baseAmount * costScaleFactor;
+            const currentVal = getNationResource(state, nationId, res);
+
+            if (currentVal < scaledCost) canAfford = false;
+            costs[res] = -scaledCost;
+          }
         }
 
         if (!canAfford) {
-          // Cancelar estrategia si no hay recursos
-          emit('strategy_cancelled_no_resources', { nationId, strategyId: strat.id, tick });
+          emit('strategy_cancelled_no_resources', { nationId, strategyId: strat.id, tick, reason: 'insufficient_funds' });
           strat.cancelled = true;
+          // Lógica de limpieza opcional aquí
           continue;
         }
 
-        // Aplicar delta de recursos
-        applyDelta({
-          source: `strategy_cost_${strat.id}`,
-          nations: { [nationId]: costs }
-        });
+        // Aplicar delta de recursos (Costos)
+        if (Object.keys(costs).length > 0) {
+          applyDelta({
+            source: `strategy_cost_${strat.id}`,
+            nations: { [nationId]: costs }
+          });
+        }
 
-        // Aplicar efectos directos (ej: stability penalty)
-        const effects = configStrat.effects || {};
+        // B. Efectos Base (Estabilidad, Popularidad, etc.)
+        // Estos se multiplican por la EFICIENCIA calculada
+        const effects = configStrat.tick_effects?.base || {};
         const effectDeltas = {};
-        if (effects.stability_penalty_per_tick) effectDeltas.stability = effects.stability_penalty_per_tick;
+
+        for (const [stat, baseValue] of Object.entries(effects)) {
+          // Aplicar eficiencia: Un valor negativo (costo) también se ve afectado por la eficiencia?
+          // Generalmente sí: mayor eficiencia = mayor impacto (positivo o negativo)
+          effectDeltas[stat] = baseValue * efficiencyMultiplier;
+        }
+
+        // C. Efectos Escalados Directamente por Presupuesto (si existen en JSON)
+        const scaledEffects = configStrat.tick_effects?.scaled_by_budget || {};
+        for (const [stat, factor] of Object.entries(scaledEffects)) {
+          // Ej: poverty_reduction = 1.2 * budget
+          effectDeltas[stat] = (effectDeltas[stat] || 0) + (factor * assignedBudget);
+        }
 
         if (Object.keys(effectDeltas).length > 0) {
           applyDelta({
@@ -213,9 +265,44 @@ function processActiveStrategies(state, tick) {
         }
       }
 
-      // Emitir evento de "paso de tiempo" para log o UI
+      // 5. EVALUAR EVENTOS DE RIESGO (RNG)
+      if (configStrat.risk_profile?.events && currentRiskProbability > 0) {
+        const roll = Math.random();
+        if (roll < currentRiskProbability) {
+          // ¡El riesgo se activó! Elegir evento basado en pesos
+          const events = configStrat.risk_profile.events;
+          // Lógica simple: tomar el primero o uno aleatorio ponderado
+          const triggeredEvent = events[Math.floor(Math.random() * events.length)];
+
+          // Verificar umbrales específicos del evento (opcional)
+          if (!triggeredEvent.trigger_threshold || currentRiskProbability >= triggeredEvent.trigger_threshold) {
+            emit('strategy_risk_event', {
+              nationId,
+              strategyId: strat.id,
+              eventId: triggeredEvent.id,
+              impact: triggeredEvent.impact
+            });
+
+            // Aplicar impacto negativo inmediato
+            if (triggeredEvent.impact) {
+              applyDelta({
+                source: `risk_event_${triggeredEvent.id}`,
+                nations: { [nationId]: triggeredEvent.impact }
+              });
+            }
+          }
+        }
+      }
+
+      // 6. EMITIR PROGRESO (UI/Log)
       if (tick === strat.startTick || tick % 10 === 0) {
-        emit('strategy_tick_progress', { nationId, strategyId: strat.id, remaining: strat.endTick - tick });
+        emit('strategy_tick_progress', {
+          nationId,
+          strategyId: strat.id,
+          remaining: strat.endTick - tick,
+          efficiency: efficiencyMultiplier, // Nuevo dato para UI
+          risk: currentRiskProbability      // Nuevo dato para UI
+        });
       }
     }
   }
