@@ -1,184 +1,534 @@
 {
-  "meta": {
-    "version": "2.0",
-    "description": "Definición de estrategias con presupuestos dinámicos y curvas de eficiencia.",
-    "currency": "MUSD" 
-  },
+  "version": "1.0.0",
+  "description": "Configuración de Estrategias para RealPolitik Core",
   "strategies": [
     {
-      "id": "welfare_state_expansion",
-      "name": "Expansión del Estado de Bienestar",
-      "category": "social",
-      "description": "Ampliación de subsidios y servicios públicos para reducir la pobreza y aumentar la estabilidad.",
-      
+      "id": "economic_expansion_aggressive",
+      "name": "Expansión Económica Agresiva",
+      "category": "economic",
+      "type": "active",
+      "icon": "📊",
+      "description": "Priorizar crecimiento económico rápido mediante inversión masiva y apertura comercial",
       "budget_range": {
-        "min": 50,
-        "max": 800,
-        "step": 10,
-        "default": 200
+        "min": 0,
+        "default": 100,
+        "max": 400,
+        "step": 10
       },
-      
       "efficiency_curve": {
         "type": "logarithmic",
         "coefficients": {
-          "a": 0.8,
-          "b": 0.15
+          "a": 0.6,
+          "b": 0.015
         },
-        "description": "Rendimientos decrecientes rápidos. Los primeros 200 MUSD solucionan el 60% del problema."
-      },
-      
-      "tick_effects": {
-        "base": {
-          "stability": 0.5,
-          "popularity": 0.8,
-          "treasury": -1.0 
-        },
-        "scaled_by_budget": {
-          "poverty_reduction": 1.2,
-          "inequality_reduction": 0.9
+        "budget_range": {
+          "min": 0,
+          "max": 400
         }
       },
-      
+      "risk_profile": {
+        "base_risk": 0.08,
+        "risk_scaling": {
+          "type": "linear",
+          "factor": 0.0008
+        }
+      },
+      "resource_cost_per_tick": {
+        "budget": 5,
+        "political_capital": 2,
+        "stability": -3
+      },
+      "duration_ticks": 20,
+      "cooldown_ticks": 15,
+      "effects": {
+        "gdp_growth_bonus": 0.15,
+        "trade_volume_bonus": 0.20,
+        "foreign_investment_bonus": 0.25,
+        "stability_penalty_per_tick": -3,
+        "inequality_increase": 0.08
+      },
+      "faction_impacts": {
+        "technocrats": { "loyalty_delta": 8, "reason": "Apoyan políticas de crecimiento" },
+        "financial_oligarchy": { "loyalty_delta": 12, "reason": "Se benefician de la apertura" },
+        "populists": { "loyalty_delta": -10, "reason": "Critican el enfoque en élites" },
+        "labor_unions": { "loyalty_delta": -6, "reason": "Preocupados por desigualdad" }
+      },
+      "prerequisites": {
+        "min_stability": 50,
+        "min_budget": 100,
+        "min_political_capital": 30
+      },
+      "cancellation_triggers": [
+        { "condition": "stability < 35", "message": "La inestabilidad social obliga a replantear la estrategia" },
+        { "condition": "coup_detected", "message": "El golpe de estado interrumpe todas las estrategias económicas" },
+        { "condition": "global_recession", "message": "La crisis global hace insostenible la expansión" }
+      ],
+      "completion_rewards": {
+        "legacy": 8,
+        "budget": 40,
+        "gdp_permanent_boost": 0.05
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.15,
+          "event_id": "asset_bubble_crisis",
+          "severity": "medium",
+          "effect": { "budget_loss": 30, "stability_loss": 10 }
+        },
+        {
+          "trigger_chance": 0.08,
+          "event_id": "capital_flight",
+          "severity": "high",
+          "effect": { "budget_loss": 60, "gdp_penalty": 0.08 }
+        }
+      ]
+    },
+    {
+      "id": "welfare_state_expansion",
+      "name": "Expansión del Estado de Bienestar",
+      "category": "economic",
+      "type": "active",
+      "icon": "🏥",
+      "description": "Ampliar programas sociales y redes de seguridad para aumentar cohesión y apoyo popular",
+      "budget_range": {
+        "min": 0,
+        "default": 120,
+        "max": 450,
+        "step": 10
+      },
+      "efficiency_curve": {
+        "type": "logarithmic",
+        "coefficients": {
+          "a": 0.5,
+          "b": 0.012
+        },
+        "budget_range": {
+          "min": 0,
+          "max": 450
+        }
+      },
+      "risk_profile": {
+        "base_risk": 0.06,
+        "risk_scaling": {
+          "type": "linear",
+          "factor": 0.0006
+        }
+      },
+      "resource_cost_per_tick": {
+        "budget": 8,
+        "political_capital": 3
+      },
+      "duration_ticks": 25,
+      "cooldown_ticks": 20,
+      "effects": {
+        "stability_bonus_per_tick": 2,
+        "public_health_improvement": 0.12,
+        "education_index_boost": 0.10,
+        "gdp_growth_penalty": -0.05,
+        "tax_burden_increase": 0.08
+      },
+      "faction_impacts": {
+        "populists": { "loyalty_delta": 15, "reason": "Cumple promesas sociales" },
+        "labor_unions": { "loyalty_delta": 12, "reason": "Beneficia a trabajadores" },
+        "civil_society": { "loyalty_delta": 10, "reason": "Mejora calidad de vida" },
+        "financial_oligarchy": { "loyalty_delta": -15, "reason": "Aumenta carga impositiva" },
+        "technocrats": { "loyalty_delta": -5, "reason": "Preocupados por sostenibilidad fiscal" }
+      },
+      "prerequisites": {
+        "min_stability": 45,
+        "min_budget": 150,
+        "tax_collection_efficiency >= 0.6": true
+      },
+      "cancellation_triggers": [
+        { "condition": "budget < -120", "message": "La crisis fiscal obliga a recortes" },
+        { "condition": "debt_to_gdp > 0.9", "message": "La deuda insostenible fuerza el abandono" }
+      ],
+      "completion_rewards": {
+        "legacy": 10,
+        "stability": 15,
+        "popularity_permanent_boost": 0.10,
+        "healthcare_index": 15
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.12,
+          "event_id": "fiscal_crisis_warning",
+          "severity": "medium",
+          "effect": { "budget_loss": 25, "investor_confidence": -15 }
+        },
+        {
+          "trigger_chance": 0.06,
+          "event_id": "pension_system_strain",
+          "severity": "high",
+          "effect": { "budget_loss": 50, "elderly_unrest": true }
+        }
+      ]
+    },
+    {
+      "id": "military_buildup",
+      "name": "Rearme Militar Acelerado",
+      "category": "military",
+      "type": "active",
+      "icon": "🎖️",
+      "description": "Inversión masiva en capacidades militares modernas y expansión de fuerzas armadas",
+      "budget_range": {
+        "min": 50,
+        "default": 200,
+        "max": 600,
+        "step": 20
+      },
+      "efficiency_curve": {
+        "type": "exponential",
+        "coefficients": {
+          "growth_rate": 0.006,
+          "threshold": 100
+        }
+      },
+      "risk_profile": {
+        "base_risk": 0.12,
+        "risk_scaling": {
+          "type": "linear",
+          "factor": 0.0008
+        }
+      },
+      "resource_cost_per_tick": {
+        "budget": 10,
+        "political_capital": 4,
+        "international_relations": -2
+      },
+      "duration_ticks": 30,
+      "cooldown_ticks": 25,
+      "effects": {
+        "military_strength_growth": 0.18,
+        "deterrence_bonus": 0.15,
+        "arms_production_capacity": 0.20,
+        "regional_tension_increase": 0.10,
+        "diplomatic_isolation_risk": 0.08
+      },
+      "faction_impacts": {
+        "military_junta": { "loyalty_delta": 18, "reason": "Recursos aumentan poder militar" },
+        "military_industrial": { "loyalty_delta": 20, "reason": "Contratos de defensa se multiplican" },
+        "nationalists": { "loyalty_delta": 12, "reason": "Orgullo nacional fortalecido" },
+        "civil_society": { "loyalty_delta": -12, "reason": "Prefieren gasto social" },
+        "international_community": { "loyalty_delta": -8, "reason": "Preocupación por escalada" }
+      },
+      "prerequisites": {
+        "min_stability": 55,
+        "min_budget": 200,
+        "min_industrial_capacity": 80
+      },
+      "cancellation_triggers": [
+        { "condition": "budget < -150", "message": "El costo excesivo obliga a detener el rearme" },
+        { "condition": "international_embargo", "message": "Sanciones impiden adquisición de tecnología" },
+        { "condition": "peace_treaty_signed", "message": "El acuerdo de paz reduce necesidad militar" }
+      ],
+      "completion_rewards": {
+        "legacy": 12,
+        "military_strength": 80,
+        "deterrence": 30,
+        "defense_industry_permanent_boost": 0.15
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.18,
+          "event_id": "arms_race_escalation",
+          "severity": "medium",
+          "effect": { "regional_tension": 20, "neighbors_military_spending": 0.25 }
+        },
+        {
+          "trigger_chance": 0.10,
+          "event_id": "military_corruption_scandal",
+          "severity": "high",
+          "effect": { "budget_loss": 40, "stability_loss": 15, "political_capital_loss": 20 }
+        },
+        {
+          "trigger_chance": 0.05,
+          "event_id": "preventive_strike_by_neighbors",
+          "severity": "critical",
+          "effect": { "war_declared": true, "territory_loss_risk": 0.30 }
+        }
+      ]
+    },
+    {
+      "id": "soft_power_projection",
+      "name": "Proyección de Poder Blando",
+      "category": "influence",
+      "type": "active",
+      "icon": "🎭",
+      "description": "Invertir en diplomacia cultural, ayuda exterior y promoción de valores para ganar influencia",
+      "budget_range": {
+        "min": 0,
+        "default": 100,
+        "max": 350,
+        "step": 10
+      },
+      "efficiency_curve": {
+        "type": "sigmoid",
+        "coefficients": {
+          "steepness": 0.02,
+          "midpoint": 175
+        }
+      },
       "risk_profile": {
         "base_risk": 0.05,
         "risk_scaling": {
           "type": "linear",
-          "factor": 0.0005,
-          "description": "Cada 1 MUSD extra aumenta un 0.05% la chance de escándalo de corrupción."
+          "factor": 0.0005
+        }
+      },
+      "resource_cost_per_tick": {
+        "budget": 6,
+        "political_capital": 2
+      },
+      "duration_ticks": 35,
+      "cooldown_ticks": 20,
+      "effects": {
+        "soft_power_growth": 0.15,
+        "cultural_exports_boost": 0.20,
+        "foreign_public_opinion_improvement": 0.12,
+        "tourism_increase": 0.18,
+        "international_organization_influence": 0.10
+      },
+      "faction_impacts": {
+        "artists_intellectuals": { "loyalty_delta": 14, "reason": "Apoyo a cultura y educación" },
+        "diplomatic_corps": { "loyalty_delta": 12, "reason": "Herramientas diplomáticas ampliadas" },
+        "civil_society": { "loyalty_delta": 8, "reason": "Imagen internacional mejorada" },
+        "nationalists": { "loyalty_delta": -6, "reason": "Prefieren enfoque más asertivo" },
+        "military_junta": { "loyalty_delta": -8, "reason": "Consideran estrategia débil" }
+      },
+      "prerequisites": {
+        "min_stability": 50,
+        "min_budget": 100,
+        "min_cultural_assets": 40
+      },
+      "cancellation_triggers": [
+        { "condition": "international_scandal", "message": "Escándalo daña credibilidad internacional" },
+        { "condition": "budget < -80", "message": "Restricciones fiscales obligan a recortes" }
+      ],
+      "completion_rewards": {
+        "legacy": 10,
+        "soft_power": 40,
+        "influence": 25,
+        "cultural_prestige_permanent_boost": 15
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.10,
+          "event_id": "cultural_backlash",
+          "severity": "low",
+          "effect": { "soft_power_loss": 10, "target_nation_relations": -5 }
         },
-        "events": [
-          {
-            "id": "corruption_scandal",
-            "trigger_threshold": 0.15,
-            "impact": { "popularity": -15, "stability": -5 }
-          },
-          {
-            "id": "fiscal_deficit_alert",
-            "trigger_threshold": 0.25,
-            "impact": { "credit_rating": -1 }
-          }
-        ]
-      },
-      
-      "constraints": {
-        "incompatible_with": ["austerity_measures", "tax_cuts_corporate"],
-        "min_treasury_required": 1000
-      }
+        {
+          "trigger_chance": 0.07,
+          "event_id": "propaganda_accusations",
+          "severity": "medium",
+          "effect": { "credibility_loss": 15, "media_criticism": true }
+        }
+      ]
     },
-    
     {
-      "id": "cyber_warfare_offensive",
-      "name": "Ofensiva Cibernética Encubierta",
-      "category": "military",
-      "description": "Despliegue de unidades de hacker estatales para sabotear infraestructura crítica enemiga.",
-      
+      "id": "technological_leapfrog",
+      "name": "Salto Tecnológico Disruptivo",
+      "category": "economic",
+      "type": "active",
+      "icon": "🚀",
+      "description": "Inversión concentrada en sectores tecnológicos de vanguardia para saltar etapas de desarrollo",
       "budget_range": {
-        "min": 100,
-        "max": 2000,
-        "step": 50,
-        "default": 500
+        "min": 50,
+        "default": 180,
+        "max": 600,
+        "step": 20
       },
-      
       "efficiency_curve": {
         "type": "exponential",
         "coefficients": {
-          "growth_rate": 0.004,
-          "threshold": 800
-        },
-        "description": "Ineficaz con poco presupuesto. Solo supera el 50% de efectividad si se invierte >800 MUSD."
-      },
-      
-      "tick_effects": {
-        "base": {
-          "geopolitical_tension": 2.0,
-          "intel_gathering": 1.5
-        },
-        "scaled_by_budget": {
-          "enemy_infrastructure_damage": 0.05,
-          "detection_evasion": -0.02 
+          "growth_rate": 0.008,
+          "threshold": 120
         }
       },
-      
       "risk_profile": {
-        "base_risk": 0.10,
+        "base_risk": 0.06,
         "risk_scaling": {
           "type": "exponential",
-          "factor": 0.0001,
-          "description": "El riesgo de ser descubierto crece exponencialmente con la intensidad del ataque."
+          "factor": 0.005
+        }
+      },
+      "resource_cost_per_tick": {
+        "budget": 9,
+        "political_capital": 3,
+        "education_budget": 4
+      },
+      "duration_ticks": 40,
+      "cooldown_ticks": 30,
+      "effects": {
+        "tech_level_growth": 0.20,
+        "innovation_index_boost": 0.25,
+        "startup_ecosystem_growth": 0.30,
+        "brain_gain_attraction": 0.15,
+        "traditional_sector_disruption": 0.12
+      },
+      "faction_impacts": {
+        "technocrats": { "loyalty_delta": 18, "reason": "Visión futurista alineada" },
+        "scientific_community": { "loyalty_delta": 16, "reason": "Recursos para investigación" },
+        "young_entrepreneurs": { "loyalty_delta": 20, "reason": "Oportunidades de innovación" },
+        "traditionalists": { "loyalty_delta": -14, "reason": "Amenaza a estructuras tradicionales" },
+        "labor_unions": { "loyalty_delta": -10, "reason": "Temor a automatización" }
+      },
+      "prerequisites": {
+        "min_stability": 60,
+        "min_budget": 180,
+        "min_education_index": 65,
+        "required_tech": ["digital_infrastructure"]
+      },
+      "cancellation_triggers": [
+        { "condition": "brain_drain > 0.25", "message": "Fuga de cerebros sabotea la estrategia" },
+        { "condition": "tech_bubble_burst", "message": "Colapso del sector tecnológico obliga a replantear" },
+        { "condition": "budget < -140", "message": "Crisis fiscal interrumpe inversión" }
+      ],
+      "completion_rewards": {
+        "legacy": 15,
+        "tech_level": 3,
+        "innovation_capacity_permanent_boost": 0.20,
+        "gdp_diversification": 0.15
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.14,
+          "event_id": "tech_ethics_scandal",
+          "severity": "medium",
+          "effect": { "public_trust_loss": 15, "regulation_pressure": true }
         },
-        "events": [
-          {
-            "id": "operation_exposed",
-            "trigger_threshold": 0.20,
-            "impact": { "international_reputation": -30, "sanctions_probability": 0.8 }
-          },
-          {
-            "id": "retaliatory_strike",
-            "trigger_threshold": 0.40,
-            "impact": { "critical_infrastructure_damage": "high" }
-          }
-        ]
-      },
-      
-      "constraints": {
-        "requires_tech": ["quantum_encryption", "botnet_network"],
-        "diplomatic_cost": "high"
-      }
+        {
+          "trigger_chance": 0.09,
+          "event_id": "cyber_attack_on_infrastructure",
+          "severity": "high",
+          "effect": { "tech_level_temporary_loss": 1, "budget_loss": 35, "security_concerns": true }
+        },
+        {
+          "trigger_chance": 0.06,
+          "event_id": "ai_singularity_fears",
+          "severity": "medium",
+          "effect": { "public_protest": true, "regulation_halt": 10 }
+        }
+      ]
     },
-    
     {
-      "id": "green_energy_transition",
-      "name": "Transición Energética Verde",
-      "category": "economic",
-      "description": "Subsidios masivos para reemplazar combustibles fósiles por renovables.",
-      
+      "id": "authoritarian_consolidation",
+      "name": "Consolidación Autoritaria",
+      "category": "political",
+      "type": "active",
+      "icon": "👁️",
+      "description": "Centralizar poder, controlar medios y suprimir oposición para estabilizar régimen",
       "budget_range": {
-        "min": 200,
-        "max": 5000,
-        "step": 100,
-        "default": 1000
+        "min": 20,
+        "default": 120,
+        "max": 350,
+        "step": 10
       },
-      
       "efficiency_curve": {
         "type": "sigmoid",
         "coefficients": {
-          "steepness": 0.005,
-          "midpoint": 2500
-        },
-        "description": "Curva en S. Lento al inicio (infraestructura), crecimiento rápido en medio, saturación al final."
-      },
-      
-      "tick_effects": {
-        "base": {
-          "pollution_level": -0.5,
-          "long_term_gdp_growth": 0.1
-        },
-        "scaled_by_budget": {
-          "energy_independence": 0.08,
-          "short_term_inflation": 0.03 
+          "steepness": 0.025,
+          "midpoint": 180
         }
       },
-      
       "risk_profile": {
-        "base_risk": 0.02,
+        "base_risk": 0.15,
         "risk_scaling": {
-          "type": "linear",
-          "factor": 0.0001,
-          "description": "Riesgo bajo, principalmente relacionado con inflación短期."
-        },
-        "events": [
-          {
-            "id": "industry_backlash",
-            "trigger_threshold": 0.10,
-            "impact": { "unemployment_fossil_sector": 5000 }
-          }
-        ]
+          "type": "threshold",
+          "threshold": 200,
+          "factor": 0.25
+        }
       },
-      
-      "constraints": {
-        "time_to_effect": 10,
-        "cancellation_penalty": 0.5 
-      }
+      "resource_cost_per_tick": {
+        "budget": 7,
+        "political_capital": 5,
+        "international_relations": -4
+      },
+      "duration_ticks": 25,
+      "cooldown_ticks": 35,
+      "effects": {
+        "regime_stability_bonus": 0.20,
+        "opposition_suppression": 0.30,
+        "media_control_increase": 0.25,
+        "civil_liberties_decrease": 0.35,
+        "international_isolation_increase": 0.15
+      },
+      "faction_impacts": {
+        "military_junta": { "loyalty_delta": 15, "reason": "Orden y jerarquía fortalecidos" },
+        "intelligence_agency": { "loyalty_delta": 20, "reason": "Poderes y recursos expandidos" },
+        "ruling_party": { "loyalty_delta": 18, "reason": "Control político consolidado" },
+        "civil_society": { "loyalty_delta": -25, "reason": "Derechos civiles erosionados" },
+        "artists_intellectuals": { "loyalty_delta": -20, "reason": "Censura y represión" },
+        "international_community": { "loyalty_delta": -18, "reason": "Condena democrática" }
+      },
+      "prerequisites": {
+        "min_military_loyalty": 60,
+        "min_intelligence_capacity": 50,
+        "stability < 70": true
+      },
+      "cancellation_triggers": [
+        { "condition": "popular_uprising", "message": "Levantamiento popular masivo desafía el control" },
+        { "condition": "international_intervention", "message": "Presión externa fuerza liberalización" },
+        { "condition": "military_coup_against_leader", "message": "Los militares toman el control directamente" }
+      ],
+      "completion_rewards": {
+        "legacy": 5,
+        "regime_durability": 40,
+        "control_apparatus_permanent_boost": 0.25,
+        "opposition_effectiveness": -0.40
+      },
+      "risk_events": [
+        {
+          "trigger_chance": 0.20,
+          "event_id": "international_sanctions",
+          "severity": "high",
+          "effect": { "trade_penalty": 40, "budget_loss": 50, "travel_bans": true }
+        },
+        {
+          "trigger_chance": 0.15,
+          "event_id": "underground_resistance_movement",
+          "severity": "medium",
+          "effect": { "stability_loss": 15, "intelligence_threat": true }
+        },
+        {
+          "trigger_chance": 0.08,
+          "event_id": "elite_defection",
+          "severity": "critical",
+          "effect": { "ruling_party_loyalty": -30, "coup_risk": 35 }
+        },
+        {
+          "trigger_chance": 0.05,
+          "event_id": "color_revolution",
+          "severity": "critical",
+          "effect": { "regime_change_risk": 0.50, "territory_loss": 0.20 }
+        }
+      ]
     }
-  ]
+  ],
+  "global_settings": {
+    "max_active_strategies_per_nation": 2,
+    "strategy_slot_unlock_requirements": {
+      "slot_1": "default",
+      "slot_2": { "min_tech_level": 4, "min_governance": 50 },
+      "slot_3": { "min_tech_level": 6, "min_governance": 70, "prestige >= 80": true }
+    },
+    "strategy_synergy bonuses": {
+      "economic_expansion_aggressive + technological_leapfrog": { "gdp_bonus": 0.08, "tech_bonus": 0.05 },
+      "welfare_state_expansion + soft_power_projection": { "stability_bonus": 5, "soft_power_bonus": 0.06 },
+      "military_buildup + authoritarian_consolidation": { "regime_stability": 10, "international_penalty": 0.10 }
+    },
+    "strategy_conflict_rules": [
+      {
+        "conflicting_strategies": ["welfare_state_expansion", "economic_expansion_aggressive"],
+        "penalty_if_both_active": { "stability": -8, "effectiveness_reduction": 0.20 },
+        "reason": "Políticas fiscales contradictorias generan confusión"
+      },
+      {
+        "conflicting_strategies": ["soft_power_projection", "authoritarian_consolidation"],
+        "penalty_if_both_active": { "soft_power_effectiveness": -0.40, "credibility_loss": 25 },
+        "reason": "Represión interna contradice narrativa de poder blando"
+      }
+    ]
+  }
 }

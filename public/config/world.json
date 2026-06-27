@@ -1,0 +1,536 @@
+{
+  "version": "2.1.0",
+  "meta": {
+    "last_updated": "2025-06-15",
+    "author": "RealPolitik Core Team",
+    "description": "Configuración base del mundo con extensión de datos geopolíticos detallados para pantalla de inicio."
+  },
+  "globals": {
+    "tick_rate_ms": 1000,
+    "max_active_strategies": 2,
+    "starting_budget": 1000,
+    "crisis_threshold": 0.75
+  },
+  "nations": [
+    {
+      "id": "nation_1",
+      "name": "República Federal",
+      "code": "RF",
+      "color": "#3b82f6",
+      "capital": "Capital Federal",
+      "population": 45000000,
+      "gdp": 1200000000000,
+      "stability": 0.75,
+      "relations": {
+        "nation_2": 0.6,
+        "nation_3": -0.3
+      },
+      "factions": [
+        { "id": "mil", "name": "Alto Mando", "power": 0.4, "loyalty": 0.6 },
+        { "id": "corp", "name": "Oligarquía Industrial", "power": 0.5, "loyalty": 0.8 },
+        { "id": "pop", "name": "Movimiento Popular", "power": 0.3, "loyalty": 0.5 }
+      ],
+      "geopolitical_report": {
+        "global_position": "Potencia regional emergente con influencia creciente en el comercio atlántico. Miembro fundador del Bloque de Cooperación Sur.",
+        "internal_strengths": "Sector tecnológico dinámico, infraestructura portuaria de clase mundial, estabilidad institucional histórica.",
+        "internal_weaknesses": "Desigualdad de ingresos persistente, dependencia energética externa (45%), tensión separatista en provincia norteña.",
+        "external_strengths": "Alianza militar sólida con potencias occidentales, control de rutas marítimas clave.",
+        "external_weaknesses": "Frontera porosa con zona de conflicto, sanciones económicas parciales de bloques rivales.",
+        "recent_history_p1": "Tras la 'Crisis del Gas' de hace una década, la República Federal diversificó su matriz energética pero aumentó su deuda externa.",
+        "recent_history_p2": "Las elecciones recientes consolidaron un gobierno de coalición frágil, dependiente del apoyo de la Oligarquía Industrial para aprobar reformas.",
+        "recent_history_p3": "Actualmente, la nación se encuentra en una encrucijada: expandir su influencia militar en la región o priorizar el bienestar social interno."
+      },
+      "map_data": {
+        "center_lat": 35.5,
+        "center_lon": -5.5,
+        "zoom_level": 6,
+        "borders": ["nation_2", "nation_3"],
+        "points_of_interest": [
+          { "id": "poi_cap", "type": "capital", "name": "Capital Federal", "lat": 35.4, "lon": -5.6 },
+          { "id": "poi_port", "type": "resource", "name": "Puerto Azul", "lat": 34.8, "lon": -5.9, "resource": "trade" },
+          { "id": "poi_oil", "type": "resource", "name": "Cuenca Petrolífera Norte", "lat": 36.2, "lon": -5.2, "resource": "oil" },
+          { "id": "poi_base", "type": "military", "name": "Base Aérea Central", "lat": 35.1, "lon": -5.3, "asset": "fighter_squadron" }
+        ]
+      },
+      "infrastructure": {
+        "road_density_km_per_km2": 0.45,
+        "rail_coverage_percent": 35,
+        "airports_count": 12,
+        "major_ports_count": 3,
+        "power_plants": { "total": 45, "renewable_percent": 25 },
+        "internet_penetration_percent": 78,
+        "water_access_percent": 92,
+        "hospital_beds_per_1000": 4.5,
+        "schools_count": 15000,
+        "telecom_towers": 8500,
+        "logistics_efficiency_score": 0.82
+      },
+      "economy_detail": {
+        "gdp_nominal_usd": 1200000000000,
+        "gdp_growth_rate_percent": 2.5,
+        "inflation_rate_percent": 3.2,
+        "unemployment_rate_percent": 8.5,
+        "sectors": {
+          "services_percent": 65,
+          "industry_percent": 25,
+          "agriculture_percent": 10
+        },
+        "main_industries": ["Automotriz", "Tecnología", "Agroindustria", "Turismo"],
+        "trade_partners": ["nation_2", "nation_4", "nation_5"],
+        "exports_main": ["Vehículos", "Software", "Soja"],
+        "imports_main": ["Petróleo", "Electrónica de consumo", "Maquinaria"],
+        "foreign_reserves_usd": 45000000000,
+        "public_debt_to_gdp_percent": 55
+      },
+      "resources_detail": {
+        "energy": {
+          "production_twh": 250,
+          "consumption_twh": 280,
+          "self_sufficiency_percent": 89,
+          "sources": { "gas": 40, "nuclear": 20, "hydro": 25, "wind_solar": 15 }
+        },
+        "food": {
+          "production_mt": 85000000,
+          "consumption_mt": 70000000,
+          "self_sufficiency_percent": 121,
+          "main_crops": ["Trigo", "Maíz", "Soja"]
+        },
+        "materials": {
+          "steel_production_mt": 12000000,
+          "rare_earth_reserves_mt": 500,
+          "lithium_reserves_mt": 2000,
+          "timber_production_m3": 5000000
+        }
+      },
+      "military_detail": {
+        "personnel_active": 180000,
+        "personnel_reserve": 300000,
+        "bases_count": 15,
+        "equipment": {
+          "tanks": 450,
+          "armored_vehicles": 1200,
+          "artillery": 300,
+          "combat_aircraft": 120,
+          "helicopters": 80,
+          "naval_vessels": 25,
+          "submarines": 4
+        },
+        "budget_percent_gdp": 1.8,
+        "nuclear_capability": false,
+        "cyber_warfare_unit": true,
+        "special_forces_regiments": 3
+      },
+      "factions_detail": [
+        {
+          "id": "mil",
+          "name": "Alto Mando",
+          "ideology": "Nacionalismo Estratégico",
+          "leader": "General R. Castillo",
+          "support_base_percent": 15,
+          "demands": ["Aumento presupuesto defensa", "Doctrina ofensiva"],
+          "threat_level": "Bajo",
+          "allies_factions": ["corp"],
+          "enemies_factions": ["pop"]
+        },
+        {
+          "id": "corp",
+          "name": "Oligarquía Industrial",
+          "ideology": "Liberalismo Económico",
+          "leader": "Consorcio Alpha",
+          "support_base_percent": 25,
+          "demands": ["Deregulación", "Tratados comerciales"],
+          "threat_level": "Medio",
+          "allies_factions": ["mil"],
+          "enemies_factions": []
+        },
+        {
+          "id": "pop",
+          "name": "Movimiento Popular",
+          "ideology": "Socialdemocracia",
+          "leader": "Sindicato Unificado",
+          "support_base_percent": 30,
+          "demands": ["Reforma tributaria", "Expansión welfare state"],
+          "threat_level": "Alto",
+          "allies_factions": [],
+          "enemies_factions": ["corp", "mil"]
+        }
+      ],
+      "diplomacy_detail": {
+        "allies": [
+          { "nation_id": "nation_4", "strength": 0.8, "treaty": "Defensa Mutua" }
+        ],
+        "enemies": [
+          { "nation_id": "nation_3", "strength": 0.9, "reason": "Disputa territorial" }
+        ],
+        "neutrals": [
+          { "nation_id": "nation_2", "strength": 0.5, "status": "Socio comercial" }
+        ],
+        "organizations": ["Bloque Sur", "ONU"],
+        "sanctions_received": [],
+        "sanctions_imposed": ["nation_6"]
+      },
+      "difficulty_rating": {
+        "stars": 3,
+        "factors": {
+          "economic_stability": "Media",
+          "political_cohesion": "Media-Baja",
+          "external_threat": "Alto",
+          "resource_richness": "Media"
+        },
+        "recommended_playstyle": "Equilibrio entre expansión económica y gestión de tensiones internas."
+      }
+    },
+    {
+      "id": "nation_2",
+      "name": "Unión Meridional",
+      "code": "UM",
+      "color": "#10b981",
+      "capital": "Meridia",
+      "population": 62000000,
+      "gdp": 1800000000000,
+      "stability": 0.85,
+      "relations": {
+        "nation_1": 0.6,
+        "nation_3": -0.1
+      },
+      "factions": [
+        { "id": "tech", "name": "Elite Tecnocrática", "power": 0.6, "loyalty": 0.9 },
+        { "id": "green", "name": "Alianza Verde", "power": 0.3, "loyalty": 0.7 },
+        { "id": "trad", "name": "Conservadores Tradicionales", "power": 0.4, "loyalty": 0.6 }
+      ],
+      "geopolitical_report": {
+        "global_position": "Gigante económico y líder en energías renovables. Actúa como mediador habitual en conflictos regionales.",
+        "internal_strengths": "Alta innovación tecnológica, cohesión social fuerte, excedente energético.",
+        "internal_weaknesses": "Envejecimiento poblacional acelerado, burocracia lenta, resistencia al cambio en sectores tradicionales.",
+        "external_strengths": "Soft power cultural masivo, red de diplomacia económica extensa.",
+        "external_weaknesses": "Dependencia de importaciones de alimentos básicos, vulnerabilidad a ciberataques.",
+        "recent_history_p1": "La 'Revolución Verde' de la última década transformó la matriz energética de la Unión, eliminando casi totalmente los combustibles fósiles.",
+        "recent_history_p2": "Sin embargo, el crecimiento se ha estancado recientemente debido a la falta de mano de obra joven, generando debates sobre inmigración.",
+        "recent_history_p3": "La nación busca consolidar su liderazgo global mediante la exportación de tecnología y modelos de gobernanza sostenible."
+      },
+      "map_data": {
+        "center_lat": -32.5,
+        "center_lon": -60.0,
+        "zoom_level": 5,
+        "borders": ["nation_1"],
+        "points_of_interest": [
+          { "id": "poi_cap", "type": "capital", "name": "Meridia", "lat": -32.4, "lon": -60.1 },
+          { "id": "poi_wind", "type": "resource", "name": "Parque Eólico Patagónico", "lat": -35.0, "lon": -62.0, "resource": "energy" },
+          { "id": "poi_sili", "type": "resource", "name": "Valle del Silicio Sur", "lat": -31.5, "lon": -59.5, "resource": "tech" },
+          { "id": "poi_gran", "type": "resource", "name": "Región Agrícola Central", "lat": -33.0, "lon": -61.0, "resource": "food" }
+        ]
+      },
+      "infrastructure": {
+        "road_density_km_per_km2": 0.60,
+        "rail_coverage_percent": 55,
+        "airports_count": 25,
+        "major_ports_count": 5,
+        "power_plants": { "total": 60, "renewable_percent": 85 },
+        "internet_penetration_percent": 90,
+        "water_access_percent": 98,
+        "hospital_beds_per_1000": 6.0,
+        "schools_count": 22000,
+        "telecom_towers": 15000,
+        "logistics_efficiency_score": 0.91
+      },
+      "economy_detail": {
+        "gdp_nominal_usd": 1800000000000,
+        "gdp_growth_rate_percent": 1.8,
+        "inflation_rate_percent": 1.5,
+        "unemployment_rate_percent": 5.2,
+        "sectors": {
+          "services_percent": 75,
+          "industry_percent": 20,
+          "agriculture_percent": 5
+        },
+        "main_industries": ["Biotecnología", "Energías Renovables", "Finanzas", "Educación"],
+        "trade_partners": ["nation_1", "nation_5", "nation_7"],
+        "exports_main": ["Tecnología", "Servicios Financieros", "Farmacéuticos"],
+        "imports_main": ["Alimentos", "Textiles", "Turismo emisor"],
+        "foreign_reserves_usd": 120000000000,
+        "public_debt_to_gdp_percent": 40
+      },
+      "resources_detail": {
+        "energy": {
+          "production_twh": 400,
+          "consumption_twh": 320,
+          "self_sufficiency_percent": 125,
+          "sources": { "wind": 40, "solar": 30, "hydro": 20, "nuclear": 10 }
+        },
+        "food": {
+          "production_mt": 60000000,
+          "consumption_mt": 75000000,
+          "self_sufficiency_percent": 80,
+          "main_crops": ["Frutas", "Vino", "Vegetales"]
+        },
+        "materials": {
+          "steel_production_mt": 8000000,
+          "rare_earth_reserves_mt": 200,
+          "lithium_reserves_mt": 5000,
+          "timber_production_m3": 2000000
+        }
+      },
+      "military_detail": {
+        "personnel_active": 120000,
+        "personnel_reserve": 150000,
+        "bases_count": 10,
+        "equipment": {
+          "tanks": 200,
+          "armored_vehicles": 800,
+          "artillery": 150,
+          "combat_aircraft": 80,
+          "helicopters": 60,
+          "naval_vessels": 15,
+          "submarines": 2
+        },
+        "budget_percent_gdp": 1.2,
+        "nuclear_capability": false,
+        "cyber_warfare_unit": true,
+        "special_forces_regiments": 2
+      },
+      "factions_detail": [
+        {
+          "id": "tech",
+          "name": "Elite Tecnocrática",
+          "ideology": "Meritocracia Digital",
+          "leader": "Consejo de Innovación",
+          "support_base_percent": 35,
+          "demands": ["Inversión en I+D", "Educación STEM"],
+          "threat_level": "Bajo",
+          "allies_factions": ["green"],
+          "enemies_factions": ["trad"]
+        },
+        {
+          "id": "green",
+          "name": "Alianza Verde",
+          "ideology": "Ecologismo Radical",
+          "leader": "Movimiento Gaia",
+          "support_base_percent": 20,
+          "demands": ["Cero emisiones 2030", "Protección biodiversidad"],
+          "threat_level": "Medio",
+          "allies_factions": ["tech"],
+          "enemies_factions": []
+        },
+        {
+          "id": "trad",
+          "name": "Conservadores Tradicionales",
+          "ideology": "Conservadurismo Social",
+          "leader": "Partido del Orden",
+          "support_base_percent": 25,
+          "demands": ["Valores familiares", "Control inmigración"],
+          "threat_level": "Medio",
+          "allies_factions": [],
+          "enemies_factions": ["tech", "green"]
+        }
+      ],
+      "diplomacy_detail": {
+        "allies": [
+          { "nation_id": "nation_5", "strength": 0.7, "treaty": "Acuerdo Comercial" }
+        ],
+        "enemies": [],
+        "neutrals": [
+          { "nation_id": "nation_1", "strength": 0.6, "status": "Socio estratégico" },
+          { "nation_id": "nation_3", "strength": 0.4, "status": "Rival comercial" }
+        ],
+        "organizations": ["G20", "Alianza Verde Global"],
+        "sanctions_received": [],
+        "sanctions_imposed": []
+      },
+      "difficulty_rating": {
+        "stars": 4,
+        "factors": {
+          "economic_stability": "Alta",
+          "political_cohesion": "Alta",
+          "external_threat": "Bajo",
+          "resource_richness": "Alta (energía)"
+        },
+        "recommended_playstyle": "Gestión fina de facciones ideológicas y proyección de poder blando global."
+      }
+    },
+    {
+      "id": "nation_3",
+      "name": "Imperio del Norte",
+      "code": "IN",
+      "color": "#ef4444",
+      "capital": "Zarograd",
+      "population": 140000000,
+      "gdp": 2500000000000,
+      "stability": 0.60,
+      "relations": {
+        "nation_1": -0.3,
+        "nation_2": -0.1
+      },
+      "factions": [
+        { "id": "hard", "name": "Línea Dura", "power": 0.7, "loyalty": 0.5 },
+        { "id": "ref", "name": "Reformistas Liberales", "power": 0.2, "loyalty": 0.3 },
+        { "id": "olig", "name": "Oligarcas Energéticos", "power": 0.6, "loyalty": 0.7 }
+      ],
+      "geopolitical_report": {
+        "global_position": "Superpotencia en declive relativo con vasto arsenal nuclear y recursos naturales ilimitados. Busca recuperar esfera de influencia perdida.",
+        "internal_strengths": "Autosuficiencia energética total, capacidad militar masiva, población resiliente.",
+        "internal_weaknesses": "Corrupción sistémica, fuga de cerebros, infraestructura obsoleta, sanciones internacionales.",
+        "external_strengths": "Capacidad de proyección de fuerza asimétrica, veto en consejos internacionales.",
+        "external_weaknesses": "Aislamiento diplomático creciente, dependencia tecnológica de importaciones ilegales.",
+        "recent_history_p1": "Tras la desintegración de la antigua unión continental, el Imperio ha luchado por mantener su integridad territorial frente a movimientos separatistas.",
+        "recent_history_p2": "La anexión de territorios vecinos hace 5 años desencadenó sanciones severas que contrajeron la economía un 15%.",
+        "recent_history_p3": "El régimen actual apuesta por una doctrina de 'fortaleza asediada', priorizando el gasto militar sobre el bienestar civil."
+      },
+      "map_data": {
+        "center_lat": 55.0,
+        "center_lon": 35.0,
+        "zoom_level": 4,
+        "borders": ["nation_1", "nation_2"],
+        "points_of_interest": [
+          { "id": "poi_cap", "type": "capital", "name": "Zarograd", "lat": 55.7, "lon": 37.6 },
+          { "id": "poi_gas", "type": "resource", "name": "Campos de Gas Siberianos", "lat": 60.0, "lon": 40.0, "resource": "gas" },
+          { "id": "poi_nuke", "type": "military", "name": "Base Misiles Estratégicos", "lat": 58.0, "lon": 30.0, "asset": "icbm" },
+          { "id": "poi_ice", "type": "resource", "name": "Puerto Ártico Libre de Hielo", "lat": 69.0, "lon": 33.0, "resource": "trade" }
+        ]
+      },
+      "infrastructure": {
+        "road_density_km_per_km2": 0.15,
+        "rail_coverage_percent": 40,
+        "airports_count": 30,
+        "major_ports_count": 4,
+        "power_plants": { "total": 100, "renewable_percent": 5 },
+        "internet_penetration_percent": 65,
+        "water_access_percent": 85,
+        "hospital_beds_per_1000": 5.5,
+        "schools_count": 40000,
+        "telecom_towers": 12000,
+        "logistics_efficiency_score": 0.65
+      },
+      "economy_detail": {
+        "gdp_nominal_usd": 2500000000000,
+        "gdp_growth_rate_percent": -0.5,
+        "inflation_rate_percent": 8.5,
+        "unemployment_rate_percent": 4.5,
+        "sectors": {
+          "services_percent": 50,
+          "industry_percent": 30,
+          "agriculture_percent": 20
+        },
+        "main_industries": ["Extracción Petróleo/Gas", "Defensa", "Minería", "Espacial"],
+        "trade_partners": ["nation_6", "nation_8"],
+        "exports_main": ["Petróleo", "Gas", "Armas", "Granos"],
+        "imports_main": ["Microchips", "Medicamentos", "Bienes de lujo"],
+        "foreign_reserves_usd": 300000000000,
+        "public_debt_to_gdp_percent": 20
+      },
+      "resources_detail": {
+        "energy": {
+          "production_twh": 1200,
+          "consumption_twh": 900,
+          "self_sufficiency_percent": 133,
+          "sources": { "gas": 50, "oil": 20, "nuclear": 20, "coal": 10 }
+        },
+        "food": {
+          "production_mt": 120000000,
+          "consumption_mt": 100000000,
+          "self_sufficiency_percent": 120,
+          "main_crops": ["Trigo", "Girasol", "Papas"]
+        },
+        "materials": {
+          "steel_production_mt": 50000000,
+          "rare_earth_reserves_mt": 5000,
+          "lithium_reserves_mt": 1000,
+          "timber_production_m3": 200000000
+        }
+      },
+      "military_detail": {
+        "personnel_active": 900000,
+        "personnel_reserve": 2000000,
+        "bases_count": 50,
+        "equipment": {
+          "tanks": 12000,
+          "armored_vehicles": 30000,
+          "artillery": 5000,
+          "combat_aircraft": 400,
+          "helicopters": 300,
+          "naval_vessels": 60,
+          "submarines": 20
+        },
+        "budget_percent_gdp": 4.5,
+        "nuclear_capability": true,
+        "cyber_warfare_unit": true,
+        "special_forces_regiments": 10
+      },
+      "factions_detail": [
+        {
+          "id": "hard",
+          "name": "Línea Dura",
+          "ideología": "Expansionismo Nacionalista",
+          "leader": "Mariscal Volkov",
+          "support_base_percent": 40,
+          "demands": ["Intervención militar activa", "Censura interna"],
+          "threat_level": "Alto",
+          "allies_factions": ["olig"],
+          "enemies_factions": ["ref"]
+        },
+        {
+          "id": "ref",
+          "name": "Reformistas Liberales",
+          "ideology": "Democracia Liberal",
+          "leader": "Frente Cambio",
+          "support_base_percent": 15,
+          "demands": ["Fin sanciones", "Elecciones libres"],
+          "threat_level": "Crítico (para el régimen)",
+          "allies_factions": [],
+          "enemies_factions": ["hard", "olig"]
+        },
+        {
+          "id": "olig",
+          "name": "Oligarcas Energéticos",
+          "ideology": "Capitalismo de Estado",
+          "leader": "Conglomerado Gaz-Prom",
+          "support_base_percent": 20,
+          "demands": ["Privatizaciones selectas", "Acceso a mercados globales"],
+          "threat_level": "Medio",
+          "allies_factions": ["hard"],
+          "enemies_factions": ["ref"]
+        }
+      ],
+      "diplomacy_detail": {
+        "allies": [
+          { "nation_id": "nation_6", "strength": 0.9, "treaty": "Unión Económica" }
+        ],
+        "enemies": [
+          { "nation_id": "nation_1", "strength": 0.8, "reason": "Apoyo a separatistas" },
+          { "nation_id": "nation_5", "strength": 0.9, "reason": "Liderazgo bloque rival" }
+        ],
+        "neutrals": [
+          { "nation_id": "nation_2", "strength": 0.3, "status": "Diálogo tenso" }
+        ],
+        "organizations": ["Consejo de Seguridad (Veto)"],
+        "sanctions_received": ["nation_5", "nation_2", "nation_4"],
+        "sanctions_imposed": ["nation_9"]
+      },
+      "difficulty_rating": {
+        "stars": 5,
+        "factors": {
+          "economic_stability": "Baja (Sanciones)",
+          "political_cohesion": "Muy Baja",
+          "external_threat": "Muy Alto",
+          "resource_richness": "Muy Alta"
+        },
+        "recommended_playstyle": "Supervivencia agresiva, gestión de crisis constante y uso de disuasión nuclear."
+      }
+    }
+  ],
+  "global_events_pool": [
+    {
+      "id": "pandemic_outbreak",
+      "name": "Nueva Pandemia",
+      "type": "crisis",
+      "severity": 0.8,
+      "effects": { "gdp_modifier": -0.15, "stability_modifier": -0.2 }
+    },
+    {
+      "id": "tech_breakthrough",
+      "name": "Avance en IA Cuántica",
+      "type": "opportunity",
+      "severity": 0.6,
+      "effects": { "gdp_modifier": 0.05, "military_efficiency": 0.1 }
+    }
+  ]
+}

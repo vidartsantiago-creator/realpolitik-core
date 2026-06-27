@@ -6,6 +6,8 @@
 import { SyncClient } from './SyncClient.js';
 import { MapRenderer } from './MapRenderer.js';
 import { StrategyCabinet } from './components/StrategyCabinet.js';
+import { CountryPickerScreen } from './screens/CountryPickerScreen.js';
+import { CountryDetailScreen } from './screens/CountryDetailScreen.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log('[Client] Iniciando aplicación...');
@@ -66,3 +68,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('[Client] ✅ Aplicación lista. Esperando datos del servidor...');
 });
+
+// Inicializar flujo
+const appContainer = document.getElementById('app');
+
+// 1. Mostrar Picker
+const picker = new CountryPickerScreen((selectedNation) => {
+  // Callback al seleccionar país
+  picker.destroy();
+
+  // 2. Mostrar Detalle
+  const detail = new CountryDetailScreen(selectedNation, (nation) => {
+    // Callback al iniciar juego
+    console.log("Iniciando juego con:", nation.name);
+    detail.destroy();
+    // Aquí llamarías a tu engine principal
+    // gameEngine.start(nation);
+  });
+  detail.render();
+});
+
+picker.init();

@@ -267,12 +267,12 @@ function processActiveStrategies(state, tick) {
 
       // 5. EVALUAR EVENTOS DE RIESGO (RNG)
       if (configStrat.risk_profile?.events && currentRiskProbability > 0) {
-        const roll = Math.random();
+        const roll = rng();
         if (roll < currentRiskProbability) {
           // ¡El riesgo se activó! Elegir evento basado en pesos
           const events = configStrat.risk_profile.events;
           // Lógica simple: tomar el primero o uno aleatorio ponderado
-          const triggeredEvent = events[Math.floor(Math.random() * events.length)];
+          const triggeredEvent = events[Math.floor(rng() * events.length)];
 
           // Verificar umbrales específicos del evento (opcional)
           if (!triggeredEvent.trigger_threshold || currentRiskProbability >= triggeredEvent.trigger_threshold) {
